@@ -271,6 +271,11 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 }
 .snt .w{display:inline;border-bottom:1px solid transparent;transition:border-color .15s,color .15s;cursor:default}
 .dict-on .snt.focused .w:hover{color:var(--gold);border-bottom-color:var(--gold-dim)}
+.snt .w{-webkit-tap-highlight-color:transparent}
+.snt .w.dict-active,
+.snt .w.dict-active .bio-fix,
+.snt .w.dict-active .bio-tail{color:var(--gold)}
+.snt .w.dict-active{border-bottom-color:var(--gold-dim)}
 
 /* ── Bottom bar — doubled ── */
 #bottombar{position:absolute;bottom:0;left:0;right:0;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;z-index:10}
@@ -321,6 +326,18 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #pos-page-input::-webkit-inner-spin-button,
 #pos-page-input::-webkit-outer-spin-button{-webkit-appearance:none}
 #pos-page-total{color:var(--text-dim)}
+#pos-page{white-space:nowrap}
+/* Page stepper buttons — sit on the same line as "PG."  (− left of the number, + right of the total) */
+.pg-step{
+  font-family:'DM Mono',monospace;font-size:18px;font-weight:700;line-height:1;
+  color:var(--text-mid);background:none;border:1px solid var(--border);
+  width:30px;height:30px;padding:0;cursor:pointer;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:color .15s,border-color .15s,background .15s;
+  -webkit-tap-highlight-color:transparent;user-select:none;
+}
+.pg-step:hover{color:var(--gold);border-color:var(--gold-dim)}
+.pg-step:active{color:var(--gold);border-color:var(--gold-dim);background:var(--gold-faint)}
 
 /* ── Progress ring — Fix 4: clickable to go to first sentence ── */
 #ring-wrap{
@@ -349,15 +366,6 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #btn-bookmark:hover{opacity:1}
 #btn-bookmark.has-bookmarks #bm-path{stroke:var(--gold)}
 #btn-bookmark.has-bookmarks{opacity:.9}
-#bm-key-hint{
-  position:absolute;bottom:2px;right:2px;
-  font-family:'DM Mono',monospace;font-size:9px;font-weight:700;
-  color:var(--gold);opacity:0;
-  transition:opacity .15s;
-  letter-spacing:0;line-height:1;
-  pointer-events:none;
-}
-#btn-bookmark:hover #bm-key-hint{opacity:.85}
 
 /* Bookmark dropdown panel */
 #bm-panel{
@@ -912,6 +920,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 
   #pos-wrap{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; opacity:.7; padding-top:2px; }
   #pos-page, #pos-sent{ font-size:12px; gap:5px; height:40px; display:flex; align-items:center; }
+  .pg-step{ width:36px; height:36px; font-size:20px; }
   .pos-page-label, .pos-sent-label{
     font-family:'DM Mono',monospace; letter-spacing:.08em;
     color:var(--text-dim); text-transform:uppercase; font-size:10px;
@@ -1211,11 +1220,10 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 
           <!-- Bookmark with dropdown panel -->
           <div style="position:relative">
-            <button id="btn-bookmark" title="Bookmarks · press V to toggle">
+            <button id="btn-bookmark" title="Bookmarks">
               <svg width="22" height="28" viewBox="0 0 16 20" fill="none">
                 <path id="bm-path" d="M2 2h12v16l-6-4-6 4V2z" stroke="#6b5a38" stroke-width="1.4" stroke-linejoin="round"/>
               </svg>
-              <span id="bm-key-hint">v</span>
             </button>
             <!-- Bookmark dropdown -->
             <div id="bm-panel">
@@ -1236,8 +1244,10 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
         <div id="pos-wrap">
           <div id="pos-page">
             <span class="pos-page-label">PG.</span>
+            <button type="button" class="pg-step" id="btn-page-minus" aria-label="Previous page" title="Previous page">−</button>
             <input type="number" id="pos-page-input" min="1" value="1" title="Jump to page">
             <span id="pos-page-total"></span>
+            <button type="button" class="pg-step" id="btn-page-plus" aria-label="Next page" title="Next page">+</button>
           </div>
           <div id="pos-sent">
             <span class="pos-sent-label">S.</span>
@@ -2607,16 +2617,20 @@ function mergeAdjacentSameType(blocks) {
 /* splitSentences replaced — see semantic parser below */
 
 /* ── Bionic reading ───────────────────────────────────────────────────────── */
-function toBionic(text) {
+function toBionic(text, withWords = false) {
   // Only applies to Latin words; Chinese characters don't benefit.
-  // Strategy: bold + slightly larger fixation letters, faded smaller tail —
-  // creates a strong visual anchor even on a heavy base font like Lora.
+  // When dictionary mode is also active, each bionic word is additionally
+  // wrapped in .w so the dictionary can still target the exact word.
   return text.replace(/([A-Za-z\u00C0-\u024F]+)/g, w => {
-    if (w.length <= 1) return w;
-    // Short words: bold the whole thing
-    if (w.length <= 3) return `<b class="bio-fix">${w}</b>`;
-    const c = Math.max(1, Math.ceil(w.length * 0.45));
-    return `<b class="bio-fix">${w.slice(0,c)}</b><span class="bio-tail">${w.slice(c)}</span>`;
+    if (w.length <= 1) return withWords ? `<span class="w">${w}</span>` : w;
+    let inner;
+    if (w.length <= 3) {
+      inner = `<b class="bio-fix">${w}</b>`;
+    } else {
+      const c = Math.max(1, Math.ceil(w.length * 0.45));
+      inner = `<b class="bio-fix">${w.slice(0,c)}</b><span class="bio-tail">${w.slice(c)}</span>`;
+    }
+    return withWords ? `<span class="w">${inner}</span>` : inner;
   });
 }
 
@@ -2915,7 +2929,7 @@ function buildSentCache() {
     // Strip TYPE: prefix so display never shows "HEADING:..." etc.
     const m = raw.match(/^(?:HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
     const plain = isImg ? null : (m ? m[1] : raw);
-    return { plain, bionic: null, wordspan: null };
+    return { plain, bionic: null, bionicDict: false, wordspan: null };
   });
 }
 
@@ -2923,7 +2937,10 @@ function getSentHTML(i, isFocused) {
   if (!sentCache || !sentCache[i]) return sentences[i] || '';
   const c = sentCache[i];
   if (bionicOn) {
-    if (!c.bionic) c.bionic = toBionic(sentences[i]);
+    if (!c.bionic || (dictOn && isFocused && !c.bionicDict)) {
+      c.bionic = toBionic(sentences[i], dictOn && isFocused);
+      c.bionicDict = dictOn && isFocused;
+    }
     return c.bionic;
   }
   if (dictOn && isFocused) {
@@ -2938,7 +2955,11 @@ function getSentHTMLFrom(i, cleanText, isFocused) {
   if (!sentCache || !sentCache[i]) return cleanText;
   const c = sentCache[i];
   if (bionicOn) {
-    if (!c.bionic) c.bionic = toBionic(cleanText);
+    const wantWords = dictOn && isFocused;
+    if (!c.bionic || c.bionicDict !== wantWords) {
+      c.bionic = toBionic(cleanText, wantWords);
+      c.bionicDict = wantWords;
+    }
     return c.bionic;
   }
   if (dictOn && isFocused) {
@@ -3338,16 +3359,42 @@ function navigate(dir, source) {
 const dictCache={};
 let tooltipHideTimer=null;
 
-function showTooltip(word, anchorEl) {
-  // Delegate to mouse-coord version using last known mouse position
-  showTooltipAt(word, _lastMouseX || anchorEl.getBoundingClientRect().left + 70, _lastMouseY || anchorEl.getBoundingClientRect().top);
+let _dictReqId = 0;        // bumped on every new lookup / hide — stale replies are ignored
+let _activeWordEl = null;  // the .w span currently highlighted
+let _tipRect = null;       // viewport rect of that word, used to (re)position the card
+
+// Place the card above the tapped word (below if there's no room), always fully on-screen.
+function positionTooltip() {
+  if (!_tipRect) return;
+  const a = _tipRect, m = 8;
+  // Measure at left:0 so the card isn't squeezed by the viewport edge.
+  tooltip.style.left = '0px'; tooltip.style.top = '0px'; tooltip.style.transform = 'none';
+  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let left = (a.left + a.right) / 2 - tw / 2;
+  left = Math.max(m, Math.min(vw - tw - m, left));
+  let top = a.top - th - 10;
+  if (top < m) top = a.bottom + 10;
+  top = Math.max(m, Math.min(vh - th - m, top));
+  tooltip.style.left = left + 'px';
+  tooltip.style.top  = top  + 'px';
 }
 function renderDefinition(r) {
   tooltipLoad.textContent = '';
-  if (!r || !r.def) { tooltipPos.textContent = ''; tooltipDef.textContent = 'no definition found'; return; }
-  tooltipPos.textContent = r.pos || ''; tooltipDef.textContent = r.def;
+  if (!r || !r.def) { tooltipPos.textContent = ''; tooltipDef.textContent = 'no definition found'; positionTooltip(); return; }
+  const from = r.word && r.word !== tooltipWord.textContent ? ' · from \u201C' + r.word + '\u201D' : '';
+  tooltipPos.textContent = (r.pos || '') + from;
+  let d = r.def;
+  if (d.length > 240) d = d.slice(0, 240).replace(/\s+\S*$/, '') + '\u2026';
+  tooltipDef.textContent = d;
+  positionTooltip();
 }
-function hideTooltip() { tooltip.classList.remove('show'); }
+function hideTooltip() {
+  tooltip.classList.remove('show');
+  if (_activeWordEl) { _activeWordEl.classList.remove('dict-active'); _activeWordEl = null; }
+  _tipRect = null;
+  _dictReqId++;
+}
 
 /* ── PDF extraction ───────────────────────────────────────────────────────── */
 function setStatus(msg){ loadStatus.style.display='block'; loadStatus.textContent=msg; }
@@ -3758,6 +3805,9 @@ function jumpTo(idx) {
   if (idx < 0 || idx >= sentences.length) return;
   stopAuto();
   current = idx;
+  // Keep the continuous-scroll position in sync, otherwise a bookmark tap that lands
+  // while the scroll physics is still settling would be snapped back to the old spot.
+  scrollPos = idx; scrollVel = 0;
   // Full pool re-render since we may have jumped far (can't just recycle one slot)
   nodes.forEach(el => { el._sentIdx = -1; el._focused = undefined; });
   renderPool();
@@ -3973,7 +4023,7 @@ document.getElementById('btn-wpm-up'  ).addEventListener('click',()=>setWPM(wpm+
 btnBionic.addEventListener('click',()=>{
   bionicOn=!bionicOn; btnBionic.classList.toggle('active',bionicOn);
   // Invalidate bionic cache entries so they're rebuilt with new mode
-  if (sentCache) sentCache.forEach(c => { if (c) c.bionic = null; });
+  if (sentCache) sentCache.forEach(c => { if (c) { c.bionic = null; c.bionicDict = false; } });
   _cachedFocusIdx=-1; renderNodeText();
   if (!_layoutPending) { _layoutPending=true; requestAnimationFrame(()=>{ _layoutPending=false; layout(true); }); }
 });
@@ -4109,6 +4159,31 @@ posSentInputEl.addEventListener('blur', () => {
   posSentInputEl.value = current + 1;
 });
 
+function jumpToPageRelative(delta) {
+  if (focusMode) return;
+  const currentPage = sentenceToPage(current);
+  if (currentPage == null) return;
+  const maxPage = totalPages || (pageMap.length > 0 ? pageMap.reduce((m,x) => x > m ? x : m, 0) + 1 : 0);
+  if (!maxPage) return;
+  const targetPage = Math.max(1, Math.min(maxPage, currentPage + delta));
+  if (targetPage === currentPage) { playTick('limit'); return; }
+  let sentIdx = -1;
+  const targetPageIdx = targetPage - 1;
+  if (pageMap.length > 0) {
+    if (delta > 0) {
+      sentIdx = pageMap.findIndex(pg => pg >= targetPageIdx);
+    } else {
+      for (let i = pageMap.length - 1; i >= 0; i--) {
+        if (pageMap[i] <= targetPageIdx) { sentIdx = i; break; }
+      }
+    }
+  }
+  if (sentIdx < 0 && totalPages > 0 && sentences.length > 1) {
+    sentIdx = Math.round(((targetPage - 1) / (totalPages - 1)) * (sentences.length - 1));
+  }
+  if (sentIdx >= 0) jumpTo(sentIdx);
+}
+
 /* ── Page number input — jump to page ──────────────────────────────────── */
 const posPageInputEl = document.getElementById('pos-page-input');
 posPageInputEl.addEventListener('change', () => {
@@ -4142,6 +4217,34 @@ posPageInputEl.addEventListener('blur', () => {
   const pg = sentenceToPage(current);
   posPageInputEl.value = pg !== null ? pg : '';
 });
+
+/* ── Page − / + buttons ─────────────────────────────────────────────────────
+   Step one page at a time, landing on the FIRST sentence of the target page
+   (both directions). Pages that contain no sentences are skipped over. */
+function stepPage(delta) {
+  if (focusMode) return;
+  stopAuto();
+  const cur = sentenceToPage(current);
+  if (cur == null) return;
+  const maxPage = totalPages || (pageMap.length > 0 ? pageMap.reduce((m,x) => x > m ? x : m, 0) + 1 : 0);
+  if (!maxPage) return;
+  const dir = delta > 0 ? 1 : -1;
+  let t = cur + delta, idx = -1;
+  while (t >= 1 && t <= maxPage) {
+    if (pageMap.length > 0) {
+      idx = pageMap.findIndex(pg => pg === t - 1);
+    } else if (totalPages > 1 && sentences.length > 1) {
+      idx = Math.round(((t - 1) / (totalPages - 1)) * (sentences.length - 1));
+    }
+    if (idx >= 0) break;
+    t += dir;
+  }
+  if (idx < 0 || idx >= sentences.length) { playTick('limit'); return; }
+  _lastHUDpg = -1;
+  jumpTo(idx);
+}
+document.getElementById('btn-page-minus').addEventListener('click', e => { e.stopPropagation(); stepPage(-1); });
+document.getElementById('btn-page-plus' ).addEventListener('click', e => { e.stopPropagation(); stepPage(1); });
 
 /* ── Zoom system ──────────────────────────────────────────────────────────────
    Scales sentence text via CSS font-size. 100% = base 26px.
@@ -4189,9 +4292,11 @@ document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(
 ──────────────────────────────────────────────────────────────────────────── */
 let _dictMoveTimer = null;
 let _lastMouseX = 0, _lastMouseY = 0;
+let _lastTouchTs = 0; // browsers fire synthetic mouse events after a tap — ignore those
 
 trackEl.addEventListener('mousemove', e => {
   if (!dictOn) return;
+  if (Date.now() - _lastTouchTs < 900) return;
   _lastMouseX = e.clientX;
   _lastMouseY = e.clientY;
   clearTimeout(_dictMoveTimer);
@@ -4204,7 +4309,7 @@ trackEl.addEventListener('mousemove', e => {
     const focusedNode = nodes[sentToSlot(current)];
     if (!focusedNode || !focusedNode.contains(sp)) return;
     clearTimeout(tooltipHideTimer);
-    showTooltipAt(sp.textContent, _lastMouseX, _lastMouseY);
+    showTooltipForEl(sp);
   }, 60);
 });
 
@@ -4213,20 +4318,47 @@ trackEl.addEventListener('mouseleave', () => {
   tooltipHideTimer = setTimeout(hideTooltip, 180);
 });
 
-// Touch equivalent — mousemove/hover never fires on touch devices, so
-// dictionary mode needs its own tap handler. Reuses the same lookup
-// (showTooltipAt) and dismissal (hideTooltip) already defined above.
+// Touch: tap a word in the focused sentence to look it up. Tap anywhere else
+// (or swipe to another sentence) to dismiss. A tap only counts if the finger
+// barely moved — swipes are left alone. We deliberately do NOT stop the event
+// from propagating, so the reading-scroll's own touchend still runs and can
+// never be left "stuck" mid-drag.
+let _dictTouchX = 0, _dictTouchY = 0;
+trackEl.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  _dictTouchX = t.clientX; _dictTouchY = t.clientY;
+  _lastTouchTs = Date.now();
+}, {passive:true});
+
+// Fingers are fat: if the tap isn't exactly on a word, pick the nearest word
+// in the focused sentence (within ~18px) instead of missing.
+function dictWordAtPoint(x, y) {
+  const focusedNode = nodes[sentToSlot(current)];
+  if (!focusedNode) return null;
+  const el = document.elementFromPoint(x, y);
+  const direct = el && el.closest && el.closest('.w');
+  if (direct && focusedNode.contains(direct)) return direct;
+  let best = null, bestD = 18;
+  focusedNode.querySelectorAll('.w').forEach(sp => {
+    for (const r of sp.getClientRects()) {
+      const dx = x < r.left ? r.left - x : (x > r.right  ? x - r.right  : 0);
+      const dy = y < r.top  ? r.top  - y : (y > r.bottom ? y - r.bottom : 0);
+      const d = Math.hypot(dx, dy);
+      if (d < bestD) { bestD = d; best = sp; }
+    }
+  });
+  return best;
+}
+
 trackEl.addEventListener('touchend', e => {
   if (!dictOn) return;
+  _lastTouchTs = Date.now();
   const t = e.changedTouches[0];
-  const el = document.elementFromPoint(t.clientX, t.clientY);
-  const sp = el && el.closest('.w');
+  if (Math.hypot(t.clientX - _dictTouchX, t.clientY - _dictTouchY) > 12) return; // a swipe, not a tap
+  const sp = dictWordAtPoint(t.clientX, t.clientY);
   if (!sp) { hideTooltip(); return; }
-  const focusedNode = nodes[sentToSlot(current)];
-  if (!focusedNode || !focusedNode.contains(sp)) return;
-  e.preventDefault(); // this tap was a dictionary lookup, not a page turn
-  e.stopPropagation();
-  showTooltipAt(sp.textContent, t.clientX, t.clientY);
+  if (e.cancelable) e.preventDefault(); // this tap was a lookup — no synthetic mouse/click follow-ups
+  showTooltipForEl(sp, true);
 }, {passive:false});
 
 /* ── Double-tap to toggle Focus Mode ──────────────────────────────────────
@@ -4353,7 +4485,6 @@ function cleanWord(raw) {
 }
 
 // Position tooltip using raw mouse coords — immune to zoom-induced layout shifts
-let _dictReqId = 0; // guards against a slow/stale lookup overwriting a newer one
 
 // Guarantees the returned promise SETTLES within `ms`, no matter what the
 // underlying fetch does — including environments where AbortController
@@ -4375,50 +4506,135 @@ function fetchWithTimeout(url, ms) {
     .finally(() => clearTimeout(timeoutId));
 }
 
-function showTooltipAt(word, mouseX, mouseY) {
-  const clean = cleanWord(word);
+/* ── Dictionary lookup (v2) ───────────────────────────────────────────────────
+   Three free, CORS-enabled sources are queried IN PARALLEL and the first good
+   answer wins, so one slow or dead service can no longer break the feature:
+     1. dictionaryapi.dev   2. Wiktionary REST   3. Datamuse
+   If the exact word isn't found (e.g. "walked", "cities") a few simple stems
+   are tried too. Failures are never cached, so tapping the word again retries. */
+function _httpJson(url, ms) {
+  return fetchWithTimeout(url, ms).then(r => {
+    if (r.status === 404) { const e = new Error('not found'); e.notFound = true; throw e; }
+    if (!r.ok) throw new Error('http ' + r.status);
+    return r.json();
+  });
+}
+function _notFound() { const e = new Error('not found'); e.notFound = true; return e; }
+function _htmlToText(h) {
+  try { return (new DOMParser().parseFromString(String(h || ''), 'text/html').body.textContent || '').replace(/\s+/g, ' ').trim(); }
+  catch (e) { return String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
+}
+const DICT_SOURCES = [
+  // 1. Free Dictionary API
+  w => _httpJson('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(w), 7000).then(data => {
+    const m = Array.isArray(data) && data[0] && data[0].meanings && data[0].meanings[0];
+    const d = m && m.definitions && m.definitions[0] && m.definitions[0].definition;
+    if (!d) throw _notFound();
+    return { pos: m.partOfSpeech || '', def: d };
+  }),
+  // 2. Wiktionary REST (definitions come back as HTML — flattened to plain text)
+  w => _httpJson('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(w), 7000).then(data => {
+    const entries = (data && data.en) || [];
+    for (const en of entries) {
+      const def = _htmlToText(en.definitions && en.definitions[0] && en.definitions[0].definition);
+      if (def) return { pos: en.partOfSpeech || '', def };
+    }
+    throw _notFound();
+  }),
+  // 3. Datamuse (very fast, very reliable; definitions arrive as "n<TAB>text")
+  w => _httpJson('https://api.datamuse.com/words?sp=' + encodeURIComponent(w) + '&md=d&max=1', 7000).then(arr => {
+    const hit = Array.isArray(arr) && arr[0];
+    if (!hit || String(hit.word).toLowerCase() !== w || !hit.defs || !hit.defs.length) throw _notFound();
+    const raw = String(hit.defs[0]);
+    const tab = raw.indexOf('\t');
+    const code = tab > -1 ? raw.slice(0, tab) : '';
+    const def  = tab > -1 ? raw.slice(tab + 1) : raw;
+    const POS  = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb' };
+    return { pos: POS[code] || '', def: def.trim() };
+  }),
+];
+
+function _firstSuccess(promises) {
+  return new Promise((resolve, reject) => {
+    let left = promises.length; const errs = [];
+    promises.forEach(p => p.then(resolve, e => { errs.push(e); if (--left === 0) reject(errs); }));
+  });
+}
+function _lookupExact(w) {
+  return _firstSuccess(DICT_SOURCES.map(fn => {
+    try { return fn(w); } catch (e) { return Promise.reject(e); }
+  }));
+}
+function _stemCandidates(w) {
+  const out = [];
+  const add = x => { if (x && x.length >= 3 && x !== w && !out.includes(x)) out.push(x); };
+  const undouble = x => /([b-df-hj-np-tv-z])\1$/.test(x) ? x.slice(0, -1) : x;
+  if (/['\u2019]s$/.test(w)) add(w.slice(0, -2));
+  if (/ies$/.test(w)) add(w.slice(0, -3) + 'y');
+  if (/(ses|xes|zes|ches|shes)$/.test(w)) add(w.slice(0, -2));
+  if (/s$/.test(w) && !/ss$/.test(w)) add(w.slice(0, -1));
+  if (/ied$/.test(w)) add(w.slice(0, -3) + 'y');
+  if (/ed$/.test(w)) { add(undouble(w.slice(0, -2))); add(w.slice(0, -1)); add(w.slice(0, -2)); }
+  if (/ing$/.test(w)) { const b = w.slice(0, -3); add(undouble(b)); add(b + 'e'); add(b); }
+  if (/ly$/.test(w)) add(w.slice(0, -2));
+  return out.slice(0, 4);
+}
+async function lookupWord(w) {
+  const cands = [w, ..._stemCandidates(w)];
+  let reachable = false;
+  for (const c of cands) {
+    try {
+      const r = await _lookupExact(c);
+      return { word: c, pos: r.pos, def: r.def };
+    } catch (errs) {
+      // At least one service answered "no such word" → network is fine, keep trying stems.
+      if ((errs || []).some(e => e && e.notFound)) reachable = true;
+      else break; // nothing reachable at all — stems won't help
+    }
+  }
+  const e = new Error(reachable ? 'not found' : 'unavailable');
+  e.notFound = reachable;
+  throw e;
+}
+
+function showTooltipForEl(sp, force) {
+  const clean = cleanWord(sp.textContent);
   if (!clean || clean.length < 2) return;
   clearTimeout(tooltipHideTimer);
+  // Hovering the same word repeatedly (desktop mousemove) must not restart the lookup.
+  if (!force && _activeWordEl === sp && tooltip.classList.contains('show')) return;
 
-  // Position above cursor
-  const tx = Math.min(mouseX - 140, window.innerWidth - 296);
-  tooltip.style.left      = Math.max(8, tx) + 'px';
-  tooltip.style.top       = (mouseY - 4) + 'px';
-  tooltip.style.transform = 'translateY(-110%)';
+  if (_activeWordEl && _activeWordEl !== sp) _activeWordEl.classList.remove('dict-active');
+  _activeWordEl = sp;
+  sp.classList.add('dict-active');
+
+  const rects = sp.getClientRects();
+  const r = rects.length ? rects[0] : sp.getBoundingClientRect();
+  _tipRect = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+
   tooltipWord.textContent = clean;
   tooltipPos.textContent  = '';
   tooltipDef.textContent  = '';
-  tooltipLoad.textContent = 'looking up…';
+  tooltipLoad.textContent = 'looking up\u2026';
   tooltip.classList.add('show');
-
-  if (clean in dictCache) { renderDefinition(dictCache[clean]); return; }
+  positionTooltip();
 
   const reqId = ++_dictReqId;
+  if (clean in dictCache) { renderDefinition(dictCache[clean]); return; }
 
-  fetchWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`, 5000)
-    .then(r => {
-      if (!r.ok) throw new Error('not found');
-      return r.json();
-    })
-    .then(data => {
-      if (reqId !== _dictReqId) return; // a newer lookup has since started — this result is stale
-      if (!Array.isArray(data) || !data[0]) { dictCache[clean]=null; renderDefinition(null); return; }
-      const m = data[0].meanings?.[0];
-      dictCache[clean] = { word: data[0].word, pos: m?.partOfSpeech||'', def: m?.definitions?.[0]?.definition||'' };
-      renderDefinition(dictCache[clean]);
-    }).catch(err => {
-      if (reqId !== _dictReqId) return; // stale — a newer lookup now owns the tooltip
-      const isNetworkError = err instanceof TypeError || err.name === 'AbortError' || /timed out/.test(err.message || '');
-      if (isNetworkError) {
-        // Don't cache network failures — could be transient (file://, offline, timeout, etc.)
-        tooltipLoad.textContent = '';
-        tooltipDef.textContent = 'dictionary unavailable';
-        tooltipPos.textContent = '';
-      } else {
-        dictCache[clean] = null;
-        renderDefinition(null);
-      }
-    });
+  lookupWord(clean).then(res => {
+    if (reqId !== _dictReqId) return;          // a newer lookup (or hide) owns the card now
+    dictCache[clean] = res;
+    renderDefinition(res);
+  }, err => {
+    if (reqId !== _dictReqId) return;
+    if (err && err.notFound) { dictCache[clean] = null; renderDefinition(null); return; }
+    // Network trouble: don't cache, so tapping the word again retries.
+    tooltipLoad.textContent = '';
+    tooltipPos.textContent  = '';
+    tooltipDef.textContent  = 'dictionary unavailable \u2014 tap the word to retry';
+    positionTooltip();
+  });
 }
 
 /* ── Volume controls ── */
@@ -4897,15 +5113,33 @@ window.addEventListener('wheel', e=>{
   _wheelIdleTimer = setTimeout(() => { scrollDragging = false; }, 140); // let the wheel go quiet → settle takes over
 },{passive:false});
 
-let touchY0=0, touchT0=0, touchTarget=null;
+let touchY0=0, touchX0=0, touchT0=0, touchTarget=null;
+let _normalHorizontalSwipe = false;
+let _normalSwipeHandled = false;
+const NORMAL_PAGE_SWIPE_PX = 55;
+const NORMAL_PAGE_SWIPE_MAX_Y = 80;
 window.addEventListener('touchstart',e=>{
+  touchX0=e.touches[0].clientX;
   touchY0=e.touches[0].clientY;
+  window.__frTouchStartX = touchX0;
   touchT0=Date.now();
   touchTarget=e.target;
+  _normalHorizontalSwipe = false;
+  _normalSwipeHandled = false;
 
   if (!readerEl.classList.contains('visible') || focusMode) return;
-  if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
-  if (dictOn) return; // let the dictionary's own tap-to-define handling (below) own this touch entirely
+  // While the bookmark panel is open, swipes must keep working — including
+  // over the panel itself and the empty parts of the bottom bar. Real controls
+  // (buttons/inputs) still behave normally, and a bookmark list long enough to
+  // scroll keeps its own native vertical scrolling.
+  const inBmPanel = !!(touchTarget && touchTarget.closest && touchTarget.closest('#bm-panel'));
+  const bmOpen    = bmPanel.classList.contains('show');
+  if (inBmPanel) {
+    const list = touchTarget.closest('#bm-list');
+    if (list && list.scrollHeight > list.clientHeight + 1) return;
+  } else if (bmOpen) {
+    if (touchTarget && touchTarget.closest && touchTarget.closest('button, input, a, .icon-btn, .btn, #more-menu, #search-wrap')) return;
+  } else if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
   if (!scrollRAF) scrollPos = current; // resync if nothing of ours is currently in flight
   scrollDragging = true;
   scrollVel = 0;
@@ -4918,9 +5152,23 @@ window.addEventListener('touchstart',e=>{
 },{passive:true});
 
 window.addEventListener('touchmove', e=>{
-  if (!scrollDragging || focusMode) return;
+  if (focusMode || !readerEl.classList.contains('visible')) return;
+  const t = e.touches[0];
+  // Compare the full gesture displacement against its original touch point.
+  const totalDx = t.clientX - touchX0;
+  const totalDy = t.clientY - touchY0;
+  if (!_normalHorizontalSwipe && Math.abs(totalDx) > 20 && Math.abs(totalDx) > Math.abs(totalDy)) {
+    _normalHorizontalSwipe = true;
+    _normalSwipeHandled = true;
+    scrollDragging = false;
+    scrollVel = 0;
+    if (scrollRAF) physScrollStop();
+    stopAuto();
+  }
+  if (_normalHorizontalSwipe) return;
+  if (!scrollDragging) return;
   stopAuto(); // only stop auto-play once real dragging is confirmed — a bare tap never touches it
-  const y   = e.touches[0].clientY;
+  const y   = t.clientY;
   const now = performance.now();
   const last = _psSamples[_psSamples.length - 1];
   const dy = last.y - y; // positive = finger moved up
@@ -4933,7 +5181,22 @@ window.addEventListener('touchmove', e=>{
 
 window.addEventListener('touchend',e=>{
   if (!readerEl.classList.contains('visible')) return;
-  if (touchTarget && touchTarget.closest('#bm-panel')) return;
+  if (!focusMode && _normalHorizontalSwipe) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchX0;
+    const dy = t.clientY - touchY0;
+    if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy)) {
+      stopAuto();
+      if (dx < 0) {
+        jumpToPageRelative(-1); // left = previous page
+      } else {
+        jumpToPageRelative(1);  // right = next page
+      }
+    }
+    _normalHorizontalSwipe = false;
+    _normalSwipeHandled = false;
+    return;
+  }
   // Focus Mode has its own dedicated single-step + swipe-and-hold gesture
   // handling, scoped to #track (see the trackEl touchstart/touchmove/touchend
   // listeners above) — completely untouched and unaffected by any of this.
