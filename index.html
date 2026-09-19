@@ -2607,16 +2607,20 @@ function mergeAdjacentSameType(blocks) {
 /* splitSentences replaced — see semantic parser below */
 
 /* ── Bionic reading ───────────────────────────────────────────────────────── */
-function toBionic(text) {
+function toBionic(text, withWords = false) {
   // Only applies to Latin words; Chinese characters don't benefit.
-  // Strategy: bold + slightly larger fixation letters, faded smaller tail —
-  // creates a strong visual anchor even on a heavy base font like Lora.
+  // When dictionary mode is also active, each bionic word is additionally
+  // wrapped in .w so the dictionary can still target the exact word.
   return text.replace(/([A-Za-z\u00C0-\u024F]+)/g, w => {
-    if (w.length <= 1) return w;
-    // Short words: bold the whole thing
-    if (w.length <= 3) return `<b class="bio-fix">${w}</b>`;
-    const c = Math.max(1, Math.ceil(w.length * 0.45));
-    return `<b class="bio-fix">${w.slice(0,c)}</b><span class="bio-tail">${w.slice(c)}</span>`;
+    if (w.length <= 1) return withWords ? `<span class="w">${w}</span>` : w;
+    let inner;
+    if (w.length <= 3) {
+      inner = `<b class="bio-fix">${w}</b>`;
+    } else {
+      const c = Math.max(1, Math.ceil(w.length * 0.45));
+      inner = `<b class="bio-fix">${w.slice(0,c)}</b><span class="bio-tail">${w.slice(c)}</span>`;
+    }
+    return withWords ? `<span class="w">${inner}</span>` : inner;
   });
 }
 
@@ -2915,7 +2919,7 @@ function buildSentCache() {
     // Strip TYPE: prefix so display never shows "HEADING:..." etc.
     const m = raw.match(/^(?:HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
     const plain = isImg ? null : (m ? m[1] : raw);
-    return { plain, bionic: null, wordspan: null };
+    return { plain, bionic: null, bionicDict: false, wordspan: null };
   });
 }
 
@@ -2923,7 +2927,10 @@ function getSentHTML(i, isFocused) {
   if (!sentCache || !sentCache[i]) return sentences[i] || '';
   const c = sentCache[i];
   if (bionicOn) {
-    if (!c.bionic) c.bionic = toBionic(sentences[i]);
+    if (!c.bionic || (dictOn && isFocused && !c.bionicDict)) {
+      c.bionic = toBionic(sentences[i], dictOn && isFocused);
+      c.bionicDict = dictOn && isFocused;
+    }
     return c.bionic;
   }
   if (dictOn && isFocused) {
@@ -2938,7 +2945,11 @@ function getSentHTMLFrom(i, cleanText, isFocused) {
   if (!sentCache || !sentCache[i]) return cleanText;
   const c = sentCache[i];
   if (bionicOn) {
-    if (!c.bionic) c.bionic = toBionic(cleanText);
+    const wantWords = dictOn && isFocused;
+    if (!c.bionic || c.bionicDict !== wantWords) {
+      c.bionic = toBionic(cleanText, wantWords);
+      c.bionicDict = wantWords;
+    }
     return c.bionic;
   }
   if (dictOn && isFocused) {
@@ -3973,7 +3984,7 @@ document.getElementById('btn-wpm-up'  ).addEventListener('click',()=>setWPM(wpm+
 btnBionic.addEventListener('click',()=>{
   bionicOn=!bionicOn; btnBionic.classList.toggle('active',bionicOn);
   // Invalidate bionic cache entries so they're rebuilt with new mode
-  if (sentCache) sentCache.forEach(c => { if (c) c.bionic = null; });
+  if (sentCache) sentCache.forEach(c => { if (c) { c.bionic = null; c.bionicDict = false; } });
   _cachedFocusIdx=-1; renderNodeText();
   if (!_layoutPending) { _layoutPending=true; requestAnimationFrame(()=>{ _layoutPending=false; layout(true); }); }
 });
@@ -4108,6 +4119,31 @@ posSentInputEl.addEventListener('blur', () => {
   // Restore correct value in case user focused but Escaped without committing
   posSentInputEl.value = current + 1;
 });
+
+function jumpToPageRelative(delta) {
+  if (focusMode) return;
+  const currentPage = sentenceToPage(current);
+  if (currentPage == null) return;
+  const maxPage = totalPages || (pageMap.length > 0 ? pageMap.reduce((m,x) => x > m ? x : m, 0) + 1 : 0);
+  if (!maxPage) return;
+  const targetPage = Math.max(1, Math.min(maxPage, currentPage + delta));
+  if (targetPage === currentPage) { playTick('limit'); return; }
+  let sentIdx = -1;
+  const targetPageIdx = targetPage - 1;
+  if (pageMap.length > 0) {
+    if (delta > 0) {
+      sentIdx = pageMap.findIndex(pg => pg >= targetPageIdx);
+    } else {
+      for (let i = pageMap.length - 1; i >= 0; i--) {
+        if (pageMap[i] <= targetPageIdx) { sentIdx = i; break; }
+      }
+    }
+  }
+  if (sentIdx < 0 && totalPages > 0 && sentences.length > 1) {
+    sentIdx = Math.round(((targetPage - 1) / (totalPages - 1)) * (sentences.length - 1));
+  }
+  if (sentIdx >= 0) jumpTo(sentIdx);
+}
 
 /* ── Page number input — jump to page ──────────────────────────────────── */
 const posPageInputEl = document.getElementById('pos-page-input');
@@ -4395,18 +4431,52 @@ function showTooltipAt(word, mouseX, mouseY) {
 
   const reqId = ++_dictReqId;
 
-  fetchWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`, 5000)
+  const primary = fetchWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`, 9000)
     .then(r => {
       if (!r.ok) throw new Error('not found');
       return r.json();
     })
     .then(data => {
-      if (reqId !== _dictReqId) return; // a newer lookup has since started — this result is stale
-      if (!Array.isArray(data) || !data[0]) { dictCache[clean]=null; renderDefinition(null); return; }
+      if (!Array.isArray(data) || !data[0]) throw new Error('not found');
       const m = data[0].meanings?.[0];
-      dictCache[clean] = { word: data[0].word, pos: m?.partOfSpeech||'', def: m?.definitions?.[0]?.definition||'' };
-      renderDefinition(dictCache[clean]);
-    }).catch(err => {
+      return { word: data[0].word, pos: m?.partOfSpeech||'', def: m?.definitions?.[0]?.definition||'' };
+    });
+
+  primary.catch(async err => {
+    if (reqId !== _dictReqId) return;
+    try {
+      // Fallback for mobile networks / transient dictionaryapi.dev failures.
+      const r = await fetchWithTimeout(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(clean)}`, 5000);
+      if (!r.ok) throw new Error('fallback failed');
+      const data = await r.json();
+      const entry = data.en?.[0];
+      const def = entry?.definitions?.[0]?.definition;
+      const pos = entry?.partOfSpeech || '';
+      if (!def) throw new Error('no definition');
+      dictCache[clean] = { word: clean, pos, def };
+      if (reqId === _dictReqId) renderDefinition(dictCache[clean]);
+    } catch (fallbackErr) {
+      if (reqId !== _dictReqId) return;
+      const isNetworkError = err instanceof TypeError || err.name === 'AbortError' || /timed out/i.test(err.message || '') || fallbackErr instanceof TypeError || fallbackErr.name === 'AbortError' || /timed out/i.test(fallbackErr.message || '');
+      if (isNetworkError) {
+        tooltipLoad.textContent = '';
+        tooltipDef.textContent = 'dictionary unavailable';
+        tooltipPos.textContent = '';
+      } else {
+        dictCache[clean] = null;
+        renderDefinition(null);
+      }
+    }
+  });
+
+  primary.then(result => {
+      if (reqId !== _dictReqId) return;
+      dictCache[clean] = result;
+      renderDefinition(result);
+    }).catch(() => {});
+
+/* old catch intentionally replaced */
+/*
       if (reqId !== _dictReqId) return; // stale — a newer lookup now owns the tooltip
       const isNetworkError = err instanceof TypeError || err.name === 'AbortError' || /timed out/.test(err.message || '');
       if (isNetworkError) {
@@ -4419,6 +4489,7 @@ function showTooltipAt(word, mouseX, mouseY) {
         renderDefinition(null);
       }
     });
+*/
 }
 
 /* ── Volume controls ── */
@@ -4897,15 +4968,22 @@ window.addEventListener('wheel', e=>{
   _wheelIdleTimer = setTimeout(() => { scrollDragging = false; }, 140); // let the wheel go quiet → settle takes over
 },{passive:false});
 
-let touchY0=0, touchT0=0, touchTarget=null;
+let touchY0=0, touchX0=0, touchT0=0, touchTarget=null;
+let _normalHorizontalSwipe = false;
+let _normalSwipeHandled = false;
+const NORMAL_PAGE_SWIPE_PX = 55;
+const NORMAL_PAGE_SWIPE_MAX_Y = 80;
 window.addEventListener('touchstart',e=>{
+  touchX0=e.touches[0].clientX;
   touchY0=e.touches[0].clientY;
+  window.__frTouchStartX = touchX0;
   touchT0=Date.now();
   touchTarget=e.target;
+  _normalHorizontalSwipe = false;
+  _normalSwipeHandled = false;
 
   if (!readerEl.classList.contains('visible') || focusMode) return;
   if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
-  if (dictOn) return; // let the dictionary's own tap-to-define handling (below) own this touch entirely
   if (!scrollRAF) scrollPos = current; // resync if nothing of ours is currently in flight
   scrollDragging = true;
   scrollVel = 0;
@@ -4918,9 +4996,23 @@ window.addEventListener('touchstart',e=>{
 },{passive:true});
 
 window.addEventListener('touchmove', e=>{
-  if (!scrollDragging || focusMode) return;
+  if (focusMode || !readerEl.classList.contains('visible')) return;
+  const t = e.touches[0];
+  // Compare the full gesture displacement against its original touch point.
+  const totalDx = t.clientX - touchX0;
+  const totalDy = t.clientY - touchY0;
+  if (!_normalHorizontalSwipe && Math.abs(totalDx) > 20 && Math.abs(totalDx) > Math.abs(totalDy)) {
+    _normalHorizontalSwipe = true;
+    _normalSwipeHandled = true;
+    scrollDragging = false;
+    scrollVel = 0;
+    if (scrollRAF) physScrollStop();
+    stopAuto();
+  }
+  if (_normalHorizontalSwipe) return;
+  if (!scrollDragging) return;
   stopAuto(); // only stop auto-play once real dragging is confirmed — a bare tap never touches it
-  const y   = e.touches[0].clientY;
+  const y   = t.clientY;
   const now = performance.now();
   const last = _psSamples[_psSamples.length - 1];
   const dy = last.y - y; // positive = finger moved up
@@ -4934,6 +5026,22 @@ window.addEventListener('touchmove', e=>{
 window.addEventListener('touchend',e=>{
   if (!readerEl.classList.contains('visible')) return;
   if (touchTarget && touchTarget.closest('#bm-panel')) return;
+  if (!focusMode && _normalHorizontalSwipe) {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchX0;
+    const dy = t.clientY - touchY0;
+    if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy)) {
+      stopAuto();
+      if (dx < 0) {
+        jumpToPageRelative(-1); // left = previous page
+      } else {
+        jumpToPageRelative(1);  // right = next page
+      }
+    }
+    _normalHorizontalSwipe = false;
+    _normalSwipeHandled = false;
+    return;
+  }
   // Focus Mode has its own dedicated single-step + swipe-and-hold gesture
   // handling, scoped to #track (see the trackEl touchstart/touchmove/touchend
   // listeners above) — completely untouched and unaffected by any of this.
