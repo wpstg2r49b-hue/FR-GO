@@ -981,6 +981,29 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   #more-menu{ display:contents; }
 }
 
+/* ── Safe areas (notch / Dynamic Island / punch-hole / rounded corners) ─────────
+   Reading text is inset by the LARGER of the left/right safe-area insets on
+   BOTH sides, so it never slides under a cut-out and stays centred whichever
+   side the cut-out is on (or after rotating 90° / 270°). Requires
+   viewport-fit=cover, which this page already declares. */
+@media (max-width:680px), (orientation:landscape) and (max-height:500px){
+  .snt{
+    padding-left: calc(var(--snt-pad) + max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
+    padding-right:calc(var(--snt-pad) + max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
+  }
+  .snt[data-chunk-type="LISTNUM"], .snt[data-chunk-type="LISTBULLET"]{
+    padding-left:calc(2.2em + max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
+  }
+  .fl{ left:max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)); right:max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)); }
+  #search-wrap{
+    padding-left:calc(20px + env(safe-area-inset-left,0px));
+    padding-right:calc(20px + env(safe-area-inset-right,0px));
+  }
+  #img-lightbox-close{ top:calc(20px + env(safe-area-inset-top,0px)); right:calc(24px + env(safe-area-inset-right,0px)); }
+  #gest-canvas{ right:calc(24px + env(safe-area-inset-right,0px)); }
+  #gest-status{ right:calc(24px + env(safe-area-inset-right,0px)); }
+}
+
 /* ── Landscape phone: identical layout to portrait, fitted to a short screen ── */
 @media (orientation:landscape) and (max-height:500px){
   /* ☰ menu: two columns so every tool fits without scrolling */
@@ -995,6 +1018,39 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   #topbar{ z-index:30; }
   /* Bookmark list must fit above the lower-left cluster on a short screen */
   #bm-list{ max-height:min(300px, 34vh); }
+
+  /* Even on phones that report no cut-out, keep a comfortable side gutter */
+  .snt{
+    padding-left: calc(var(--snt-pad) + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
+    padding-right:calc(var(--snt-pad) + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
+  }
+  .snt[data-chunk-type="LISTNUM"], .snt[data-chunk-type="LISTBULLET"]{
+    padding-left:calc(2.2em + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
+  }
+
+  /* ── Lower controls: ONE slim row instead of a tall 2-row block ──────────────
+     Portrait stacks timer/bookmark above PG./S. and needs ~110px of height,
+     which on a 390px-tall landscape screen collides with the neighbouring
+     sentences. Same controls, same order (timer · bookmark · PG. · S.), just in
+     a single 40px row on a soft fade so text never runs into them. */
+  #bottombar{
+    padding-top:12px;
+    padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));
+    background:linear-gradient(to top, var(--bg) 58%, rgba(12,11,9,0));
+    pointer-events:none;              /* empty parts of the band no longer block swipes on the text… */
+  }
+  #left-panel, #pos-wrap{ pointer-events:auto; } /* …but the real controls stay fully tappable */
+  /* Same treatment at the top so the previous sentence fades out behind the title / ☰ / % ring */
+  #topbar{
+    background:linear-gradient(to bottom, var(--bg) 58%, rgba(12,11,9,0));
+    padding-bottom:12px;
+    pointer-events:none;
+  }
+  #top-right, #book-title{ pointer-events:auto; }
+  #ring-wrap{ z-index:40; } /* stay above the top fade */
+  #status-cluster{ align-items:center; gap:14px; }
+  #left-panel{ flex-direction:row; align-items:center; gap:4px; }
+  #pos-wrap{ flex-direction:row; align-items:center; gap:16px; padding-top:0; }
 }
 
 /* Respect reduced-motion preference across the whole app */
@@ -3382,18 +3438,30 @@ let _activeWordEl = null;  // the .w span currently highlighted
 let _tipRect = null;       // viewport rect of that word, used to (re)position the card
 
 // Place the card above the tapped word (below if there's no room), always fully on-screen.
+function _safeInsets() {
+  // Reads the live env(safe-area-inset-*) values (they change on rotation).
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+    'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const r = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0,
+              b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
+  probe.remove();
+  return r;
+}
 function positionTooltip() {
   if (!_tipRect) return;
-  const a = _tipRect, m = 8;
+  const a = _tipRect, m = 8, si = _safeInsets();
   // Measure at left:0 so the card isn't squeezed by the viewport edge.
   tooltip.style.left = '0px'; tooltip.style.top = '0px'; tooltip.style.transform = 'none';
   const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
   const vw = window.innerWidth, vh = window.innerHeight;
   let left = (a.left + a.right) / 2 - tw / 2;
-  left = Math.max(m, Math.min(vw - tw - m, left));
+  left = Math.max(m + si.l, Math.min(vw - tw - m - si.r, left));
   let top = a.top - th - 10;
-  if (top < m) top = a.bottom + 10;
-  top = Math.max(m, Math.min(vh - th - m, top));
+  if (top < m + si.t) top = a.bottom + 10;
+  top = Math.max(m + si.t, Math.min(vh - th - m - si.b, top));
   tooltip.style.left = left + 'px';
   tooltip.style.top  = top  + 'px';
 }
