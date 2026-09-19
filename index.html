@@ -113,8 +113,23 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   z-index:60;white-space:nowrap;
 }
 #swipe-hint.show{opacity:.9;transform:translateX(-50%) translateY(0)}
+
+/* ── Reader opening hint ─────────────────────────────────────────────────── */
+#reader-open-hint{
+  position:fixed;left:50%;top:50%;
+  transform:translate(-50%,-50%) scale(.98);
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;
+  color:var(--text-mid);background:var(--surface);
+  border:1px solid var(--border);padding:10px 18px;
+  pointer-events:none;opacity:0;
+  transition:opacity .22s ease,transform .22s ease;
+  z-index:70;white-space:nowrap;
+}
+#reader-open-hint.show{opacity:.92;transform:translate(-50%,-50%) scale(1)}
 @media (max-width:680px){
   #swipe-hint{ bottom:calc(90px + env(safe-area-inset-bottom)); font-size:10px; }
+  #reader-open-hint{font-size:10px;letter-spacing:.14em;padding:9px 14px;}
 }
 .snt.focused{user-select:text;cursor:text}
 .snt.focused::selection,.snt.focused *::selection{background:rgba(200,169,110,.35);color:var(--text)}
@@ -1121,11 +1136,12 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
     </div>
 
     <!-- Focus mode exit hint -->
-    <button id="btn-focus-exit">esc — exit focus</button>
+    <button id="btn-focus-exit">Exit focus</button>
 
     <!-- Bookmark toast -->
     <div id="bm-toast"></div>
     <div id="swipe-hint">↑ Swipe to read ↓</div>
+    <div id="reader-open-hint">DOUBLE TAP TO FOCUS</div>
 
     <!-- Search overlay — shown by Ctrl+F or search button -->
     <div id="search-wrap">
@@ -2939,6 +2955,7 @@ function buildNodes() {
     el.className = 'snt' + (isChineseBook ? ' zh' : '');
     el.style.top = '50%';
     el._sentIdx = -1; // which sentence this node currently shows
+    el._psHidden = false;
     trackEl.appendChild(el);
     nodes.push(el);
   }
@@ -3869,7 +3886,7 @@ function openBook(book) {
     updateBmIcon();
   }));
   dropScreen.classList.add('hidden');
-  setTimeout(()=>{ dropScreen.style.display='none'; readerEl.classList.add('visible'); }, 400);
+  setTimeout(()=>{ dropScreen.style.display='none'; readerEl.classList.add('visible'); showReaderOpenHint(); }, 400);
 
   // ── Re-render image pages from PDF if cache is empty ─────────────────────
   // When a book is opened from the bookshelf, pageImageCache is empty (it's
@@ -3994,7 +4011,15 @@ const btnFocusExit = document.getElementById('btn-focus-exit');
    Minimal and auto-dismissing; never re-shown once localStorage records it. */
 const SWIPE_HINT_KEY = 'focusreader_swipe_hint_seen';
 const swipeHintEl = document.getElementById('swipe-hint');
+const readerOpenHintEl = document.getElementById('reader-open-hint');
 let _swipeHintTimer = null;
+let _readerOpenHintTimer = null;
+function showReaderOpenHint() {
+  if (!readerOpenHintEl) return;
+  readerOpenHintEl.classList.add('show');
+  clearTimeout(_readerOpenHintTimer);
+  _readerOpenHintTimer = setTimeout(() => readerOpenHintEl.classList.remove('show'), 3000);
+}
 function maybeShowSwipeHint() {
   let seen = false;
   try { seen = !!localStorage.getItem(SWIPE_HINT_KEY); } catch(e) {}
@@ -4609,17 +4634,25 @@ let _psSamples       = [];  // recent {t,y} touch samples, for release-velocity 
 
 function physScrollSyncCurrent() {
   const rounded = Math.max(0, Math.min(sentences.length - 1, Math.round(scrollPos)));
-  if (rounded === current) return;
+  if (rounded === current) return false;
   const prevCur = current;
   current = rounded;
   hideTooltip();
+
+  // Keep the scroll path cheap on mobile Safari: do not force a synchronous
+  // layout read (offsetHeight) in the touchmove / wheel handler. The physics
+  // frame below measures the recycled nodes after the browser has had a
+  // chance to lay out the new text.
   renderNodeTextFast(prevCur, current);
-  for (let s = 0; s < POOL_SIZE; s++) {
-    const h = nodes[s].offsetHeight;
-    if (h > 0) _slotH[s] = h;
-  }
+
+  // A physical sentence crossing is the normal-mode "tick". The AudioContext
+  // is already primed by the user's touchstart, so this remains reliable on
+  // iOS Safari while momentum continues after finger release.
+  playTick('manual');
+
   updateHUD();
   if (currentBookId) saveProgress();
+  return true;
 }
 
 // Continuous counterpart to layout() — the rotating-wheel look (rotateX,
@@ -4705,14 +4738,21 @@ function physScrollApplyLayout() {
     const distance = Math.abs(contOff);
 
     if (distance >= PS_HIDE_DISTANCE) {
-      el.style.transition = 'none';
-      el.style.contain = 'none';
-      el.style.opacity = '0';
-      el.style.transform = 'translateY(-50%) scale(0.7)';
-      el.style.filter = '';
-      el.classList.toggle('neighbour', true);
+      // Only touch a hidden node once. Rewriting seven hidden nodes every
+      // frame is surprisingly expensive on iOS Safari even though they are
+      // visually invisible.
+      if (!el._psHidden) {
+        el.style.transition = 'none';
+        el.style.contain = 'none';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-50%) scale(0.7)';
+        el.style.filter = '';
+        el.classList.toggle('neighbour', true);
+        el._psHidden = true;
+      }
       continue;
     }
+    el._psHidden = false;
 
     const angle  = contOff * PS_ROTATION_STEP;
     const scale  = Math.max(PS_MIN_SCALE, PS_FOCUS_SCALE - distance * PS_SCALE_PER_STEP);
@@ -4801,7 +4841,7 @@ function physScrollStop() {
   // filter, and restore the `.neighbour` class's own contain:layout (its
   // original optimization for Focus Mode's 2D system) — none of these are
   // ever set by Focus Mode or a discrete jump themselves.
-  nodes.forEach(el => { el.style.transition = ''; el.style.filter = ''; el.style.contain = ''; });
+  nodes.forEach(el => { el.style.transition = ''; el.style.filter = ''; el.style.contain = ''; el._psHidden = false; });
 }
 
 // Any touch/click that starts on real UI chrome (buttons, menus, the
@@ -4870,6 +4910,10 @@ window.addEventListener('touchstart',e=>{
   scrollDragging = true;
   scrollVel = 0;
   _psSamples = [{ t: performance.now(), y: touchY0 }];
+  // iOS Safari requires audio to be created/resumed from a user gesture.
+  // Prime it here so sentence-crossing ticks remain audible during the
+  // subsequent touchmove and momentum frames.
+  try { getAudio(); } catch(e) {}
   physScrollStart();
 },{passive:true});
 
