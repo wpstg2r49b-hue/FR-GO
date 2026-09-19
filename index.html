@@ -127,7 +127,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   z-index:70;white-space:nowrap;
 }
 #reader-open-hint.show{opacity:.92;transform:translate(-50%,-50%) scale(1)}
-@media (max-width:680px){
+@media (max-width:680px), (orientation:landscape) and (max-height:500px){
   #swipe-hint{ bottom:calc(90px + env(safe-area-inset-bottom)); font-size:10px; }
   #reader-open-hint{font-size:10px;letter-spacing:.14em;padding:9px 14px;}
 }
@@ -337,6 +337,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   -webkit-tap-highlight-color:transparent;user-select:none;
 }
 .pg-step:hover{color:var(--gold);border-color:var(--gold-dim)}
+#pos-page .pg-step{color:var(--gold);border-color:var(--gold-dim)}
 .pg-step:active{color:var(--gold);border-color:var(--gold-dim);background:var(--gold-faint)}
 
 /* ── Progress ring — Fix 4: clickable to go to first sentence ── */
@@ -758,7 +759,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   #track{ --focus-font-size:22px; --snt-pad:20px; }
 }
 
-@media (max-width: 680px){
+@media (max-width:680px), (orientation:landscape) and (max-height:500px){
 
   /* Mobile browser chrome (address bar / toolbar) resizes the viewport as
      the user scrolls; 100vh then over/under-shoots. dvh tracks the real
@@ -785,6 +786,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 
   /* ── Reading size / measure ── */
   #track{ --focus-font-size:20px; --snt-pad:6px; width:100%; max-width:100%; }
+  .fl{ left:0; right:0; } /* was -18px: made the page wider than the screen and clipped the % ring */
   .snt{ line-height:1.7; }
   .snt.zh{ font-size:19px; }
 
@@ -974,9 +976,25 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 
 /* "More" menu / floating panels stay in normal desktop flow — nothing is
    collapsed above the phone breakpoint, so no tool goes missing. */
-@media (min-width: 681px){
+@media (min-width:681px) and (min-height:501px), (min-width:681px) and (orientation:portrait){
   #btn-more{ display:none; }
   #more-menu{ display:contents; }
+}
+
+/* ── Landscape phone: identical layout to portrait, fitted to a short screen ── */
+@media (orientation:landscape) and (max-height:500px){
+  /* ☰ menu: two columns so every tool fits without scrolling */
+  #more-menu{
+    display:grid; grid-template-columns:1fr 1fr; gap:2px;
+    min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
+  }
+  #more-menu-textsize, #more-menu-volume{ grid-column:1 / -1; }
+  #more-menu .icon-btn{ min-height:40px; padding:7px 10px; }
+  #more-menu .more-menu-label{ white-space:nowrap; }
+  /* Menu is tall on a short screen — keep it above the lower-left cluster, never behind it */
+  #topbar{ z-index:30; }
+  /* Bookmark list must fit above the lower-left cluster on a short screen */
+  #bm-list{ max-height:min(300px, 34vh); }
 }
 
 /* Respect reduced-motion preference across the whole app */
@@ -3916,6 +3934,17 @@ function openBook(book) {
           if (book.pageMap && book.pageMap.length > 0) savePageMap(book.id, book.pageMap);
         }
       } catch(e) {}
+    }
+  }
+  // Books with no real page data (plain .txt / .epub — every sentence maps to "page 1"):
+  // give them virtual pages of 25 sentences so PG. and the − / + buttons are useful.
+  // Session-only; never written back to storage.
+  {
+    const VP = 25;
+    const flat = !pageMap || pageMap.length === 0 || pageMap.every(v => v === 0);
+    if (flat && totalPages <= 1 && sentences.length > VP * 2) {
+      pageMap    = sentences.map((_, i) => Math.floor(i / VP));
+      totalPages = Math.ceil(sentences.length / VP);
     }
   }
   bookmarks     = loadBookmarks(book.id);
