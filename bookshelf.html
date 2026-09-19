@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="theme-color" content="#0c0b09"/>
+<title>Bookshelf — Focus Reader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0b09; --surface:#111009; --surface2:#161410;
+  --border:#242018; --border2:#2e2a1e;
+  --gold:#c8a96e; --gold-dim:#6b5a38; --gold-faint:#1e1a12;
+  --text:#e2d9c5; --text-mid:#8a7d65; --text-dim:#3d3829;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Lora',serif;min-height:100vh}
+
+/* ── Top bar ── */
+#topbar{
+  position:fixed;top:0;left:0;right:0;height:58px;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 32px;background:var(--bg);border-bottom:1px solid var(--border);z-index:100;
+}
+#logo-wrap{display:flex;align-items:baseline;gap:12px}
+#logo{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.22em;color:var(--text);text-transform:uppercase}
+#shelf-label{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;color:var(--gold);text-transform:uppercase}
+.btn{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;
+  color:var(--text-mid);background:none;border:1px solid var(--border);
+  padding:7px 14px;cursor:pointer;text-transform:uppercase;
+  transition:color .15s,border-color .15s,background .15s;
+  white-space:nowrap;text-decoration:none;display:inline-flex;align-items:center;
+}
+.btn:hover{color:var(--gold);border-color:var(--gold-dim)}
+.btn.danger{color:var(--text-mid)}
+.btn.danger:hover{color:#c0503a;border-color:#6b2a1f}
+
+/* ── Main ── */
+#content{padding:86px 32px 80px;max-width:1160px;margin:0 auto}
+.section-head{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.2em;
+  color:var(--text-mid);text-transform:uppercase;
+  margin-bottom:32px;display:flex;align-items:center;gap:16px;
+}
+.section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── Empty state ── */
+#empty-state{
+  display:none;flex-direction:column;align-items:center;
+  gap:16px;padding:80px 20px;text-align:center;
+}
+#empty-state.show{display:flex}
+#empty-msg{
+  font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.16em;
+  color:var(--text-mid);text-transform:uppercase;line-height:2.4;
+}
+
+/* ── Book grid — narrower cards for portrait book shape ── */
+#grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  gap:22px;
+}
+
+/* ── Book card — portrait aspect ratio like a real book ── */
+.book-card{
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;flex-direction:column;
+  cursor:default;
+  transition:border-color .2s,box-shadow .2s;
+  position:relative;overflow:hidden;
+}
+.book-card:hover{border-color:var(--gold-dim);box-shadow:0 0 0 1px var(--gold-faint)}
+
+/* Left spine bar */
+.book-card::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:var(--gold-dim);opacity:.35;transition:opacity .2s;
+}
+.book-card:hover::before{opacity:.85}
+
+/* Cover area — portrait book proportion (roughly 3:4.5 width:height) */
+.card-cover{
+  height:240px;background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;
+  border-bottom:1px solid var(--border);overflow:hidden;position:relative;
+  cursor:pointer;
+}
+.card-cover::after{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    45deg,transparent,transparent 7px,
+    rgba(200,169,110,.022) 7px,rgba(200,169,110,.022) 8px
+  );
+  pointer-events:none;
+}
+/* Extracted cover image — fills the card, object-fit preserves aspect ratio */
+.cover-img{
+  position:absolute;inset:0;
+  background-size:cover;
+  background-position:center top;
+  background-repeat:no-repeat;
+}
+/* Subtle dark vignette over the cover so the overlay text stays readable */
+.cover-img::after{
+  content:'';position:absolute;inset:0;
+  background:rgba(12,11,9,.18);
+}
+.cover-glyph{
+  font-size:36px;opacity:.6;user-select:none;line-height:1;z-index:1;color:var(--text-mid);
+}
+.cover-glyph.zh{font-family:'Noto Serif SC',serif}
+
+/* Overlay lives inside .card-cover so it never touches the body */
+.card-overlay{
+  position:absolute;inset:0;background:rgba(12,11,9,.76);
+  display:flex;align-items:center;justify-content:center;
+  opacity:0;transition:opacity .2s;pointer-events:none;z-index:3;
+}
+.card-overlay span{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.22em;
+  color:var(--gold);text-transform:uppercase;
+}
+.card-cover:hover .card-overlay{ opacity:1; }
+
+/* Card body */
+.card-body{
+  padding:14px 16px 14px;
+  flex:1;display:flex;flex-direction:column;gap:10px;
+  position:relative;z-index:2; /* above overlay */
+  background:var(--surface);  /* solid bg so it's never obscured */
+}
+
+/* ── Editable title ── */
+.card-title{
+  font-family:'Lora',serif;font-size:14px;font-weight:500;
+  color:var(--text);line-height:1.5;
+  background:none;border:none;border-bottom:1px solid transparent;
+  outline:none;width:100%;resize:none;overflow:hidden;
+  cursor:text;           /* always show text cursor — body is always safe */
+  padding:0 0 2px;
+  transition:color .15s, border-color .15s;
+}
+.book-card:hover .card-title{ border-bottom-color:var(--border2); }
+.card-title:focus{ color:var(--gold); border-bottom-color:var(--gold-dim); }
+
+/* Rename hint */
+.card-rename-hint{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;
+  color:var(--text-mid);text-transform:uppercase;
+  opacity:0;transition:opacity .2s;margin-top:2px;
+  display:flex;align-items:center;gap:4px;
+}
+.card-rename-hint::before{ content:'✎'; font-size:9px; }
+.book-card:hover .card-rename-hint{ opacity:.8; }
+.card-title:focus ~ .card-rename-hint{ opacity:0 !important; }
+
+/* Original PDF filename */
+.card-filename{
+  font-family:'DM Mono',monospace;font-size:9px;
+  color:var(--text-mid);letter-spacing:.04em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  margin-top:2px;
+  display:none;
+}
+
+/* Progress */
+.card-prog-bar{height:1px;background:var(--border);margin-top:auto;margin-bottom:6px;overflow:hidden}
+.card-prog-fill{height:100%;background:var(--gold);transition:width .4s ease}
+.card-meta{display:flex;justify-content:space-between;align-items:center}
+.card-pct{font-family:'DM Mono',monospace;font-size:11px;color:var(--text-mid);letter-spacing:.06em}
+.card-count{font-family:'DM Mono',monospace;font-size:10px;color:var(--text-mid);letter-spacing:.05em}
+.card-lang-tag{
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;
+  color:var(--gold);text-transform:uppercase;border:1px solid var(--gold-dim);
+  padding:2px 6px;margin-left:5px;
+}
+
+/* Delete × */
+.card-del{
+  position:absolute;top:9px;right:9px;
+  width:24px;height:24px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;cursor:pointer;
+  font-size:16px;line-height:1;color:var(--text-mid);
+  opacity:0;transition:opacity .15s,color .15s;z-index:20;
+}
+.book-card:hover .card-del{opacity:.8}
+.card-del:hover{color:#c0503a;opacity:1!important}
+
+/* ── Add card ── */
+.add-card{
+  background:none;border:1px dashed var(--border);min-height:230px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;cursor:pointer;position:relative;
+  transition:border-color .2s,background .2s;
+}
+.add-card input[type="file"]{position:absolute;inset:0;opacity:0;cursor:pointer}
+.add-card:hover{border-color:var(--gold-dim);background:var(--gold-faint)}
+.add-plus{font-size:28px;color:var(--text-mid);line-height:1}
+.add-label{
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.15em;
+  color:var(--text-mid);text-transform:uppercase;text-align:center;line-height:2.2;
+}
+
+/* ── Upload overlay ── */
+#upload-overlay{
+  position:fixed;inset:0;background:rgba(12,11,9,.9);
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:300;
+}
+#upload-overlay.show{display:flex}
+#upload-bar-wrap{width:360px;max-width:80vw;height:1px;background:var(--border)}
+#upload-bar{height:100%;width:0;background:var(--gold);transition:width .2s ease}
+#upload-msg{font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.14em;color:var(--text-mid)}
+
+/* ── Confirm overlay ── */
+#confirm-overlay{
+  position:fixed;inset:0;background:rgba(12,11,9,.88);
+  display:none;align-items:center;justify-content:center;z-index:400;
+}
+#confirm-overlay.show{display:flex}
+#confirm-box{
+  background:var(--surface);border:1px solid var(--border);
+  padding:32px 36px;display:flex;flex-direction:column;gap:20px;
+  max-width:380px;width:90vw;
+}
+#confirm-text{
+  font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.09em;
+  color:var(--text-mid);line-height:1.9;
+}
+#confirm-btns{display:flex;gap:10px;justify-content:flex-end}
+
+/* ── Import mode modal ── */
+#bs-import-modal{
+  position:fixed;inset:0;background:rgba(10,10,10,.92);
+  z-index:900;display:none;align-items:center;justify-content:center;
+}
+#bs-import-modal.show{display:flex}
+#bs-import-box{
+  width:480px;max-width:93vw;
+  background:#1a1a18;border:1px solid #333;
+  padding:34px 30px 28px;display:flex;flex-direction:column;gap:20px;
+}
+#bs-import-box h2{
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:#c8a96e;margin:0;
+}
+.bs-import-filename{
+  font-family:'DM Mono',monospace;font-size:13px;color:#888;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  border-bottom:1px solid #333;padding-bottom:16px;
+}
+.bs-import-options{display:flex;flex-direction:column;gap:12px}
+.bs-import-opt{
+  border:1px solid #333;padding:18px 20px;cursor:pointer;
+  display:flex;flex-direction:column;gap:6px;position:relative;
+  transition:border-color .15s,background .15s;
+}
+.bs-import-opt:hover:not(.bs-disabled){border-color:#6b5a3a;background:rgba(200,169,110,.06)}
+.bs-import-opt.bs-disabled{opacity:.38;cursor:not-allowed}
+.bs-import-opt.bs-selected{border-color:#6b5a3a;background:rgba(200,169,110,.06)}
+.bs-import-opt-title{
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;color:#ccc;
+}
+.bs-import-opt.bs-selected .bs-import-opt-title{color:#c8a96e}
+.bs-import-opt-desc{font-family:Georgia,serif;font-size:13px;color:#888;line-height:1.65}
+.bs-import-opt-badge{
+  position:absolute;top:13px;right:14px;
+  font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
+  letter-spacing:.1em;padding:3px 9px;
+}
+.bs-badge-standard{background:#2a2a2a;color:#888}
+.bs-badge-ai{background:rgba(200,169,110,.14);color:#c8a96e;border:1px solid #6b5a3a}
+.bs-badge-nokey{color:#666;border:1px solid #333}
+#bs-import-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:4px}
+#bs-btn-go{
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:#c8a96e;background:none;border:1px solid #6b5a3a;
+  padding:9px 22px;cursor:pointer;transition:background .15s;
+}
+#bs-btn-go:hover{background:rgba(200,169,110,.08)}
+#bs-btn-cancel{
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:#666;background:none;border:1px solid #333;
+  padding:9px 18px;cursor:pointer;
+}
+#bs-btn-cancel:hover{color:#ccc}
+.bs-setup-link{
+  font-family:'DM Mono',monospace;font-size:11px;color:#6b5a3a;
+  cursor:pointer;text-decoration:underline;margin-top:3px;display:inline-block;
+}
+.bs-setup-link:hover{color:#c8a96e}
+#bs-ai-panel{
+  position:fixed;inset:0;background:rgba(10,10,10,.92);
+  z-index:950;display:none;align-items:center;justify-content:center;
+}
+#bs-ai-panel.show{display:flex}
+#bs-ai-box{
+  width:420px;max-width:92vw;background:#1a1a18;border:1px solid #333;
+  padding:32px 28px;display:flex;flex-direction:column;gap:18px;
+}
+#bs-ai-box h2{font-family:'DM Mono',monospace;font-size:13px;font-weight:700;
+  letter-spacing:.18em;text-transform:uppercase;color:#c8a96e;}
+#bs-ai-box p{font-family:Georgia,serif;font-size:14px;color:#888;line-height:1.7}
+#bs-ai-key-input{
+  font-family:'DM Mono',monospace;font-size:14px;color:#ccc;
+  background:#111;border:1px solid #333;outline:none;
+  padding:10px 14px;width:100%;letter-spacing:.04em;box-sizing:border-box;
+}
+#bs-ai-key-input:focus{border-color:#6b5a3a}
+#bs-ai-status{font-family:'DM Mono',monospace;font-size:11px;color:#888;min-height:16px}
+#bs-ai-btns{display:flex;gap:10px;justify-content:flex-end}
+#bs-ai-save{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:#c8a96e;background:none;border:1px solid #6b5a3a;padding:8px 18px;cursor:pointer;}
+#bs-ai-cancel{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;
+  color:#666;background:none;border:1px solid #333;padding:8px 18px;cursor:pointer;}
+
+
+#topbar{display:flex;align-items:center;justify-content:space-between}
+.bs-icon-btn{
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  background:none;border:none;color:var(--text-dim,#666);cursor:pointer;
+  opacity:.7;transition:opacity .15s,color .15s;padding:0;
+}
+.bs-icon-btn:hover{opacity:1;color:var(--text,#ccc)}
+.bs-icon-btn.active svg{stroke:#c8a96e}
+#bs-ai-star-status{
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
+  color:#c8a96e;margin-right:4px;display:none;
+}
+#bs-ai-star-status.show{display:inline}
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOBILE-FIRST RESPONSIVE LAYER (additive — see index.html for the same
+   pattern/rationale). Nothing above this point changes; ids/classes the
+   script relies on are untouched.
+════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 680px){
+
+  #topbar{
+    height:auto; min-height:52px;
+    padding:10px calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left));
+    padding-top:calc(10px + env(safe-area-inset-top));
+  }
+  #logo{ display:none; } /* "/ bookshelf" label alone is enough context on mobile */
+  .btn{ min-height:40px; padding:8px 14px; display:inline-flex; align-items:center; }
+  .bs-icon-btn{ min-width:44px; min-height:44px; }
+
+  #content{ padding:calc(70px + env(safe-area-inset-top)) 16px 60px; }
+  .section-head{ margin-bottom:20px; font-size:10px; }
+
+  /* Cards: two-up on a phone reads better than a cramped 160px minimum */
+  #grid{
+    grid-template-columns:repeat(2, 1fr);
+    gap:14px;
+  }
+  .card-cover{ height:180px; cursor:pointer; }
+  /* Overlay only ever showed on hover, which doesn't exist on touch —
+     hide it on mobile so the cover doesn't look like it's stuck "open". */
+  .card-overlay{ display:none; }
+  .card-body{ padding:12px 12px 12px; gap:8px; }
+  .card-title{ font-size:13px; }
+  /* Delete control needs a real touch target, always visible on mobile
+     since there's no hover state to reveal it on tap-and-hold. */
+  .card-del{
+    opacity:.75; top:6px; right:6px;
+    width:32px; height:32px; font-size:18px;
+    background:rgba(12,11,9,.55); border-radius:2px;
+  }
+
+  .add-card{ min-height:180px; }
+  .add-plus{ font-size:24px; }
+  .add-label{ font-size:10px; }
+
+  /* Confirm / import / AI modals — full-width sheets, thumb-sized buttons */
+  #confirm-box, #bs-import-box, #bs-ai-box{
+    width:calc(100vw - 32px); padding:24px 20px;
+  }
+  #confirm-btns, #bs-import-actions, #bs-ai-btns{ gap:8px; }
+  #confirm-btns .btn, #bs-btn-cancel, #bs-btn-go, #bs-ai-cancel, #bs-ai-save{
+    min-height:44px; flex:1; justify-content:center; display:inline-flex; align-items:center;
+  }
+  .bs-import-opt{ padding:16px; }
+
+  #page-drop-overlay{ padding:0 20px; text-align:center; }
+}
+
+@media (max-width: 380px){
+  #grid{ grid-template-columns:1fr 1fr; gap:10px; }
+  .card-cover{ height:160px; }
+}
+
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div id="logo-wrap">
+    <span id="logo">focus reader</span>
+    <span id="shelf-label">/ bookshelf</span>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span id="bs-ai-star-status">✦ AI on</span>
+    <button class="bs-icon-btn" id="bs-ai-star-btn" title="AI semantic enhancement — configure Groq key">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/>
+        <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
+      </svg>
+    </button>
+    <a href="index.html" class="btn">← reader</a>
+  </div>
+</div>
+
+<div id="content">
+  <div class="section-head">your library</div>
+
+  <div id="empty-state">
+    <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+      <rect x="6" y="5" width="20" height="28" rx="2" stroke="#c8a96e" stroke-width="1.2"/>
+      <path d="M20 5v8h6" stroke="#c8a96e" stroke-width="1.2"/>
+      <rect x="16" y="11" width="20" height="28" rx="2" stroke="#c8a96e" stroke-width="1.2" stroke-dasharray="3 3"/>
+    </svg>
+    <div id="empty-msg">your bookshelf is empty<br>use the + card to add a pdf or txt</div>
+  </div>
+
+  <div id="grid"></div>
+</div>
+
+<div id="upload-overlay">
+  <div id="upload-msg">processing…</div>
+  <div id="upload-bar-wrap"><div id="upload-bar"></div></div>
+</div>
+
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <div id="confirm-text">remove this book?</div>
+    <div id="confirm-btns">
+      <button class="btn" id="btn-cancel-del">cancel</button>
+      <button class="btn danger" id="btn-confirm-del">remove</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+<script>
+'use strict';
+if (typeof pdfjsLib !== 'undefined')
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+/* ── Storage ──────────────────────────────────────────────────────────────────
+   Shelf index holds only metadata. Sentences stored separately per book.
+   This prevents the entire library from being parsed on every shelf access.
+──────────────────────────────────────────────────────────────────────────── */
+function loadShelf() {
+  try { return JSON.parse(localStorage.getItem('focusreader_shelf') || '[]'); }
+  catch(e) { return []; }
+}
+function saveShelf(shelf) {
+  // Strip any legacy sentences field before saving index
+  const lean = shelf.map(({ sentences: _s, pageMap: _pm, ...meta }) => meta);
+  try { localStorage.setItem('focusreader_shelf', JSON.stringify(lean)); }
+  catch(e) { console.warn('Shelf index save failed:', e); }
+}
+function saveSentences(id, arr) {
+  const key = 'focusreader_sentences_' + id;
+  const raw = JSON.stringify(arr);
+  // Try LZ-String compression first (~65% smaller = fits on mobile Safari 2.5MB limit)
+  // Mark compressed data with a prefix so the reader knows to decompress.
+  if (typeof LZString !== 'undefined') {
+    try {
+      const compressed = 'LZ1:' + LZString.compressToUTF16(raw);
+      localStorage.setItem(key, compressed);
+      return true;
+    } catch(e) { /* quota even compressed — fall through to error */ }
+  }
+  // Fallback: raw JSON (no LZ available)
+  try {
+    localStorage.setItem(key, raw);
+    return true;
+  } catch(e) {
+    console.error('[FocusReader] saveSentences quota exceeded:', e);
+    return false;
+  }
+}
+function savePageMap(id, pm) {
+  try { localStorage.setItem('focusreader_pagemap_' + id, JSON.stringify(pm)); } catch(e) {}
+}
+function loadPageMap(id) {
+  try { const r = localStorage.getItem('focusreader_pagemap_' + id); return r ? JSON.parse(r) : []; }
+  catch(e) { return []; }
+}
+function deletePageMap(id) {
+  try { localStorage.removeItem('focusreader_pagemap_' + id); } catch(e) {}
+}
+
+function deleteSentences(id) {
+  try { localStorage.removeItem('focusreader_sentences_' + id); } catch(e) {}
+}
+
+/* ── Language ─────────────────────────────────────────────────────────────── */
+function isChinese(text) {
+  const cjk = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf]/g) || []).length;
+  return cjk / text.length > 0.15;
+}
+
+/* ── PDF text cleaner — mirrors index.html ────────────────────────────────── */
+const _LIG = {'\uFB00':'ff','\uFB01':'fi','\uFB02':'fl','\uFB03':'ffi','\uFB04':'ffl','\uFB05':'st','\uFB06':'st'};
+const _PUA_EXT = {'\uF104':'fi','\uF105':'fi','\uF106':'fi','\uF107':'fl','\uF108':'fl','\uF10C':'ff','\uF10D':'ff','\uF10E':'ffi','\uF10F':'ffi','\uF110':'ffl','\uF111':'ffl','\uF118':'ft','\uF119':'ft','\uF11A':'st','\uF11B':'st','\uF500':'fi','\uF501':'fl','\uF502':'ff','\uF503':'ffi','\uF504':'ffl','\uF6C3':'fi','\uF6C4':'fl','\uF6C5':'ff','\uF7A0':'fi','\uF7A1':'fl','\uF019':'fi','\uF01A':'fi','\uF01B':'fi','\uF01C':'fi','\uF01D':'fi','\uF01E':'fi','\uF018':'f','\uF000':'ff','\uF001':'fi','\uF002':'fl','\uF003':'ffi','\uF004':'ffl','\uF005':'ft','\uF006':'st'};
+const _PUA_ASCII = (function(){
+  const m={}, a=' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+  for(let i=0;i<a.length;i++) m[String.fromCodePoint(0xF020+i)]=a[i];
+  return m;
+})();
+function cleanPDFText(text) {
+  let out = text;
+  for(const [k,v] of Object.entries(_LIG)) out=out.split(k).join(v);
+  out = out.replace(/[\uF000-\uF0FF]/g, ch => _PUA_ASCII[ch] || _PUA_EXT[ch] || ch);
+  for(const [k,v] of Object.entries(_PUA_EXT)) out=out.split(k).join(v);
+  out = out.replace(/([a-zA-Z])([\uE000-\uF8FF]+)([a-zA-Z])/g, (_,pre,_pua,post)=>{
+    if(pre==='f'&&'ilb'.includes(post)) return pre+'i'+post;
+    if(pre==='s'&&post==='t') return 'st';
+    if(pre==='c'&&post==='t') return 'ct';
+    return pre+post;
+  });
+  return out.replace(/[\uE000-\uF8FF]/g,'').replace(/  +/g,' ').trim();
+}
+
+/* ── Sentence splitting — abbreviation-aware ─────────────────────────────── */
+// splitSentences, setMsg, setProg, scorePageText, extractPDFText
+// are defined below in the SEMANTIC PDF PARSER v4 block.
+
+/* ── PDF extraction helpers ─────────────────────────────────────────────────── */
+// Globals required by the v5 semantic parser (originally from index.html)
+let currentPDFDoc  = null;   // holds the loaded PDFDocumentProxy
+const pageImageCache = new Map(); // page number → JPEG data URL for image-heavy pages
+
+const uploadOverlay = document.getElementById('upload-overlay');
+const uploadBar     = document.getElementById('upload-bar');
+const uploadMsg     = document.getElementById('upload-msg');
+
+function setMsg(m)  { uploadMsg.textContent = m; }
+function setProg(p) { uploadBar.style.width = (p * 100) + '%'; }
+
+function scorePageText(rawText, hasRasterImage) {
+  const d = { textLen: rawText.length, wordCount: 0, alphaRatio: 0, wsRatio: 0, dupRatio: 0, hasRaster: hasRasterImage, score: 0, reason: '' };
+  if (!d.textLen) { d.reason = 'empty'; return d; }
+  d.wordCount  = (rawText.match(/[A-Za-z\u4e00-\u9fff]{2,}/g) || []).length;
+  const nonWs  = rawText.replace(/\s/g, '');
+  const alpha  = (rawText.match(/[A-Za-z\u4e00-\u9fff]/g) || []).length;
+  d.alphaRatio = nonWs.length ? alpha / nonWs.length : 0;
+  d.wsRatio    = (rawText.match(/\s/g) || []).length / rawText.length;
+  let dups = 0;
+  for (let i = 1; i < rawText.length; i++)
+    if (rawText[i] === rawText[i-1] && rawText[i] !== ' ' && rawText[i] !== '\n') dups++;
+  d.dupRatio = rawText.length > 1 ? dups / (rawText.length - 1) : 0;
+  let score = 1.0; const why = [];
+  if (d.wordCount < 3)        { score -= 0.5; why.push(`words=${d.wordCount}`); }
+  if (d.alphaRatio < 0.4)     { score -= 0.4; why.push(`alpha=${d.alphaRatio.toFixed(2)}`); }
+  else if (d.alphaRatio < 0.6){ score -= 0.2; why.push(`alpha=${d.alphaRatio.toFixed(2)}`); }
+  if (d.wsRatio > 0.6)        { score -= 0.3; why.push(`ws=${d.wsRatio.toFixed(2)}`); }
+  if (d.dupRatio > 0.15)      { score -= 0.3; why.push(`dup=${d.dupRatio.toFixed(2)}`); }
+  else if (d.dupRatio > 0.05) { score -= 0.1; why.push(`dup=${d.dupRatio.toFixed(2)}`); }
+  if (hasRasterImage && d.wordCount < 20) { score -= 0.3; why.push('raster+thin'); }
+  d.score = Math.max(0, Math.min(1, score));
+  d.reason = why.length ? why.join(', ') : 'ok';
+  return d;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  SEMANTIC PDF PARSER v4  —  Focus Reader
+//  ─────────────────────────────────────────────────────────────────────────────
+//  CORE DESIGN PRINCIPLE
+//  ─────────────────────
+//  PDFs are spatial documents. PDF.js exposes each text item with exact x/y
+//  coordinates, font size, and font name. This parser NEVER flattens text
+//  early. Instead it reconstructs document structure from raw spatial data,
+//  classifies every visual line, then merges only lines that demonstrably
+//  belong together.
+//
+//  The pipeline has 6 stages:
+//
+//    A. extractVisualLines()     — PDF.js items → visual rows sorted top→bottom
+//    B. classifyLine()           — assign a SemanticType to each row
+//    C. buildBlocks()            — merge compatible lines; isolate structure
+//    D. mergeAdjacentCompatible() — join wrapped headings & list continuations
+//    E. finalizeBlocks()         — catch any residual cross-line gluing
+//    F. blocksToChunks()         — emit typed chunk strings for the reader
+//
+//  CHUNK FORMAT
+//  ────────────
+//  Each chunk in the output array is a plain string, optionally prefixed with
+//  a type tag so the renderer can style it differently:
+//
+//    "HEADING:40 CHARACTERISTICS OF INTEGROUS TEACHERS AND TEACHINGS"
+//    "LISTNUM:1. Universality: Truth is true at all times and places..."
+//    "PROSE:The list below serves as a standard of spiritual integrity."
+//    "IMG:4"   (image pages — existing sentinel format unchanged)
+//
+//  The renderer strips the prefix before display. The prefix is never shown.
+//
+//  DEBUG
+//  ─────
+//  After loading a PDF, call in the browser console:
+//    window.debugPDF()          → all pages
+//    window.debugPDF(5)         → page 5 only
+//  to see a table of every classified line.
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ─── Semantic type constants ──────────────────────────────────────────────────
+const ST = {
+  HEADING:    'HEADING',    // chapter / section title — always its own chunk
+  ALLCAPS:    'ALLCAPS',    // ALL-CAPS line (subsection header) — own chunk
+  LISTNUM:    'LISTNUM',    // numbered list item "1." "2)" etc — own chunk
+  LISTBULLET: 'LISTBULLET', // bullet item "•" "–" "▸" — own chunk
+  PROSE:      'PROSE',      // paragraph text — sentence-split into chunks
+  PAGENUM:    'PAGENUM',    // bare digit(s) — discard
+  BLANK:      'BLANK',      // empty row — paragraph boundary signal
+};
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  EXTRACTION LAYER v5  —  Structure-preserving PDF pipeline
+//  ─────────────────────────────────────────────────────────────────────────────
+//
+//  ROOT CAUSE OF ALL PREVIOUS FAILURES
+//  ─────────────────────────────────────
+//  Every previous version had one of these problems:
+//
+//  1. disableCombineTextItems: false  — PDF.js pre-merges adjacent text items,
+//     silently joining a heading token with the next line before we see items.
+//
+//  2. SAME_LINE_RATIO compared against cur[last] not cur[0] — as items
+//     accumulate in a row, the "previous" anchor drifts downward, causing
+//     items on the next visual line to be absorbed into the current row.
+//
+//  3. Cleaning/normalizing text before grouping — any .trim() or whitespace
+//     collapse on the raw item text alters item spacing used for X-gap detection.
+//
+//  4. Two-pass design — pass 1 used normalizeWhitespace:false but then
+//     passed those same items (stale) to pass 2, where they might be re-fetched
+//     with different settings from a cached page object.
+//
+//  THIS VERSION FIXES ALL FOUR.
+//
+//  ARCHITECTURE
+//  ─────────────
+//  getPageItems(page)
+//    └─ PDF.js with disableCombineTextItems:TRUE, normalizeWhitespace:FALSE
+//       Returns raw RawSpan[] — one entry per original PDF text object.
+//       NOTHING is joined or flattened here.
+//
+//  groupSpansIntoLines(spans)
+//    └─ Sort by descending Y (top→bottom).
+//       Compare each span's Y against the FIRST span of the current row
+//       (not the last), using threshold = 40% of the row's dominant height.
+//       Returns VisualLine[] — one entry per visual row.
+//       Tokens within each row are sorted left→right by X and joined
+//       with X-gap–aware spacing (gap > 1 space-width → insert space).
+//
+//  cleanLineText(text)
+//    └─ Ligature + PUA repair on the JOINED line text (not individual tokens).
+//       Applied AFTER grouping so grouping always uses raw coordinates.
+//
+//  The rest of the pipeline (classifyLine → buildBlocks → mergeAdjacentCompatible
+//  → finalizeBlocks → blocksToChunks) is unchanged from v4 and operates on the
+//  clean VisualLine[].
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ─── RawSpan: one PDF.js text item, unchanged ─────────────────────────────────
+//
+//   txt  : string  — item.str (raw, uncleaned)
+//   x    : number  — item.transform[4]  (left edge baseline, PDF user-space)
+//   y    : number  — item.transform[5]  (baseline Y, BOTTOM-UP)
+//   w    : number  — item.width         (advance width in PDF units)
+//   h    : number  — item.height        (font height in PDF units)
+//   bold : boolean — font name contains bold/heavy/black/demi
+
+// ─── VisualLine: one reconstructed visual row ─────────────────────────────────
+//
+//   text      : string  — cleaned, joined token text
+//   y         : number  — Y of the FIRST (topmost) span in the row
+//   lineH     : number  — max span height in the row (≈ font size)
+//   fontSize  : number  — alias for lineH
+//   bold      : boolean — any span on this row is bold
+//   x         : number  — leftmost X on this row
+//   gapBefore : number  — whitespace gap (pts) between previous line's
+//                          bottom edge and this line's top edge (0 for first)
+
+// ─── Step 1: fetch raw spans from one PDF page ────────────────────────────────
+
+/**
+ * Fetch raw text items from a PDF.js page with maximum structure preservation.
+ *
+ * Key settings:
+ *   disableCombineTextItems: true  — CRITICAL: prevents PDF.js from pre-merging
+ *                                    adjacent text objects. Without this, a heading
+ *                                    and the next line may arrive as a single item.
+ *   normalizeWhitespace: false     — preserve exact spacing from the PDF.
+ *
+ * Returns RawSpan[].
+ */
+async function getPageItems(page) {
+  const content = await page.getTextContent({
+    normalizeWhitespace:    false,  // preserve raw spacing
+    disableCombineTextItems: true,  // CRITICAL — do not pre-merge items
+  });
+
+  const spans = [];
+  let lastH = 12;
+
+  for (const item of content.items) {
+    // PDF.js can return marker objects (e.g. EOL markers) that have no str
+    if (!('str' in item)) continue;
+
+    const raw = item.str; // do NOT clean yet — use raw for grouping
+    if (raw === '') continue; // skip truly empty items (spaces handled via width)
+
+    const x    = item.transform ? item.transform[4] : 0;
+    const y    = item.transform ? item.transform[5] : 0;
+    const w    = item.width  || 0;
+    const h    = item.height > 0.5 ? item.height : lastH;
+    const bold = /bold|black|heavy|demi/i.test(item.fontName || '');
+
+    spans.push({ txt: raw, x, y, w, h, bold });
+    if (h > 0.5) lastH = h;
+  }
+
+  return spans;
+}
+
+// ─── Step 2: group raw spans into visual lines ────────────────────────────────
+
+/**
+ * Given RawSpan[], produce VisualLine[] in top-to-bottom reading order.
+ *
+ * GROUPING ALGORITHM
+ * ──────────────────
+ * We sort all spans by descending Y (higher Y = higher on page in PDF coords).
+ * We then walk spans in order, grouping them into rows.
+ *
+ * For each new span, we compare its Y against the Y of the FIRST span of the
+ * current row (rowAnchorY). This is the critical fix vs. v4 which compared
+ * against the LAST span — as rows accumulate spans the anchor drifts and
+ * absorbs spans from the next visual line.
+ *
+ * Threshold: a span belongs to the current row if
+ *   |span.y − rowAnchorY| < SAME_LINE_RATIO × rowDominantHeight
+ *
+ * SAME_LINE_RATIO = 0.40  (40% of font height)
+ *   • At 12pt body text: threshold ≈ 4.8pt  — tight enough to separate lines
+ *   • At 24pt heading:   threshold ≈ 9.6pt  — still tight; 24pt lines are
+ *                                              typically 18–22pt apart
+ *   • Generous enough to absorb superscripts whose baselines shift ~2–4pt
+ *
+ * X-GAP AWARE JOINING
+ * ─────────────────────
+ * Within a row, tokens are sorted left-to-right. We insert a space between
+ * adjacent tokens only when the horizontal gap between them exceeds
+ * SPACE_GAP_RATIO × avgCharWidth (estimated from the token's advance width).
+ * This prevents double-spacing when PDF.js already included a space in the
+ * item string, and adds spaces where the PDF uses kerning gaps.
+ */
+function groupSpansIntoLines(spans) {
+  if (!spans.length) return [];
+
+  // 1. Sort top-to-bottom (descending Y)
+  const sorted = [...spans].sort((a, b) => b.y - a.y);
+
+  const SAME_LINE_RATIO = 0.40; // fraction of font height
+  const SPACE_GAP_RATIO = 0.30; // X gap fraction that triggers a space insert
+
+  // 2. Group into rows
+  const rows = [];            // each row = RawSpan[]
+  let curRow  = [sorted[0]];
+  let rowAnchorY       = sorted[0].y;  // Y of first span in this row — FIXED
+  let rowDominantH     = sorted[0].h;  // max height seen so far in this row
+
+  for (let i = 1; i < sorted.length; i++) {
+    const span = sorted[i];
+    const threshold = rowDominantH * SAME_LINE_RATIO;
+
+    if (Math.abs(span.y - rowAnchorY) < threshold) {
+      // Same row
+      curRow.push(span);
+      if (span.h > rowDominantH) rowDominantH = span.h;
+    } else {
+      // New row
+      rows.push(curRow);
+      curRow        = [span];
+      rowAnchorY    = span.y;
+      rowDominantH  = span.h;
+    }
+  }
+  rows.push(curRow);
+
+  // 3. Build VisualLine objects
+  const lines = [];
+  let prevLineY    = null;
+  let prevLineH    = null;
+
+  for (const row of rows) {
+    // Sort left-to-right within the row
+    row.sort((a, b) => a.x - b.x);
+
+    // X-gap aware join
+    let text = '';
+    for (let j = 0; j < row.length; j++) {
+      const span = row[j];
+      const raw  = span.txt;
+
+      if (j === 0) {
+        text = raw;
+        continue;
+      }
+
+      // Gap between end of previous token and start of current
+      const prevSpan   = row[j - 1];
+      const prevEnd    = prevSpan.x + prevSpan.w;
+      const xGap       = span.x - prevEnd;
+      // Estimate a space width as ~30% of the current span's average char width
+      const avgCharW   = span.w > 0 && raw.length > 0 ? span.w / raw.length : 4;
+      const spaceWidth = avgCharW * SPACE_GAP_RATIO;
+
+      // Insert space if:
+      //   (a) the gap is large enough to represent a space character, AND
+      //   (b) neither existing text ends with space nor new text begins with space
+      const needsSpace = xGap > spaceWidth
+        && !text.endsWith(' ')
+        && !raw.startsWith(' ');
+
+      text += (needsSpace ? ' ' : '') + raw;
+    }
+
+    // Clean the joined line text (ligatures, PUA) AFTER grouping
+    text = cleanPDFText(text).replace(/\s+/g, ' ').trim();
+    if (!text) continue;
+
+    const y     = row[0].y;                          // topmost Y in this row
+    const lineH = Math.max(...row.map(s => s.h));
+    const bold  = row.some(s => s.bold);
+    const x     = row[0].x;                          // already sorted left→right
+
+    // Gap before = whitespace between previous line's bottom and this line's top
+    // In PDF coords (bottom-up): previous line is ABOVE (higher Y).
+    // prev line top edge ≈ prevLineY
+    // prev line bottom   ≈ prevLineY − prevLineH
+    // this line top      ≈ y
+    // gap = (prevLineY − prevLineH) − y  ... but this can be negative for tight leading
+    let gapBefore = 0;
+    if (prevLineY !== null) {
+      gapBefore = Math.max(0, prevLineY - prevLineH - y);
+    }
+
+    lines.push({ text, y, lineH, fontSize: lineH, bold, x, gapBefore });
+    prevLineY = y;
+    prevLineH = lineH;
+  }
+
+  return lines;
+}
+
+// ─── Document-wide font statistics ────────────────────────────────────────────
+
+/**
+ * Compute median and mode font sizes across all pages' raw spans.
+ * Used by classifyLine to distinguish headings from body text.
+ *
+ * We also compute the body font size (mode — most frequent size) separately
+ * because median can be skewed by pages with many small footnotes.
+ *
+ * Returns { median, body }
+ */
+function computeFontStats(allPageSpans) {
+  const sizes = [];
+  const freq  = {};
+
+  for (const spans of allPageSpans) {
+    for (const span of spans) {
+      const h = Math.round(span.h * 10) / 10; // round to 0.1pt
+      if (h < 2 || h > 200) continue;
+      sizes.push(h);
+      freq[h] = (freq[h] || 0) + 1;
+    }
+  }
+
+  if (!sizes.length) return { median: 12, body: 12 };
+
+  sizes.sort((a, b) => a - b);
+  const median = sizes[Math.floor(sizes.length / 2)];
+
+  // Mode = most frequent size
+  let maxFreq = 0, body = median;
+  for (const [size, count] of Object.entries(freq)) {
+    if (count > maxFreq) { maxFreq = count; body = parseFloat(size); }
+  }
+
+  return { median, body };
+}
+
+// ─── Stage B: classify each visual line ──────────────────────────────────────
+
+/**
+ * Assign a SemanticType to one VisualLine.
+ *
+ * Heuristics (strict priority order — first match wins):
+ *
+ *  1. BLANK      — empty text
+ *  2. PAGENUM    — only digits, ≤ 5 chars
+ *  3. LISTNUM    — starts with "1." / "2)" / "(1)" / "(a)" etc.
+ *  4. LISTBULLET — starts with a recognised bullet character
+ *  5. HEADING    — font size ≥ 120% of document median
+ *  6. HEADING    — bold font AND ≤ 12 words
+ *  7. ALLCAPS    — every letter is uppercase, ≥ 2 words, ≤ 25 words
+ *  8. HEADING    — short isolated line (≤ 6 words) with large gaps on both sides
+ *  9. PROSE      — everything else
+ *
+ * @param {VisualLine} line
+ * @param {number}  median        — document-wide median font size
+ * @param {boolean} largeGapAbove — caller signals gap before is large
+ * @param {boolean} largeGapBelow — caller signals gap after is large
+ * @returns {ST}
+ */
+function classifyLine(line, median, largeGapAbove, largeGapBelow) {
+  const t = line.text.trim();
+
+  // 1. Blank
+  if (!t) return ST.BLANK;
+
+  // 2. Page number: only digits
+  if (/^\d+$/.test(t) && t.length <= 5) return ST.PAGENUM;
+
+  // 3. Numbered list item — generous pattern covers most books
+  //    "1."  "12."  "1)"  "(1)"  "(a)"  "a."  "A."
+  if (/^(\(?\d{1,3}[.)]\s|[(\[]\d{1,3}[)\]]\s|\(?[a-zA-Z][.)]\s)/.test(t)) {
+    return ST.LISTNUM;
+  }
+
+  // 4. Bullet
+  if (/^[•·‣◦▸▶►◆◇○●✓✗✦\-–—\*]\s/.test(t)) return ST.LISTBULLET;
+
+  // 5. Large font
+  if (median > 0 && line.fontSize >= median * 1.20) return ST.HEADING;
+
+  // 6. Bold and short
+  const words = t.split(/\s+/);
+  if (line.bold && words.length <= 12) return ST.HEADING;
+
+  // 7. ALL-CAPS: all letter characters are uppercase, 2–25 words
+  //    Exclude single-word ALL-CAPS (often inline abbreviations like "NOTE" or "PDF")
+  const letters = t.replace(/[^A-Za-z]/g, '');
+  const isAllCaps = letters.length >= 3
+    && letters === letters.toUpperCase()
+    && words.length >= 2
+    && words.length <= 25;
+  if (isAllCaps) return ST.ALLCAPS;
+
+  // 8. Short isolated line surrounded by gaps — likely a subtitle/label
+  if (words.length <= 6 && largeGapAbove && largeGapBelow) return ST.HEADING;
+
+  return ST.PROSE;
+}
+
+// ─── Stage C: build semantic blocks from classified lines ─────────────────────
+
+/**
+ * Walk the classified line array top-to-bottom, emitting semantic Block objects.
+ *
+ * Rules:
+ *  • BLANK                      → flush prose buffer; no block emitted
+ *  • PAGENUM                    → discard
+ *  • HEADING / ALLCAPS /
+ *    LISTNUM / LISTBULLET       → flush prose buffer; emit as own block
+ *  • PROSE                      → try to extend current prose buffer,
+ *                                  or start a new paragraph
+ *
+ * PROSE paragraph-break signals (any one triggers a new paragraph):
+ *  (a) No buffer open
+ *  (b) Gap before this line > 0.8 × lineHeight  (visible paragraph spacing)
+ *  (c) Previous line ends with terminal punctuation AND current starts uppercase
+ *      AND there's a meaningful sub-gap (> 0.25 × lineHeight)
+ *
+ * Block shape: { type: ST, text: string }
+ */
+function buildBlocks(classified) {
+  const blocks = [];
+  let buf = []; // accumulates text for current prose paragraph
+
+  function flushProse() {
+    if (!buf.length) return;
+    const text = buf.join(' ').replace(/\s+/g, ' ').trim();
+    if (text) blocks.push({ type: ST.PROSE, text });
+    buf = [];
+  }
+
+  for (const { line, type } of classified) {
+    if (type === ST.BLANK)   { flushProse(); continue; }
+    if (type === ST.PAGENUM) { continue; }
+
+    // Non-prose: always own block
+    if (type !== ST.PROSE) {
+      flushProse();
+      blocks.push({ type, text: line.text.trim() });
+      continue;
+    }
+
+    // ── PROSE ──
+    if (!buf.length) {
+      buf.push(line.text);
+      continue;
+    }
+
+    // (b) large gap
+    if (line.gapBefore > line.lineH * 0.8) {
+      flushProse();
+      buf.push(line.text);
+      continue;
+    }
+
+    // (c) sentence boundary heuristic
+    const prevText   = buf[buf.length - 1];
+    const prevEnds   = /[.!?]['"\u201D\u2019]?\s*$/.test(prevText);
+    const currCaps   = /^[A-Z\u00C0-\u00D6\u00D8-\u00DE\u201C\u2018"']/.test(line.text.trim());
+    const subGap     = line.gapBefore > line.lineH * 0.25;
+    if (prevEnds && currCaps && subGap) {
+      flushProse();
+      buf.push(line.text);
+      continue;
+    }
+
+    // Default: soft-wrap continuation — append
+    buf.push(line.text);
+  }
+
+  flushProse();
+  return blocks;
+}
+
+// ─── Stage D: merge adjacent compatible blocks ────────────────────────────────
+
+/**
+ * Two merging rules handle visual wrapping at the block level:
+ *
+ *  Rule 1 — Consecutive HEADING/ALLCAPS blocks:
+ *    A heading that wraps across two visual lines produces two separate blocks.
+ *    They belong together as one heading chunk.
+ *    "40 CHARACTERISTICS OF INTEGROUS TEACHERS AND" + "TEACHINGS"
+ *    → "40 CHARACTERISTICS OF INTEGROUS TEACHERS AND TEACHINGS"
+ *
+ *  Rule 2 — PROSE immediately after LISTNUM/LISTBULLET:
+ *    A list item whose body wraps to the next visual line with no indent marker
+ *    produces LISTNUM + PROSE. The PROSE is the list item's continuation.
+ *    "1. Universality: Truth is true at all times and places, independent of"
+ *    + "culture, personalities, or circumstances."
+ *    → "1. Universality: Truth is true at all times and places, independent of
+ *        culture, personalities, or circumstances."
+ *
+ *  Rule 3 — PROSE immediately after HEADING/ALLCAPS:
+ *    Some PDFs emit a heading and its subtitle on consecutive lines with no
+ *    gap. Do NOT merge these — they are separate semantic units. (Not applied.)
+ */
+function mergeAdjacentCompatible(blocks) {
+  if (!blocks.length) return blocks;
+  const out = [];
+  let cur = { ...blocks[0] };
+
+  for (let i = 1; i < blocks.length; i++) {
+    const nxt = blocks[i];
+
+    // Rule 1: wrapped heading
+    const bothStructural =
+      (cur.type === ST.HEADING || cur.type === ST.ALLCAPS) &&
+      (nxt.type === ST.HEADING || nxt.type === ST.ALLCAPS);
+
+    // Rule 2: list item continuation
+    const listCont =
+      (cur.type === ST.LISTNUM || cur.type === ST.LISTBULLET) &&
+      nxt.type === ST.PROSE;
+
+    if (bothStructural || listCont) {
+      cur = { type: cur.type, text: cur.text + ' ' + nxt.text };
+    } else {
+      out.push(cur);
+      cur = { ...nxt };
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+// ─── Stage E: finalize — catch residual within-block gluing ──────────────────
+
+/**
+ * Even with per-line classification, some PDFs emit a single visual line that
+ * contains content from two semantic zones. Two patterns caught here:
+ *
+ *  E1. Trailing list marker on a heading/prose block:
+ *      "...OF INTEGROUS TEACHERS AND TEACHINGS 1."
+ *      → body block  +  LISTNUM("1.")
+ *
+ *  E2. Numbered heading embedded in prose string:
+ *      "integrity. 40 CHARACTERISTICS OF INTEGROUS TEACHERS AND TEACHINGS"
+ *      → PROSE("integrity.")  +  ALLCAPS("40 CHARACTERISTICS...")
+ */
+function finalizeBlocks(blocks) {
+  const out = [];
+
+  for (const block of blocks) {
+    // Run E1 then E2 in sequence — collect intermediate results
+    // so E2 can operate on what E1 already split.
+    const intermediate = applyE1(block);
+    for (const b of intermediate) {
+      const split = applyE2(b);
+      for (const s of split) out.push(s);
+    }
+  }
+
+  return out;
+}
+
+/**
+ * E1: trailing list-item marker glued to end of a heading or prose block.
+ *     "...TEACHINGS 1."  →  body block  +  LISTNUM("1.")
+ *     "...integrity. 1." →  body block  +  LISTNUM("1.")
+ * Returns 1 or 2 blocks.
+ */
+function applyE1(block) {
+  if (block.type === ST.LISTNUM || block.type === ST.LISTBULLET) return [block];
+  const t = block.text.trim();
+  const m = t.match(/^([\s\S]+\S)\s+(\d{1,3}[.)]\s*)$/);
+  if (m && m[1].trim().split(/\s+/).length >= 2) {
+    return [
+      { type: block.type, text: m[1].trim() },
+      { type: ST.LISTNUM, text: m[2].trim()  },
+    ];
+  }
+  return [block];
+}
+
+/**
+ * E2: ALL-CAPS numbered heading embedded mid-prose.
+ *     "integrity. 40 CHARACTERISTICS OF INTEGROUS TEACHERS AND TEACHINGS"
+ *     →  PROSE("integrity.")  +  ALLCAPS("40 CHARACTERISTICS...")
+ *
+ *     Also handles the case where the prose sentence and heading are glued
+ *     WITHOUT a leading number:
+ *     "integrity. CHARACTERISTICS OF INTEGROUS TEACHERS"
+ *     →  PROSE("integrity.")  +  ALLCAPS("CHARACTERISTICS...")
+ * Returns 1 or more blocks.
+ */
+function applyE2(block) {
+  if (block.type !== ST.PROSE) return [block];
+  const t = block.text.trim();
+
+  // Pattern A: ". NN CAPS CAPS..." — numbered heading after sentence
+  const reA = /([.!?]['"]?)\s+(\d+\s+[A-Z][A-Z][A-Z\s\d]*)$/;
+  const mA  = t.match(reA);
+  if (mA) {
+    const heading = mA[2].trim();
+    const letters = heading.replace(/[\d\s]/g, '');
+    if (letters.length > 1 && letters === letters.toUpperCase()) {
+      const prose = t.slice(0, mA.index + mA[1].length).trim();
+      const result = [];
+      if (prose)   result.push({ type: ST.PROSE,   text: prose });
+      if (heading) result.push({ type: ST.ALLCAPS, text: heading });
+      return result;
+    }
+  }
+
+  // Pattern B: ". CAPS CAPS..." — unnumbered ALL-CAPS heading after sentence
+  const reB = /([.!?]['"]?)\s+([A-Z]{2}[A-Z\s]{4,})$/;
+  const mB  = t.match(reB);
+  if (mB) {
+    const heading = mB[2].trim();
+    const letters = heading.replace(/\s/g, '');
+    if (letters.length > 3 && letters === letters.toUpperCase()) {
+      const prose = t.slice(0, mB.index + mB[1].length).trim();
+      const result = [];
+      if (prose)   result.push({ type: ST.PROSE,   text: prose });
+      if (heading) result.push({ type: ST.ALLCAPS, text: heading });
+      return result;
+    }
+  }
+
+  return [block];
+}
+
+// ─── Stage F: emit typed focus-reader chunks ──────────────────────────────────
+
+/**
+ * Convert the final Block[] into the string[] that the focus reader consumes.
+ *
+ * Format:  "TYPE:text"
+ *   HEADING:40 CHARACTERISTICS OF INTEGROUS TEACHERS AND TEACHINGS
+ *   ALLCAPS:PART ONE — THE MAP
+ *   LISTNUM:1. Universality: Truth is true at all times and places...
+ *   LISTBULLET:• Choose teachers whose lives you would want to emulate.
+ *   PROSE:The list below serves as a standard of spiritual integrity.
+ *   IMG:4   ← image pages unchanged
+ *
+ * PROSE blocks are sentence-split first; each sentence becomes one chunk.
+ * All other block types emit as a single chunk verbatim.
+ */
+function blocksToChunks(blocks, isZh) {
+  const chunks = [];
+
+  for (const block of blocks) {
+    // Image sentinel — pass through unchanged (no prefix)
+    if (/^\x01IMG:\d+\x01$/.test(block.text)) {
+      chunks.push(block.text);
+      continue;
+    }
+
+    const prefix = block.type + ':';
+
+    if (block.type === ST.PROSE) {
+      const sentences = sentenceSplit(block.text, isZh);
+      for (const s of sentences) {
+        const clean = s.trim();
+        if (clean) chunks.push(prefix + clean);
+      }
+    } else {
+      const clean = block.text.trim();
+      if (clean) chunks.push(prefix + clean);
+    }
+  }
+
+  // Filter: must contain at least one letter or be an IMG sentinel
+  return chunks.filter(c =>
+    /^\x01IMG:\d+\x01$/.test(c) ||
+    /[\u4e00-\u9fffA-Za-z]/.test(c)
+  );
+}
+
+// ─── Sentence splitter — used only on PROSE blocks ───────────────────────────
+
+/**
+ * Split a prose paragraph into individual sentences.
+ * Called exclusively on ST.PROSE blocks so it never sees headings/list numbers.
+ * Uses a placeholder technique to protect periods that are not sentence endings.
+ */
+function sentenceSplit(text, isZh) {
+  if (isZh) {
+    return text
+      .replace(/([。！？]+)/g, '$1\n')
+      .split('\n')
+      .map(s => s.trim())
+      .filter(s => /[\u4e00-\u9fff]/.test(s));
+  }
+
+  const PH = '\x02'; // placeholder for protected periods
+
+  let t = text;
+
+  // Protect: ellipsis
+  t = t.replace(/\.{2,}/g, PH + 'ELL' + PH);
+  t = t.replace(/…/g,      PH + 'ELL' + PH);
+
+  // Protect: internal acronyms U.S.A. / Ph.D. / e.g. / i.e.
+  t = t.replace(/\b([A-Za-z]\.){2,}/g, m => m.replace(/\./g, PH));
+
+  // Protect: common title / abbreviation endings
+  const ABBR = /\b(Mr|Mrs|Ms|Miss|Messrs|Dr|Prof|Rev|Gen|Col|Maj|Capt|Lt|Sgt|Adm|Atty|Gov|Pres|Rep|Sen|Hon|St|Mt|Ft|Rd|Ave|Blvd|Dept|Corp|Co|Inc|Ltd|Bros|Jr|Sr|approx|cf|e\.g|et al|etc|ibid|op|pp?|viz|vol|vs)\./gi;
+  t = t.replace(ABBR, m => m.slice(0, -1) + PH);
+
+  // Protect: single capital initials "J. K. Rowling"
+  t = t.replace(/\b([A-Z])\.\s+(?=[A-Za-z])/g, '$1' + PH + ' ');
+
+  // Protect: decimal numbers 3.14 / $12.50
+  t = t.replace(/(\d)\.(\d)/g, '$1' + PH + '$2');
+
+  // Protect: domain names / file extensions
+  t = t.replace(/\b([a-z]{2,})\.([a-z]{2,6})\b/gi, '$1' + PH + '$2');
+
+  // Split on genuine sentence boundaries:
+  //   [.!?] + optional closing punctuation + whitespace + uppercase / opening quote
+  t = t.replace(
+    /([.!?])([\u2019\u201D'"\])]*)(\s+)([\u201C\u2018"'(\u00BFA-Z\u00C0-\u00D6])/g,
+    (_, punc, close, space, next) => punc + close + '\n' + next
+  );
+
+  // Restore placeholders
+  t = t.replace(new RegExp(PH + 'ELL' + PH, 'g'), '...');
+  t = t.replace(new RegExp(PH, 'g'), '.');
+
+  return t.split('\n').map(s => s.trim()).filter(s => /[A-Za-z]/.test(s));
+}
+
+// ─── Median font size across all pages ───────────────────────────────────────
+
+function computeMedianFontSize(allPageItems) {
+  const sizes = [];
+  for (const items of allPageItems) {
+    for (const item of items) {
+      const h = item.height || 0;
+      if (h > 2 && h < 300) sizes.push(h);
+    }
+  }
+  if (!sizes.length) return 12;
+  sizes.sort((a, b) => a - b);
+  return sizes[Math.floor(sizes.length / 2)];
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  UPDATED extractPDFText  (replaces the v4 version entirely)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+async function extractPDFText(file, preloadedBuffer) {
+  const arrayBuf = preloadedBuffer || await file.arrayBuffer();
+  setProg(0.05); setMsg('opening PDF…');
+
+  const pdf   = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+  currentPDFDoc = pdf;
+  const total   = pdf.numPages;
+
+  // ── Pass 1: fetch raw spans from every page (no cleaning, no grouping yet) ──
+  // We need all spans first to compute document-wide font statistics.
+  setMsg('reading document structure…');
+  const allPageSpans = [];  // allPageSpans[p-1] = RawSpan[] for page p
+
+  for (let p = 1; p <= total; p++) {
+    const page  = await pdf.getPage(p);
+    const spans = await getPageItems(page);   // ← NEW: disableCombineTextItems:true
+    allPageSpans.push(spans);
+    setProg(0.05 + 0.15 * (p / total));
+  }
+
+  // Font statistics — used by classifier to detect headings
+  const fontStats = computeFontStats(allPageSpans);
+  // Use body font size as the reference, not median, to be robust to footnotes
+  const refFontSize = fontStats.body;
+
+  // Debug store
+  const debugStore = [];
+
+  // ── Pass 2: semantic extraction per page ────────────────────────────────────
+  const pageOutputs = [];
+
+  for (let p = 1; p <= total; p++) {
+    setMsg(`classifying page ${p} of ${total}…`);
+    const page  = await pdf.getPage(p);
+    const spans = allPageSpans[p - 1];
+
+    // Image detection
+    let imageOps = 0;
+    try {
+      const opList = await page.getOperatorList();
+      for (const fn of opList.fnArray) if (fn === 85 || fn === 86) imageOps++;
+    } catch(e) {}
+
+    // Raw flat text for quality scoring and language detection only
+    // (NOT used for semantic processing)
+    const rawFlat = spans.map(s => s.txt).join(' ');
+
+    // ── Stage A: group spans into visual lines (NO FLATTENING HERE) ──
+    const visualLines = groupSpansIntoLines(spans);
+
+    // ── Stage B: classify each line ──
+    const classified = visualLines.map((line, i) => {
+      const nextLine   = visualLines[i + 1];
+      const gapAfter   = nextLine
+        ? Math.max(0, line.y - line.lineH - nextLine.y)
+        : line.lineH * 2;
+      const largeAbove = line.gapBefore > line.lineH * 0.9;
+      const largeBelow = gapAfter       > line.lineH * 0.9;
+      return {
+        line,
+        type: classifyLine(line, refFontSize, largeAbove, largeBelow),
+      };
+    });
+
+    debugStore.push({ page: p, refFontSize, classified });
+
+    // ── Stages C–E: block reconstruction ──
+    const rawBlocks = buildBlocks(classified);
+    const merged    = mergeAdjacentCompatible(rawBlocks);
+    const blocks    = finalizeBlocks(merged);
+
+    // ── Stage F: emit typed chunks ──
+    const isZh       = isChinese(rawFlat);
+    const pageChunks = blocksToChunks(blocks, isZh);
+    const pageText   = pageChunks.join('\x03');
+
+    // Quality / image fallback
+    const diag = scorePageText(rawFlat, imageOps > 0);
+    let finalText = pageText;
+
+    if (diag.score < 0.5) {
+      window.__pageQualityLog = window.__pageQualityLog || [];
+      window.__pageQualityLog.push({
+        page: p, score: diag.score.toFixed(2),
+        reason: diag.reason, spans: spans.length,
+      });
+      let renderOk = false;
+      try {
+        const vp     = page.getViewport({ scale: 1 });
+        const scale  = Math.min(900 / vp.width, 700 / vp.height, 2.5);
+        const scaled = page.getViewport({ scale });
+        const cvs    = document.createElement('canvas');
+        cvs.width    = Math.floor(scaled.width);
+        cvs.height   = Math.floor(scaled.height);
+        const ctx    = cvs.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+        await page.render({ canvasContext: ctx, viewport: scaled }).promise;
+        pageImageCache.set(p, cvs.toDataURL('image/jpeg', 0.85));
+        renderOk = true;
+      } catch(e) { console.warn(`[FocusReader] p${p} render failed`, e); }
+
+      if (renderOk) {
+        finalText = diag.wordCount < 3
+          ? `\x01IMG:${p}\x01`
+          : `\x01IMG:${p}\x01\x03${pageText}`;
+      }
+    }
+
+    pageOutputs.push({ p, text: finalText, rawText: rawFlat, diag });
+    setProg(0.20 + 0.78 * (p / total));
+  }
+
+  if ((window.__pageQualityLog || []).length) {
+    console.group(`[FocusReader] ${window.__pageQualityLog.length} low-quality page(s)`);
+    console.table(window.__pageQualityLog);
+    console.groupEnd();
+  }
+  window.__pageQualityLog = [];
+  window.__loadedPDF      = pdf;  // reused by extractCover
+  window.__pageChunks     = pageOutputs;
+  window.__totalPages     = total;
+
+  // ── Debug tool ─────────────────────────────────────────────────────────────
+  window.debugPDF = function(pageNum) {
+    const pages = pageNum != null
+      ? debugStore.filter(d => d.page === pageNum)
+      : debugStore;
+    for (const d of pages) {
+      console.group(
+        `Page ${d.page}  [body font: ${d.refFontSize.toFixed(1)}pt]`
+      );
+      console.table(d.classified.map(({ line, type }) => ({
+        TYPE:       type,
+        'font-sz':  line.fontSize.toFixed(1),
+        bold:       line.bold,
+        'gap-bef':  line.gapBefore.toFixed(1),
+        x:          line.x.toFixed(0),
+        text:       line.text.slice(0, 100),
+      })));
+      console.groupEnd();
+    }
+  };
+
+  // ── Raw span inspector — shows pre-grouping items ──────────────────────────
+  // Usage: window.debugSpans(3) → shows raw PDF.js items for page 3
+  window.debugSpans = function(pageNum) {
+    const idx = (pageNum || 1) - 1;
+    const spans = allPageSpans[idx];
+    if (!spans) { console.warn('Page not found'); return; }
+    const sorted = [...spans].sort((a, b) => b.y - a.y);
+    console.group(`Raw spans — page ${pageNum || 1}  (${sorted.length} items)`);
+    console.table(sorted.map(s => ({
+      y:    s.y.toFixed(1),
+      x:    s.x.toFixed(1),
+      h:    s.h.toFixed(1),
+      bold: s.bold,
+      txt:  s.txt.slice(0, 80),
+    })));
+    console.groupEnd();
+    console.info(
+      'Each row above is one PDF text object.\n' +
+      'Items on the same visual line should have similar Y values.\n' +
+      'Use debugPDF(n) to see the result after grouping and classification.'
+    );
+  };
+
+  // ── Cross-page sentence stitching ──────────────────────────────────────────
+  // A sentence crossing a page boundary produces a fragment at end of page N
+  // and a continuation at start of page N+1. We detect this when:
+  //   1. Both chunks are PROSE
+  //   2. The ending chunk has no terminal punctuation (.!?)
+  //   3. The next chunk starts with a lowercase letter (continuation fragment)
+  // We run multiple passes until no more merges occur — handles sentences
+  // that span 3+ pages (rare but possible in PDFs with large margins).
+
+  function stitchPass(chunks) {
+    const out = [];
+    let merged = false;
+    for (let i = 0; i < chunks.length; i++) {
+      const cur  = chunks[i];
+      const next = chunks[i + 1];
+      if (/^\x01IMG:\d+\x01$/.test(cur)) { out.push(cur); continue; }
+      const curM  = cur.match(/^(HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
+      const nextM = next && next.match(/^(HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
+      if (
+        curM && nextM &&
+        curM[1]  === 'PROSE' &&
+        nextM[1] === 'PROSE' &&
+        !/[.!?]['"\u201D\u2019]?\s*$/.test(curM[2].trim()) &&
+        /^[a-z\u00e0-\u00f6\u00f8-\u00ff]/.test(nextM[2].trim())
+      ) {
+        out.push(`PROSE:${curM[2].trim()} ${nextM[2].trim()}`);
+        i++;
+        merged = true;
+      } else {
+        out.push(cur);
+      }
+    }
+    return { out, merged };
+  }
+
+  let allChunks = pageOutputs.map(c => c.text).join('\x03').split('\x03').filter(s => s.trim());
+  let pass = 0;
+  while (pass < 10) { // safety cap
+    const { out, merged } = stitchPass(allChunks);
+    allChunks = out;
+    if (!merged) break;
+    pass++;
+  }
+
+  return allChunks.join('\x03');
+}
+
+// ─── splitSentences: thin adapter ────────────────────────────────────────────
+
+/**
+ * The heavy lifting is done in extractPDFText. The raw string arriving here
+ * is already pre-chunked with \x03 separators and TYPE: prefixes.
+ * We just split on \x03 and strip the \x01IMG sentinel wrappers.
+ *
+ * For plain .txt fallback (no \x03), a paragraph-based classifier runs instead.
+ */
+function splitSentences(rawText) {
+  const isZh = isChinese(rawText);
+
+  // ── Fast path: pre-chunked PDF ──────────────────────────────────────────────
+  if (rawText.includes('\x03')) {
+    return rawText
+      .split('\x03')
+      .map(s => s.trim())
+      .filter(s => s && (/^\x01IMG:\d+\x01$/.test(s) || /[\u4e00-\u9fffA-Za-z]/.test(s)));
+  }
+
+  // ── Fallback: plain text file ────────────────────────────────────────────────
+  const text = rawText.replace(/(\w)-\s*\n\s*(\w)/g, '$1$2');
+  const paragraphs = text.split(/\n{2,}/);
+  const chunks = [];
+
+  for (const para of paragraphs) {
+    const flat = para.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!flat) continue;
+    const letters   = flat.replace(/[^A-Za-z]/g, '');
+    const isAllCaps = letters.length > 1 && letters === letters.toUpperCase();
+    const wc        = flat.split(/\s+/).length;
+
+    if (/^(\(?\d{1,3}[.)]\s)/.test(flat)) {
+      chunks.push('LISTNUM:' + flat);
+    } else if (isAllCaps && wc >= 2) {
+      chunks.push('ALLCAPS:' + flat);
+    } else {
+      for (const s of sentenceSplit(flat, isZh)) {
+        if (s.trim()) chunks.push('PROSE:' + s.trim());
+      }
+    }
+  }
+
+  return chunks.filter(c => /[\u4e00-\u9fffA-Za-z]/.test(c));
+}
+
+
+/* Render page 1 of a PDF to a small JPEG data URL for use as cover art.
+   Target ~220×130px thumbnail stored as base64 — roughly 10–20 KB per book. */
+async function extractCover(file) {
+  try {
+    // Reuse the pdf doc already loaded by extractPDFText — avoids a second
+    // full parse of the file (which can fail or deadlock the PDF.js worker)
+    let pdf = window.__loadedPDF || null;
+    if (!pdf) {
+      const buf = await file.arrayBuffer();
+      pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    }
+    window.__loadedPDF = null; // free reference
+    const page = await pdf.getPage(1);
+    const vp   = page.getViewport({ scale: 1 });
+
+    // Scale so the longest side is 300px — keeps file size tiny
+    const scale  = Math.min(300 / vp.width, 200 / vp.height);
+    const scaled = page.getViewport({ scale });
+
+    const canvas  = document.createElement('canvas');
+    canvas.width  = Math.floor(scaled.width);
+    canvas.height = Math.floor(scaled.height);
+    const ctx     = canvas.getContext('2d');
+    await page.render({ canvasContext: ctx, viewport: scaled }).promise;
+    return canvas.toDataURL('image/jpeg', 0.75);
+  } catch (e) {
+    return null; // cover extraction is non-critical
+  }
+}
+
+/* Save cover separately so it doesn't bloat the shelf index */
+function saveCover(id, dataUrl) {
+  try { localStorage.setItem('focusreader_cover_' + id, dataUrl); } catch(e) {}
+}
+function loadCover(id) {
+  try { return localStorage.getItem('focusreader_cover_' + id) || null; } catch(e) { return null; }
+}
+function deleteCover(id) {
+  try { localStorage.removeItem('focusreader_cover_' + id); } catch(e) {}
+}
+function saveFigImg(id, pageNum, dataUrl) {
+  try { localStorage.setItem(`focusreader_figimg_${id}_${pageNum}`, dataUrl); } catch(e) {}
+}
+
+async function processFile(file, preloadedBuffer, importMode) {
+  if (!file) return;
+  uploadBar.style.width = '0';
+  uploadOverlay.classList.add('show');
+  setProg(0.04); setMsg('reading file…');
+  try {
+    let raw = '';
+    let coverDataUrl = null;
+    if (file.name.toLowerCase().endsWith('.pdf')) {
+      if (typeof pdfjsLib === 'undefined') {
+        setMsg('PDF.js failed to load.'); setTimeout(() => uploadOverlay.classList.remove('show'), 2500); return;
+      }
+      raw = await extractPDFText(file, preloadedBuffer);
+      setMsg('extracting cover…');
+      coverDataUrl = await extractCover(file);
+    } else {
+      raw = await file.text(); setProg(1);
+    }
+    setMsg('splitting sentences…');
+
+    // AI Enhancement — only when user chose AI mode
+    if (importMode === 'ai' && raw.includes('\x03')) {
+      const preBatches = raw.split('\x03').filter(c => c.trim());
+      setMsg('✦ AI refining…');
+      const refined = await bsRefineChunks(preBatches);
+      raw = refined.join('\x03');
+    }
+
+    const cleanedText = cleanPDFText(raw);
+    const zh     = isChinese(cleanedText);
+    const parsed = splitSentences(cleanedText);
+    if (parsed.length < 2) {
+      setMsg('Could not extract readable text from this file.');
+      setTimeout(() => uploadOverlay.classList.remove('show'), 2500); return;
+    }
+    const name  = file.name.replace(/\.[^.]+$/, '');
+
+    // ── Build pageMap from per-page chunks (PDF only) ─────────────────────
+    const chunks    = window.__pageChunks || [];
+    const totalPgs  = window.__totalPages || 0;
+    window.__pageChunks = null;
+    window.__totalPages = null;
+
+    let pageMap = [];
+    if (chunks.length > 0) {
+      // Build cumulative end-offsets using per-page CLEANED lengths
+      // so they match cleanedText offsets exactly.
+      const pageEnds = [];
+      let offset = 0;
+      chunks.forEach(({ p, text }) => {
+        const cleaned = cleanPDFText(text);
+        offset += cleaned.length + 1; // +1 for join space
+        pageEnds.push({ pageIdx: p - 1, end: offset });
+      });
+
+      pageMap = new Array(parsed.length).fill(0);
+      let searchFrom = 0;
+      parsed.forEach((sent, i) => {
+        const imgM = sent.match(/^\x01IMG:(\d+)\x01/);
+        if (imgM) { pageMap[i] = parseInt(imgM[1]) - 1; searchFrom = 0; return; }
+        const probe = sent.slice(0, 40);
+        let idx = cleanedText.indexOf(probe, searchFrom);
+        if (idx < 0) idx = cleanedText.indexOf(probe, 0);
+        if (idx >= 0) {
+          searchFrom = idx + 1;
+          for (const { pageIdx, end } of pageEnds) {
+            if (idx < end) { pageMap[i] = pageIdx; break; }
+          }
+        } else {
+          pageMap[i] = i > 0 ? pageMap[i - 1] : 0;
+        }
+      });
+    }
+
+    // ── Check for existing entry with same name (re-import) ───────────────
+    const shelfNow  = loadShelf();
+    const existIdx  = shelfNow.findIndex(b => (b.originalName || b.title) === name);
+    let id;
+    if (existIdx !== -1) {
+      id = shelfNow[existIdx].id;
+      shelfNow[existIdx] = { ...shelfNow[existIdx], total: parsed.length, totalPages: totalPgs };
+      saveShelf(shelfNow);
+    } else {
+      id = 'book_' + Date.now();
+      shelfNow.push({ id, title: name, originalName: name, progress: 0, total: parsed.length,
+                      lang: zh ? 'zh' : 'en', totalPages: totalPgs,
+                      added: new Date().toISOString() });
+      saveShelf(shelfNow);
+    }
+    // ── Save sentences FIRST — most critical, most likely to hit quota ─────
+    setMsg('saving to library…');
+    const sentSaved = saveSentences(id, parsed);
+    if (!sentSaved) {
+      // Quota exceeded even with compression — roll back shelf entry
+      const shelfRollback = loadShelf().filter(b => b.id !== id);
+      saveShelf(shelfRollback);
+      setMsg('⚠ Book too large for browser storage. Try a smaller file or clear some books from your shelf.');
+      setTimeout(() => uploadOverlay.classList.remove('show'), 5000);
+      window.__figImgs = null;
+      return;
+    }
+
+    // Secondary data — save after sentences succeed
+    savePageMap(id, pageMap);
+    if (coverDataUrl) saveCover(id, coverDataUrl);
+
+    const figImgs = window.__figImgs || {};
+    window.__figImgs = null;
+    for (const [pgNum, dataUrl] of Object.entries(figImgs)) {
+      saveFigImg(id, parseInt(pgNum), dataUrl);
+    }
+
+    uploadOverlay.classList.remove('show');
+    renderGrid();
+  } catch (err) {
+    window.__figImgs = null;
+    setMsg('Error: ' + err.message);
+    console.error(err);
+    setTimeout(() => uploadOverlay.classList.remove('show'), 3000);
+  }
+}
+
+/* ── Grid rendering ───────────────────────────────────────────────────────── */
+const grid       = document.getElementById('grid');
+const emptyState = document.getElementById('empty-state');
+
+function renderGrid() {
+  grid.innerHTML = '';
+  const shelf = loadShelf();
+  if (shelf.length === 0) {
+    emptyState.classList.add('show');
+  } else {
+    emptyState.classList.remove('show');
+    shelf.forEach(book => grid.appendChild(makeCard(book)));
+  }
+  grid.appendChild(makeAddCard());
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function makeCard(book) {
+  const pct      = book.total > 1 ? Math.round((book.progress / (book.total - 1)) * 100) : 0;
+  const zh       = book.lang === 'zh';
+  const origName = book.originalName || book.title;
+  const isRenamed = book.title !== origName;
+  const cover    = loadCover(book.id); // JPEG data URL or null
+
+  const card = document.createElement('div');
+  card.className = 'book-card';
+
+  // Cover area: show extracted page-1 thumbnail if available, else glyph fallback
+  const coverInner = cover
+    ? `<div class="cover-img" style="background-image:url('${cover}')"></div>`
+    : `<span class="cover-glyph${zh ? ' zh' : ''}">${zh ? '文' : 'Aa'}</span>`;
+
+  card.innerHTML = `
+    <div class="card-cover">
+      ${coverInner}
+      <div class="card-overlay"><span>open →</span></div>
+    </div>
+    <button class="card-del" title="Remove">×</button>
+    <div class="card-body">
+      <div>
+        <textarea class="card-title" rows="2" spellcheck="false">${esc(book.title)}</textarea>
+        <div class="card-rename-hint">rename</div>
+        <div class="card-filename"${isRenamed ? ' style="display:block"' : ''}>${esc(origName)}</div>
+      </div>
+      <div style="margin-top:auto">
+        <div class="card-prog-bar"><div class="card-prog-fill" style="width:${pct}%"></div></div>
+        <div class="card-meta">
+          <span class="card-pct">${pct}% read</span>
+          <span class="card-count">${book.total} sent.<span class="card-lang-tag">${zh?'zh':'en'}</span></span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Only the cover opens the book — body is safe for interaction
+  card.querySelector('.card-cover').addEventListener('click', () => {
+    window.location.href = `index.html?book=${book.id}`;
+  });
+
+  // Editable title
+  const ta      = card.querySelector('.card-title');
+  const fnameEl = card.querySelector('.card-filename');
+
+  function autosize() { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
+  // Run autosize after paint so scrollHeight is accurate
+  requestAnimationFrame(autosize);
+
+  ta.addEventListener('input', autosize);
+  ta.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); ta.blur(); } });
+  ta.addEventListener('blur', () => {
+    const v = ta.value.trim();
+    if (!v) { ta.value = book.title; requestAnimationFrame(autosize); return; }
+    if (v === book.title) return;
+    const shelf = loadShelf();
+    const idx   = shelf.findIndex(b => b.id === book.id);
+    if (idx !== -1) {
+      shelf[idx].title = v;
+      saveShelf(shelf);
+      book.title = v;
+      const orig = shelf[idx].originalName || origName;
+      fnameEl.textContent = orig;
+      fnameEl.style.display = (v !== orig) ? 'block' : 'none';
+    }
+  });
+
+  // Delete
+  card.querySelector('.card-del').addEventListener('click', e => {
+    e.stopPropagation();
+    openConfirm(book.id, book.title);
+  });
+
+  return card;
+}
+
+function makeAddCard() {
+  const div = document.createElement('div');
+  div.className = 'add-card';
+  div.innerHTML = `
+    <input type="file" accept=".pdf,.txt">
+    <div class="add-plus">+</div>
+    <div class="add-label">add a book<br>.pdf · .txt<br>english &amp; chinese</div>
+  `;
+  const addInput = div.querySelector('input');
+  addInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    addInput.value = '';
+    bsShowImportModal(file, null);
+  });
+  div.addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); div.style.borderColor='var(--gold-dim)'; div.style.background='var(--gold-faint)'; });
+  div.addEventListener('dragleave', ()  => { div.style.borderColor=''; div.style.background=''; });
+  div.addEventListener('drop', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    div.style.borderColor=''; div.style.background='';
+    const file = e.dataTransfer.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => bsShowImportModal(file, ev.target.result);
+    reader.onerror = () => bsShowImportModal(file, null);
+    reader.readAsArrayBuffer(file);
+  });
+  return div;
+}
+
+/* ── Confirm delete ───────────────────────────────────────────────────────── */
+let _pendingId = null;
+const confirmOverlay = document.getElementById('confirm-overlay');
+const confirmText    = document.getElementById('confirm-text');
+
+function openConfirm(id, title) {
+  _pendingId = id;
+  confirmText.textContent = `Remove "${title}" from your shelf? This cannot be undone.`;
+  confirmOverlay.classList.add('show');
+}
+
+document.getElementById('btn-cancel-del').addEventListener('click', () => {
+  confirmOverlay.classList.remove('show'); _pendingId = null;
+});
+document.getElementById('btn-confirm-del').addEventListener('click', () => {
+  if (!_pendingId) return;
+  deleteSentences(_pendingId);
+  deletePageMap(_pendingId);
+  deleteCover(_pendingId);
+  // Remove any persisted figure images for this book
+  const shelf = loadShelf();
+  // We don't track which page nums had figures, so scan all possible keys
+  try {
+    const prefix = 'focusreader_figimg_' + _pendingId + '_';
+    const toRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(prefix)) toRemove.push(k);
+    }
+    toRemove.forEach(k => localStorage.removeItem(k));
+  } catch(e) {}
+  saveShelf(loadShelf().filter(b => b.id !== _pendingId));
+  confirmOverlay.classList.remove('show'); _pendingId = null;
+  renderGrid();
+});
+confirmOverlay.addEventListener('click', e => {
+  if (e.target === confirmOverlay) { confirmOverlay.classList.remove('show'); _pendingId = null; }
+});
+
+/* ── Init ─────────────────────────────────────────────────────────────────── */
+renderGrid();
+
+/* ── Whole-page drag-and-drop ─────────────────────────────────────────────── */
+// Show a full-page drop indicator when a file is dragged over the window,
+// so large PDFs dropped anywhere (not just the + card) get processed.
+const pageDropOverlay = document.createElement('div');
+pageDropOverlay.id = 'page-drop-overlay';
+pageDropOverlay.style.cssText = [
+  'position:fixed','inset:0','z-index:500',
+  'background:rgba(12,11,9,.88)',
+  'display:none','align-items:center','justify-content:center',
+  'flex-direction:column','gap:18px',
+  'border:2px dashed var(--gold-dim)',
+  'pointer-events:none',
+].join(';');
+pageDropOverlay.innerHTML = `
+  <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style="opacity:.7">
+    <path d="M22 6v24M12 20l10-10 10 10" stroke="#c8a96e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M8 34h28" stroke="#c8a96e" stroke-width="1.5" stroke-linecap="round"/>
+  </svg>
+  <div style="font-family:'DM Mono',monospace;font-size:13px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase">drop pdf or txt to add</div>
+`;
+document.body.appendChild(pageDropOverlay);
+
+let _dragCounter = 0;
+
+window.addEventListener('dragenter', e => {
+  // Only react to file drags
+  if (!e.dataTransfer || !e.dataTransfer.types.includes('Files')) return;
+  _dragCounter++;
+  pageDropOverlay.style.display = 'flex';
+  pageDropOverlay.style.pointerEvents = 'none';
+}, false);
+
+window.addEventListener('dragleave', e => {
+  _dragCounter--;
+  if (_dragCounter <= 0) {
+    _dragCounter = 0;
+    pageDropOverlay.style.display = 'none';
+  }
+}, false);
+
+window.addEventListener('dragover', e => {
+  if (!e.dataTransfer || !e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}, false);
+
+window.addEventListener('drop', e => {
+  if (!e.dataTransfer || !e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
+  _dragCounter = 0;
+  pageDropOverlay.style.display = 'none';
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  // For large files, the DataTransfer File object can become stale after
+  // the event loop yields. Read the buffer immediately — synchronously
+  // within the drop handler — then hand the buffered data to processFile.
+  const reader = new FileReader();
+  reader.onload = ev => processFile(file, ev.target.result);
+  reader.onerror = () => processFile(file, null);
+  reader.readAsArrayBuffer(file);
+}, false);
+</script>
+
+<!-- Import mode modal -->
+<div id="bs-import-modal">
+  <div id="bs-import-box">
+    <h2>Import Book</h2>
+    <div class="bs-import-filename" id="bs-import-filename">—</div>
+    <div class="bs-import-options">
+      <div class="bs-import-opt bs-selected" id="bs-opt-standard" onclick="bsSelectMode('standard')">
+        <span class="bs-import-opt-badge bs-badge-standard">Always available</span>
+        <div class="bs-import-opt-title">Standard Conversion</div>
+        <div class="bs-import-opt-desc">Fast, offline, heuristic-based. Reconstructs headings, numbered lists, and paragraph structure using positional and font analysis.</div>
+      </div>
+      <div class="bs-import-opt" id="bs-opt-ai" onclick="bsSelectMode('ai')">
+        <span class="bs-import-opt-badge" id="bs-ai-badge">—</span>
+        <div class="bs-import-opt-title">✦ AI Enhanced Conversion</div>
+        <div class="bs-import-opt-desc">Uses Groq (Llama 3.1, free) to semantically reconstruct structure during conversion — better at complex layouts, ambiguous headings, and nested lists.</div>
+        <span class="bs-setup-link" id="bs-setup-link" onclick="event.stopPropagation();bsOpenAIPanel()">Set up Groq API key →</span>
+      </div>
+    </div>
+    <div id="bs-import-actions">
+      <button id="bs-btn-cancel">Cancel</button>
+      <button id="bs-btn-go">Convert →</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI key panel -->
+<div id="bs-ai-panel">
+  <div id="bs-ai-box">
+    <h2>✦ AI Semantic Enhancement</h2>
+    <p>Enter a Groq API key (free, no billing). Sign up at <strong>console.groq.com</strong> → API Keys → Create key. Key starts with <code>gsk_</code>.</p>
+    <input type="password" id="bs-ai-key-input" placeholder="gsk_…" autocomplete="off" spellcheck="false">
+    <div id="bs-ai-status"></div>
+    <div id="bs-ai-btns">
+      <button id="bs-ai-cancel">Cancel</button>
+      <button id="bs-ai-save">Save &amp; Enable</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+// ── Groq key helpers (shared with index.html via localStorage) ────────────────
+const BS_GROQ_KEY = 'focusreader_groq_key';
+const BS_GROQ_MODEL = 'llama-3.1-8b-instant';
+const BS_GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+
+function bsLoadKey()  { try { return localStorage.getItem(BS_GROQ_KEY) || ''; } catch(e) { return ''; } }
+function bsSaveKey(k) { try { localStorage.setItem(BS_GROQ_KEY, k); } catch(e) {} }
+function bsIsAIEnabled() { return !!bsLoadKey(); }
+
+// ── Import modal state ────────────────────────────────────────────────────────
+let _bsPendingFile   = null;
+let _bsPendingBuf    = null;
+let _bsImportMode    = 'standard';
+let _bsReturnToModal = false;
+
+function bsShowImportModal(file, buf) {
+  if (!file) return;
+  _bsPendingFile = file;
+  _bsPendingBuf  = buf || null;
+  _bsImportMode  = 'standard';
+
+  document.getElementById('bs-import-filename').textContent = file.name;
+
+  const aiOpt    = document.getElementById('bs-opt-ai');
+  const badge    = document.getElementById('bs-ai-badge');
+  const setupLnk = document.getElementById('bs-setup-link');
+
+  if (bsIsAIEnabled()) {
+    aiOpt.classList.remove('bs-disabled');
+    badge.textContent = 'Groq free tier';
+    badge.className   = 'bs-import-opt-badge bs-badge-ai';
+    setupLnk.style.display = 'none';
+  } else {
+    aiOpt.classList.add('bs-disabled');
+    badge.textContent = 'API key required';
+    badge.className   = 'bs-import-opt-badge bs-badge-nokey';
+    setupLnk.style.display = 'inline-block';
+  }
+
+  bsSelectMode('standard');
+  document.getElementById('bs-import-modal').classList.add('show');
+}
+
+function bsSelectMode(mode) {
+  const aiOpt = document.getElementById('bs-opt-ai');
+  if (mode === 'ai' && aiOpt.classList.contains('bs-disabled')) return;
+  _bsImportMode = mode;
+  document.getElementById('bs-opt-standard').classList.toggle('bs-selected', mode === 'standard');
+  aiOpt.classList.toggle('bs-selected', mode === 'ai');
+}
+
+function bsCloseImportModal() {
+  document.getElementById('bs-import-modal').classList.remove('show');
+}
+
+function bsOpenAIPanel() {
+  bsCloseImportModal();
+  document.getElementById('bs-ai-panel').classList.add('show');
+  document.getElementById('bs-ai-key-input').value = bsLoadKey();
+  document.getElementById('bs-ai-key-input').focus();
+  _bsReturnToModal = true;
+}
+
+// AI key panel wiring
+document.getElementById('bs-ai-cancel').addEventListener('click', () => {
+  document.getElementById('bs-ai-panel').classList.remove('show');
+  if (_bsReturnToModal && _bsPendingFile) {
+    _bsReturnToModal = false;
+    setTimeout(() => bsShowImportModal(_bsPendingFile, _bsPendingBuf), 150);
+  }
+});
+
+document.getElementById('bs-ai-save').addEventListener('click', async () => {
+  const key = document.getElementById('bs-ai-key-input').value.trim();
+  const statusEl = document.getElementById('bs-ai-status');
+  if (!key) {
+    bsSaveKey('');
+    statusEl.textContent = 'AI disabled — key removed.';
+    setTimeout(() => {
+      document.getElementById('bs-ai-panel').classList.remove('show');
+      if (_bsReturnToModal && _bsPendingFile) { _bsReturnToModal = false; setTimeout(() => bsShowImportModal(_bsPendingFile, _bsPendingBuf), 150); }
+    }, 900);
+    return;
+  }
+  const btn = document.getElementById('bs-ai-save');
+  btn.textContent = 'Testing…'; btn.disabled = true;
+  statusEl.textContent = 'Verifying key with Groq…';
+  try {
+    const res = await fetch(BS_GROQ_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({ model: BS_GROQ_MODEL, max_tokens: 5, temperature: 0,
+        messages: [{ role: 'user', content: 'Reply: ok' }] }),
+    });
+    if (res.ok) {
+      bsSaveKey(key);
+      statusEl.textContent = '✓ Key valid — AI enhancement enabled!';
+      setTimeout(() => {
+        btn.textContent = 'Save & Enable'; btn.disabled = false;
+        document.getElementById('bs-ai-panel').classList.remove('show');
+        if (_bsReturnToModal && _bsPendingFile) { _bsReturnToModal = false; setTimeout(() => bsShowImportModal(_bsPendingFile, _bsPendingBuf), 150); }
+      }, 1200);
+    } else {
+      const d = await res.json().catch(() => ({}));
+      statusEl.textContent = '✗ ' + (d?.error?.message || `HTTP ${res.status}`);
+      btn.textContent = 'Save & Enable'; btn.disabled = false;
+    }
+  } catch(e) {
+    statusEl.textContent = '✗ ' + e.message;
+    btn.textContent = 'Save & Enable'; btn.disabled = false;
+  }
+});
+
+// Go button — run processFile with chosen mode
+// AI star button in topbar
+(function() {
+  const starBtn     = document.getElementById('bs-ai-star-btn');
+  const starStatus  = document.getElementById('bs-ai-star-status');
+  function syncStar() {
+    const on = bsIsAIEnabled();
+    starBtn.classList.toggle('active', on);
+    starStatus.classList.toggle('show', on);
+  }
+  syncStar();
+  starBtn.addEventListener('click', () => {
+    document.getElementById('bs-ai-panel').classList.add('show');
+    document.getElementById('bs-ai-key-input').value = bsLoadKey();
+    document.getElementById('bs-ai-key-input').focus();
+    document.getElementById('bs-ai-status').textContent = bsIsAIEnabled()
+      ? '✓ AI enhancement active' : 'No key saved';
+  });
+  // Re-sync after AI panel closes
+  const aiPanel = document.getElementById('bs-ai-panel');
+  new MutationObserver(() => {
+    if (!aiPanel.classList.contains('show')) syncStar();
+  }).observe(aiPanel, { attributes: true, attributeFilter: ['class'] });
+})();
+
+document.getElementById('bs-btn-go').addEventListener('click', () => {
+  const file = _bsPendingFile;
+  const buf  = _bsPendingBuf;
+  const mode = _bsImportMode;
+  bsCloseImportModal();
+  processFile(file, buf, mode);
+});
+
+document.getElementById('bs-btn-cancel').addEventListener('click', () => {
+  bsCloseImportModal();
+  _bsPendingFile = null; _bsPendingBuf = null;
+});
+document.getElementById('bs-import-modal').addEventListener('click', e => {
+  if (e.target.id === 'bs-import-modal') bsCloseImportModal();
+});
+
+// ── Groq AI refine function ───────────────────────────────────────────────────
+async function bsRefineChunks(chunks) {
+  const key = bsLoadKey();
+  if (!key || !chunks.length) return chunks;
+
+  const TARGET = 6000;
+  const batches = [];
+  let batch = [], chars = 0;
+  for (const c of chunks) {
+    if (chars > TARGET && batch.length) { batches.push(batch); batch = []; chars = 0; }
+    batch.push(c); chars += c.length;
+  }
+  if (batch.length) batches.push(batch);
+
+  const refined = [];
+  for (let i = 0; i < batches.length; i++) {
+    try {
+      const inputJson = JSON.stringify(batches[i].map(c => {
+        const m = c.match(/^(HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
+        return m ? { type: m[1], text: m[2] } : { type: 'PROSE', text: c };
+      }), null, 2);
+
+      const prompt = `You are a semantic document reconstruction engine.
+Verify and correct the "type" label of each chunk. Do NOT change text content.
+HEADING=chapter/section title. ALLCAPS=all-caps subtitle. LISTNUM=numbered item. LISTBULLET=bullet. PROSE=paragraph.
+Preserve text exactly. Do not merge or split chunks. Omit page numbers (isolated digits).
+Return ONLY a valid JSON array with "type" and "text" fields. No markdown, no explanation.
+INPUT:
+${inputJson}`;
+
+      const res = await fetch(BS_GROQ_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+        body: JSON.stringify({ model: BS_GROQ_MODEL, temperature: 0.1, max_tokens: 4096,
+          messages: [
+            { role: 'system', content: 'Output ONLY valid JSON arrays. No markdown, no commentary.' },
+            { role: 'user', content: prompt }
+          ]
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const text = data?.choices?.[0]?.message?.content || '';
+        const clean = text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
+        try {
+          const parsed = JSON.parse(clean);
+          const arr = Array.isArray(parsed) ? parsed : (parsed?.chunks || parsed?.items || null);
+          if (arr) {
+            for (const item of arr) {
+              const types = ['HEADING','ALLCAPS','LISTNUM','LISTBULLET','PROSE'];
+              const type  = types.includes(item.type) ? item.type : 'PROSE';
+              const txt   = (item.text || '').trim();
+              if (txt) refined.push(`${type}:${txt}`);
+            }
+            continue;
+          }
+        } catch(e) {}
+      }
+    } catch(e) {}
+    refined.push(...batches[i]); // fallback
+    if (i < batches.length - 1) await new Promise(r => setTimeout(r, 300));
+  }
+
+  // Re-merge consecutive HEADING/ALLCAPS that Groq left split
+  const remerged = [];
+  for (let i = 0; i < refined.length; i++) {
+    const cur = refined[i], next = refined[i+1];
+    const curM  = cur  && cur.match(/^(HEADING|ALLCAPS):([\s\S]*)$/);
+    const nextM = next && next.match(/^(HEADING|ALLCAPS):([\s\S]*)$/);
+    if (curM && nextM) { remerged.push(curM[1]+':'+curM[2].trim()+' '+nextM[2].trim()); i++; }
+    else remerged.push(cur);
+  }
+  return remerged;
+}
+</script>
+
+</body>
+</html>
