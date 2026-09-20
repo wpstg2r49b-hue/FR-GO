@@ -227,14 +227,24 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   height:calc(100vh - 96px);
   overflow:visible;
   flex-shrink:0;
-  /* 3D depth for Normal Reading Mode's rotating-wheel scroll effect (see
-     physScrollApplyLayout in the script). Perspective alone has no visual
-     effect on elements that never receive a rotateX — i.e. it's completely
-     inert for Focus Mode, which only ever uses translateY/scale. */
-  perspective:1000px;
-  perspective-origin:center center;
 }
-/* No gradient masks — neighbours are separated by GAP_PX, no fading overlay */
+/* ── Normal Reading Mode = a free-scrolling reading window ─────────────────
+   The track is a window onto a continuous column of sentences. Text is clipped
+   at the window's top/bottom edge (sideways overflow stays visible) so it can
+   never run under the top bar or the control dock, with a short fade at the
+   two edges. Focus Mode drops all of this and uses the whole screen as before. */
+body:not(.focus-mode) #track{
+  height:calc(100vh - 190px);
+  clip-path:inset(0 -80px);
+}
+.focus-mode #track{ height:calc(100vh - 96px); }
+#track::before,#track::after{
+  content:'';position:absolute;left:0;right:0;height:26px;
+  pointer-events:none;z-index:300;transition:opacity .25s;
+}
+#track::before{ top:0;    background:linear-gradient(to bottom, var(--bg), rgba(12,11,9,0)); }
+#track::after { bottom:0; background:linear-gradient(to top,    var(--bg), rgba(12,11,9,0)); }
+.focus-mode #track::before,.focus-mode #track::after{ opacity:0; }
 
 /* Focus bracket ticks */
 .fl{position:absolute;left:-18px;right:-18px;top:50%;transform:translateY(-50%);height:1px;pointer-events:none;z-index:10}
@@ -1014,7 +1024,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   #more-menu-textsize, #more-menu-volume{ grid-column:1 / -1; }
   #more-menu .icon-btn{ min-height:40px; padding:7px 10px; }
   #more-menu .more-menu-label{ white-space:nowrap; }
-  /* Menu is tall on a short screen — keep it above the lower-left cluster, never behind it */
+  /* Menu is tall on a short screen — keep it above the dock, never behind it */
   #topbar{ z-index:30; }
   /* Bookmark list must fit above the lower-left cluster on a short screen */
   #bm-list{ max-height:min(300px, 34vh); }
@@ -1028,29 +1038,59 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
     padding-left:calc(2.2em + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
   }
 
-  /* ── Lower controls: ONE slim row instead of a tall 2-row block ──────────────
-     Portrait stacks timer/bookmark above PG./S. and needs ~110px of height,
-     which on a 390px-tall landscape screen collides with the neighbouring
-     sentences. Same controls, same order (timer · bookmark · PG. · S.), just in
-     a single 40px row on a soft fade so text never runs into them. */
+}
+
+/* ── Phones: reading window + control dock ─────────────────────────────────
+   The screen is split into three fixed zones:
+       top bar   (☰ · title · %)
+       reading window  ← sentences live and scroll ONLY here
+       dock      (timer · bookmark · page − / + · sentence)  ← text never appears here
+   In Focus Mode the top bar and dock are hidden and the window grows to the
+   full screen exactly as before. */
+@media (max-width:680px), (orientation:landscape) and (max-height:500px){
+  :root{
+    --top-h:calc(72px + env(safe-area-inset-top,0px));
+    --dock-h:calc(52px + env(safe-area-inset-bottom,0px));
+  }
+  #reader{ align-items:flex-start; }
+  #track{ transition:height .3s ease, margin-top .3s ease; }
+  body:not(.focus-mode) #track{
+    margin-top:var(--top-h);
+    height:calc(100vh - var(--top-h) - var(--dock-h));
+  }
+  @supports (height:100dvh){
+    body:not(.focus-mode) #track{ height:calc(100dvh - var(--top-h) - var(--dock-h)); }
+  }
+  .focus-mode #track{ margin-top:28px; height:calc(100vh - 56px); }
+  @supports (height:100dvh){
+    .focus-mode #track{ height:calc(100dvh - 56px); }
+  }
+
+  /* Dock: one slim, solid row. Nothing else is allowed to draw underneath it. */
   #bottombar{
-    padding-top:12px;
-    padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));
-    background:linear-gradient(to top, var(--bg) 58%, rgba(12,11,9,0));
-    pointer-events:none;              /* empty parts of the band no longer block swipes on the text… */
+    position:absolute; left:0; right:0; bottom:0; height:var(--dock-h);
+    flex-direction:row; align-items:center; gap:0;
+    padding:0 calc(10px + env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) calc(10px + env(safe-area-inset-left,0px));
+    background:var(--bg); border-top:1px solid var(--border);
   }
-  #left-panel, #pos-wrap{ pointer-events:auto; } /* …but the real controls stay fully tappable */
-  /* Same treatment at the top so the previous sentence fades out behind the title / ☰ / % ring */
-  #topbar{
-    background:linear-gradient(to bottom, var(--bg) 58%, rgba(12,11,9,0));
-    padding-bottom:12px;
-    pointer-events:none;
+  #status-cluster{
+    flex:1; width:auto; padding-left:0; order:0;
+    flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
   }
-  #top-right, #book-title{ pointer-events:auto; }
-  #ring-wrap{ z-index:40; } /* stay above the top fade */
-  #status-cluster{ align-items:center; gap:14px; }
-  #left-panel{ flex-direction:row; align-items:center; gap:4px; }
-  #pos-wrap{ flex-direction:row; align-items:center; gap:16px; padding-top:0; }
+  #left-panel{ flex-direction:row; align-items:center; gap:0; }
+  #timer-flower{ margin-top:0; }
+  #btn-bookmark{ padding:6px; min-width:38px; min-height:38px; }
+  #flower-btn{ min-width:38px; min-height:38px; }
+  #pos-wrap{ flex-direction:row; align-items:center; gap:8px; opacity:.9; padding-top:0; min-width:0; }
+  #pos-page, #pos-sent{ height:36px; gap:3px; }
+  #pos-page-input{ width:34px; }
+  #pos-sent-input{ width:42px; }
+  #pos-page-total, #pos-sent-total{ font-size:12px; }
+  .pg-step{ width:28px; height:28px; font-size:16px; }
+}
+/* Very narrow phones: drop the tiny PG. / S. labels so the dock never overflows */
+@media (max-width:350px){
+  .pos-page-label, .pos-sent-label{ display:none; }
 }
 
 /* Respect reduced-motion preference across the whole app */
@@ -2872,6 +2912,14 @@ function getFocusHeight() {
 }
 
 function layout(animated) {
+  if (!focusMode) {                       // Normal Reading Mode: free-scroll layout
+    if (!animated) nodes.forEach(el => { el.style.transition = 'none'; });
+    physScrollApplyLayout();
+    if (!animated) requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!scrollRAF) nodes.forEach(el => { el.style.transition = ''; });
+    }));
+    return;
+  }
   // Read all visible slot heights fresh — avoids stale cached values
   for (let s = 0; s < POOL_SIZE; s++) {
     const h = nodes[s].offsetHeight;
@@ -2961,7 +3009,7 @@ function layout(animated) {
 // Pool layout around `current`:
 //   slot offsets: -3, -2, -1, 0(focus), +1, +2, +3
 //   POOL_SIZE = 7 — enough to animate the visible stack (±2) plus buffer (±1)
-const POOL_SIZE = 7;
+const POOL_SIZE = 17;   // ±8 sentences — comfortably more than one screenful
 const POOL_HALF = Math.floor(POOL_SIZE / 2); // 3
 
 // Per-slot height cache — keeps measured offsetHeight for each pool slot.
@@ -3060,13 +3108,19 @@ function buildNodes() {
 }
 
 // Map a sentence index to its pool slot (circular, centred on current)
+// Focus Mode keeps its original mapping (slot ⇄ offset from `current`, content swaps in place).
+// Normal reading mode uses a true ring keyed by sentence index, so while scrolling only ONE node
+// is recycled per sentence crossing and every other node keeps its content, height and position.
 function sentToSlot(sentIdx) {
-  return ((sentIdx - current + POOL_HALF) % POOL_SIZE + POOL_SIZE) % POOL_SIZE;
+  if (focusMode) return ((sentIdx - current + POOL_HALF) % POOL_SIZE + POOL_SIZE) % POOL_SIZE;
+  return ((sentIdx % POOL_SIZE) + POOL_SIZE) % POOL_SIZE;
 }
 
 // Which sentence index should slot s show, given current position?
 function slotToSent(slot) {
-  return current - POOL_HALF + slot;
+  if (focusMode) return current - POOL_HALF + slot;
+  const base = current - POOL_HALF;
+  return base + (((slot - base) % POOL_SIZE) + POOL_SIZE) % POOL_SIZE;
 }
 
 // Fill all pool nodes with their correct sentences
@@ -3387,6 +3441,7 @@ function navigate(dir, source) {
   playTick(source === 'auto' ? 'auto' : 'manual');
   const prev = current;
   current = next;
+  scrollOff = 0; scrollVel = 0;   // stepping by key / auto-play re-centres the sentence
   hideTooltip();
 
   // DOM write: recycle exactly ONE pool node with new content
@@ -3897,7 +3952,7 @@ function jumpTo(idx) {
   current = idx;
   // Keep the continuous-scroll position in sync, otherwise a bookmark tap that lands
   // while the scroll physics is still settling would be snapped back to the old spot.
-  scrollPos = idx; scrollVel = 0;
+  scrollOff = 0; scrollVel = 0;
   // Full pool re-render since we may have jumped far (can't just recycle one slot)
   nodes.forEach(el => { el._sentIdx = -1; el._focused = undefined; });
   renderPool();
@@ -3906,7 +3961,9 @@ function jumpTo(idx) {
   if (currentBookId) saveProgress();
   if (!_layoutPending) {
     _layoutPending = true;
-    requestAnimationFrame(() => { _layoutPending = false; layout(true); });
+    // Jumps never animate in normal reading mode (nodes are re-assigned to different sentences);
+    // Focus Mode keeps its original animated behaviour.
+    requestAnimationFrame(() => { _layoutPending = false; layout(focusMode); });
   }
 }
 
@@ -4019,6 +4076,7 @@ function openBook(book) {
       totalPages = Math.ceil(sentences.length / VP);
     }
   }
+  scrollOff = 0; scrollVel = 0;
   bookmarks     = loadBookmarks(book.id);
   bookTitle.textContent = book.title;
   stopAuto();
@@ -4186,12 +4244,14 @@ function enterFocusMode() {
   document.body.classList.add('focus-mode');
   btnFocus.classList.add('active');
   maybeShowSwipeHint();
+  psModeChanged();
 }
 function exitFocusMode() {
   focusMode = false;
   document.body.classList.remove('focus-mode');
   btnFocus.classList.remove('active');
   if (swipeHintEl) swipeHintEl.classList.remove('show');
+  psModeChanged();
 }
 
 btnFocus.addEventListener('click', () => focusMode ? exitFocusMode() : enterFocusMode());
@@ -4962,254 +5022,135 @@ document.getElementById('btn-search').addEventListener('click', () => {
   searchActive ? closeSearch() : openSearch();
 });
 
-/* ── Normal Reading Mode: continuous physical scroll ──────────────────────
-   Focus Mode is completely untouched by any of this: its own navigate()/
-   layout() step system and its own dedicated single-step + hold gesture
-   handling (the trackEl listeners above) are unmodified, and every handler
-   below explicitly bails out when `focusMode` is true, handing the gesture
-   back to Focus Mode's own code.
+/* ── Normal Reading Mode: seamless free scroll ─────────────────────────────
+   The reading window shows a continuous column of sentences — no rotation, no
+   blur, no snapping to the middle. Scrolling is pixel-exact (the text follows
+   your finger 1:1), keeps gliding after you let go, and simply stops wherever
+   it stops. Whichever sentence is crossing the centre line is `current`; every
+   time a new sentence crosses it, the tick sounds and the HUD / progress update.
 
-   For Normal Reading Mode only, dragging or wheeling the reading area no
-   longer jumps discretely from sentence to sentence. Instead we track a
-   continuous, fractional reading position (`scrollPos`) and re-derive every
-   pool node's position/scale/opacity each frame by interpolating the exact
-   same target values layout() already uses (VSTEPS, the measured neighbor
-   gaps) — so the dimming hierarchy, spacing, and typography are all
-   preserved exactly, just no longer stepped between fixed points.
+   Model: `scrollOff` = how many px the centre line sits below the CENTRE of the
+   current sentence. Sentence positions are derived from measured heights, so
+   sentences of any length never overlap. Focus Mode does not use any of this. */
+const PS_GAP         = 26;      // px between sentences (long-text feel)
+const PS_FRICTION    = 0.0021;  // velocity decay per ms — long, smooth glide for quick navigation
+const PS_STOP_V      = 0.02;    // px/ms — below this the glide ends
+const PS_MAX_V       = 6;       // px/ms cap on release velocity
+const PS_MAX_DT_MS   = 48;      // clamp one frame's dt (tab-switch stalls)
+const PS_MAX_STEP_PX = 220;     // largest single move processed at once (keeps the pool window valid)
+const PS_MIN_OPACITY = 0.6;     // sentences far from the centre never fade below this (no blur, no hiding)
+const PS_FADE_PX     = 240;     // distance over which a sentence eases down to PS_MIN_OPACITY
+const PS_TICK_MIN_MS = 24;      // at most one tick per this many ms, however fast you fling
 
-   Three phases, one continuous loop:
-     • Dragging  — position follows the finger/wheel input directly (1:1).
-     • Momentum  — after release, velocity decays by friction each frame,
-       like a real wheel spinning down. No steering, no re-acceleration.
-     • Settling  — once nearly stopped, a gentle exponential ease (not a
-       spring, no oscillation) brings it to rest exactly on the nearest
-       sentence — a soft settle, never an abrupt snap or a bounce.
-
-   `current`, the HUD, bookmarks, and progress-saving all stay perfectly in
-   sync throughout, via the exact same functions navigate() already used
-   (renderNodeTextFast/updateHUD/saveProgress) — just invoked as scrollPos
-   crosses each sentence boundary instead of on a discrete keypress. */
-const PS_MIN_GAP       = 48;              // identical to the constant layout() uses
-const PS_FRICTION      = 0.0038;          // velocity decay per ms (≈ halves every ~180ms)
-const PS_DRAG_UNIT_PX  = 170;             // px of finger travel ≈ one sentence-step
-const PS_WHEEL_UNIT_PX = 260;             // px-equivalent per wheel tick (wheel deltas run larger than touch drags)
-const PS_SETTLE_V_EPS  = 0.00025;         // |velocity| below which momentum ends and settling begins
-const PS_SETTLE_TAU_MS = 105;             // settle ease time-constant — gentle, not a snap
-const PS_SETTLE_DONE   = 0.0025;          // distance-to-integer below which settling is considered finished
-const PS_MAX_DT_MS     = 48;              // clamp a single frame's dt (guards against tab-switch stalls)
-
-// "Rotating wheel" visual treatment — adapted from the reference the user
-// supplied. Formulas are continuous functions of the (now fractional)
-// distance from focus, rather than the reference's discrete per-index
-// lookup, so they interpolate perfectly smoothly as scrollPos moves. Y
-// spacing still comes from this app's own measured sentence heights
-// (dy1prev/dy1next below) rather than the reference's fixed step, so real
-// book sentences of any length never overlap.
-//
-// PS_HIDE_DISTANCE is set so ONLY the immediate previous/next sentence is
-// ever visible (never a "second" neighbor beyond that): a slot at ±2 from
-// the live `current` always sits at distance >= 1.5 (since current itself
-// tracks scrollPos to within ±0.5), so 1.5 hides it at every moment,
-// while the immediate ±1 neighbor (distance always in [0.5, 1.5]) stays
-// visible throughout, exactly through the moment it becomes the new focus.
-const PS_HIDE_DISTANCE   = 1.5;
-const PS_ROTATION_STEP   = 18;    // deg of rotateX per sentence-step
-const PS_BLUR_PER_STEP   = 2;     // px of blur per sentence-step
-const PS_BLUR_MAX        = 8;     // px — matches the reference's cap
-const PS_FOCUS_SCALE     = 1;     // matches Focus Mode's un-scaled focus sentence exactly — same on-screen width in both modes
-const PS_MIN_SCALE       = 0.82;  // floor for distant neighbors
-const PS_SCALE_PER_STEP  = 0.06;
-const PS_OPACITY_CURVE   = 1.4;   // >1 = falls off faster near focus; reaches exactly 0 at the pool's hide boundary — no floor, no pop
-
-let scrollPos      = 0;     // continuous reading position — equals `current` at rest
-let scrollVel      = 0;     // sentence-units per ms
+let scrollOff       = 0;     // px — centre line's offset below the centre of sentence `current`
+let scrollVel       = 0;     // px/ms (+ = reading forward)
 let scrollRAF       = null;
 let scrollDragging  = false;
-let _psLastT         = 0;
-let _psSamples       = [];  // recent {t,y} touch samples, for release-velocity calc
+let _psLastT        = 0;
+let _psLastTick     = 0;
+let _psSamples      = [];    // recent {t,y} touch samples for release velocity
 
-function physScrollSyncCurrent() {
-  const rounded = Math.max(0, Math.min(sentences.length - 1, Math.round(scrollPos)));
-  if (rounded === current) return false;
-  const prevCur = current;
-  current = rounded;
+// Live height of sentence idx (its pool node must currently hold it), else a sane estimate.
+function psH(idx) {
+  if (idx < 0 || idx >= sentences.length) return 0;
+  const el = nodes[sentToSlot(idx)];
+  if (el && el._sentIdx === idx) { const h = el.offsetHeight; if (h > 0) return h; }
+  return 80;
+}
+
+// Move `current` while the centre line has crossed the middle of the gap to a neighbour.
+function psReanchor() {
+  const last = sentences.length - 1;
+  let changed = false, guard = 0;
+  while (guard++ < 60) {
+    const hc = psH(current);
+    if (scrollOff > 0 && current < last) {
+      if (scrollOff > hc / 2 + PS_GAP / 2) {
+        scrollOff -= hc / 2 + PS_GAP + psH(current + 1) / 2;
+        current++; changed = true; continue;
+      }
+    } else if (scrollOff < 0 && current > 0) {
+      if (scrollOff < -(hc / 2 + PS_GAP / 2)) {
+        scrollOff += psH(current - 1) / 2 + PS_GAP + hc / 2;
+        current--; changed = true; continue;
+      }
+    }
+    break;
+  }
+  // Hard stop at the very start / end of the book (no bounce).
+  if (current === 0    && scrollOff < 0) { scrollOff = 0; scrollVel = 0; }
+  if (current === last && scrollOff > 0) { scrollOff = 0; scrollVel = 0; }
+  return changed;
+}
+
+// A sentence just crossed the centre line: refresh nodes/HUD/progress and tick.
+function psCommit(prev) {
   hideTooltip();
-
-  // Keep the scroll path cheap on mobile Safari: do not force a synchronous
-  // layout read (offsetHeight) in the touchmove / wheel handler. The physics
-  // frame below measures the recycled nodes after the browser has had a
-  // chance to lay out the new text.
-  renderNodeTextFast(prevCur, current);
-
-  // A physical sentence crossing is the normal-mode "tick". The AudioContext
-  // is already primed by the user's touchstart, so this remains reliable on
-  // iOS Safari while momentum continues after finger release.
-  playTick('manual');
-
+  renderNodeTextFast(prev, current);   // ring mapping → only the one recycled node is rewritten
   updateHUD();
   if (currentBookId) saveProgress();
-  return true;
+  const now = performance.now();
+  if (now - _psLastTick >= PS_TICK_MIN_MS) { _psLastTick = now; playTick('manual'); }
 }
 
-// Continuous counterpart to layout() — the rotating-wheel look (rotateX,
-// blur, scale, opacity) is a direct, continuous adaptation of the
-// reference the user supplied; Y spacing still uses this app's measured
-// neighbor heights (not the reference's fixed step) so real sentences of
-// any length keep their existing no-overlap guarantee.
-//
-// Symmetric, pair-based gap: the distance between two adjacent sentences is
-// computed the SAME way regardless of which one is currently `current` —
-// this is what keeps the gap perfectly continuous across a crossing instead
-// of silently recalibrating the instant `current` flips to the neighbor.
-// (An earlier version computed the gap from current's own perspective —
-// its own height unscaled, the neighbor's height scaled down — which is
-// asymmetric: the exact same pair of sentences produced a measurably
-// DIFFERENT gap depending on which one was "current." That mismatch showed
-// up as a small but real position jump at every single sentence crossing
-// whenever the two sentences' heights differed, which is virtually always
-// with real prose. This symmetric formula can never disagree with itself.)
-function pairGap(hA, hB) {
-  return Math.ceil(hA / 2) + PS_MIN_GAP + Math.ceil(hB / 2);
+// Scroll by dPx (+ = forward). Processed in bounded steps so a huge fling or wheel
+// delta can never outrun the pool window.
+function physScrollAdvance(dPx) {
+  let guard = 0;
+  while (Math.abs(dPx) > 0.001 && guard++ < 80) {
+    const step = Math.max(-PS_MAX_STEP_PX, Math.min(PS_MAX_STEP_PX, dPx));
+    dPx -= step;
+    scrollOff += step;
+    const prev = current;
+    if (psReanchor()) psCommit(prev);
+  }
 }
 
+// Position every sentence in the window relative to the centre line.
 function physScrollApplyLayout() {
-  /*
-     IMPORTANT: the visual geometry is driven by scrollPos, not by `current`.
+  const n = sentences.length;
+  if (focusMode || !n || !nodes.length) return;
+  const HALF = POOL_HALF, hs = new Array(POOL_SIZE), y = new Array(POOL_SIZE);
+  for (let k = -HALF; k <= HALF; k++) hs[k + HALF] = psH(current + k);
+  y[HALF] = -scrollOff;
+  for (let k = 1; k <= HALF; k++)
+    y[HALF + k] = y[HALF + k - 1] + hs[HALF + k - 1] / 2 + PS_GAP + hs[HALF + k] / 2;
+  for (let k = -1; k >= -HALF; k--)
+    y[HALF + k] = y[HALF + k + 1] - hs[HALF + k] / 2 - PS_GAP - hs[HALF + k + 1] / 2;
 
-     The old version recalculated dy1prev/dy1next from `current`. Since
-     `current` changes at the half-sentence boundary while the finger is
-     still moving, the exact same pair of sentences could suddenly get a
-     different vertical gap at that instant. That produced the small jump /
-     glitch that was especially noticeable on a continuous finger drag.
-
-     We now interpolate BETWEEN two complete integer layouts. At every
-     fractional scroll position, each sentence therefore has one continuous
-     geometric position. Crossing from sentence N to N+1 cannot change the
-     coordinate system underneath the finger.
-  */
-  const maxIndex = sentences.length - 1;
-  const anchor = Math.max(0, Math.min(maxIndex, Math.floor(scrollPos)));
-  const frac = Math.max(0, Math.min(1, scrollPos - anchor));
-  const nextAnchor = Math.min(maxIndex, anchor + 1);
-
-  // Height lookup. Pool nodes are already recycled around `current`, so use
-  // their measured heights where available and the cached fallback otherwise.
-  function sentenceHeight(idx) {
-    if (idx < 0 || idx > maxIndex) return 80;
-    const slot = sentToSlot(idx);
-    return _slotH[slot] || (idx === current ? _cachedFocusH : 80);
-  }
-
-  // Build the centre position of a sentence relative to an integer anchor.
-  // Adjacent sentence centres are separated by their actual half-heights plus
-  // the same minimum gap used by the normal layout.
-  function centreAt(idx, focusIdx) {
-    if (idx === focusIdx) return 0;
-
-    let y = 0;
-    if (idx > focusIdx) {
-      for (let i = focusIdx; i < idx; i++) {
-        y += pairGap(sentenceHeight(i), sentenceHeight(i + 1));
-      }
-    } else {
-      for (let i = focusIdx; i > idx; i--) {
-        y -= pairGap(sentenceHeight(i - 1), sentenceHeight(i));
-      }
-    }
-    return y;
-  }
-
-  for (let s = 0; s < POOL_SIZE; s++) {
-    const el = nodes[s];
-    const sentIdx = slotToSent(s);
-    if (sentIdx < 0 || sentIdx > maxIndex) continue;
-
-    // Interpolate the actual sentence centre between the two neighbouring
-    // integer layouts. This is the key to a truly continuous transition.
-    const y0 = centreAt(sentIdx, anchor);
-    const y1 = centreAt(sentIdx, nextAnchor);
-    const yPx = y0 + (y1 - y0) * frac;
-
-    const contOff = sentIdx - scrollPos;
-    const distance = Math.abs(contOff);
-
-    if (distance >= PS_HIDE_DISTANCE) {
-      // Only touch a hidden node once. Rewriting seven hidden nodes every
-      // frame is surprisingly expensive on iOS Safari even though they are
-      // visually invisible.
-      if (!el._psHidden) {
-        el.style.transition = 'none';
-        el.style.contain = 'none';
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(-50%) scale(0.7)';
-        el.style.filter = '';
-        el.classList.toggle('neighbour', true);
-        el._psHidden = true;
-      }
-      continue;
-    }
-    el._psHidden = false;
-
-    const angle  = contOff * PS_ROTATION_STEP;
-    const scale  = Math.max(PS_MIN_SCALE, PS_FOCUS_SCALE - distance * PS_SCALE_PER_STEP);
-    const opacity = Math.pow(
-      Math.max(0, 1 - distance / PS_HIDE_DISTANCE),
-      PS_OPACITY_CURVE
-    );
-    const blurPx = Math.min(distance * PS_BLUR_PER_STEP, PS_BLUR_MAX);
-    const tx = `translateY(calc(-50% + ${yPx.toFixed(2)}px)) rotateX(${angle.toFixed(2)}deg) scale(${scale.toFixed(4)})`;
-    const zi = String(Math.max(1, Math.round(100 - distance)));
-
-    // No CSS transition during a finger drag or momentum frame. The
-    // interpolated position itself is the animation, so every frame follows
-    // the finger with no catch-up/easing lag.
-    el.style.transition = 'none';
-    el.style.contain = 'none';
-    el.style.transform = tx;
-    el.style.opacity = String(opacity);
-    el.style.filter = blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : '';
-    el.style.zIndex = zi;
-    el.classList.toggle('neighbour', sentIdx !== current);
+  for (let k = -HALF; k <= HALF; k++) {
+    const idx = current + k;
+    if (idx < 0 || idx >= n) continue;
+    const el = nodes[sentToSlot(idx)];
+    if (!el) continue;
+    const yy   = y[HALF + k];
+    const dist = Math.max(0, Math.abs(yy) - hs[HALF + k] / 2);          // px from centre line to the sentence
+    const op   = 1 - (1 - PS_MIN_OPACITY) * Math.min(1, dist / PS_FADE_PX);
+    el.style.transform = `translateY(calc(-50% + ${yy.toFixed(1)}px))`;
+    el.style.opacity   = op.toFixed(3);
+    el.style.zIndex    = k === 0 ? '5' : '1';
+    if (el.style.filter) el.style.filter = '';
+    if (el.classList.contains('neighbour')) el.classList.remove('neighbour');
   }
 }
 
 function physScrollLoop(ts) {
-  if (focusMode) { physScrollStop(); return; } // safety net — Focus Mode owns things now
+  if (focusMode) { physScrollStop(); return; }
   if (!_psLastT) _psLastT = ts;
   const dt = Math.min(PS_MAX_DT_MS, ts - _psLastT);
   _psLastT = ts;
 
-  if (scrollDragging) {
-    // Position is already being driven live by the input handlers below;
-    // this frame just keeps the visuals current between input events.
-    physScrollApplyLayout();
-    scrollRAF = requestAnimationFrame(physScrollLoop);
-    return;
-  }
-
-  const maxPos = sentences.length - 1;
-  if (Math.abs(scrollVel) > PS_SETTLE_V_EPS) {
-    // Momentum — pure friction, no steering, no re-acceleration.
-    scrollVel *= Math.exp(-PS_FRICTION * dt);
-    scrollPos += scrollVel * dt;
-    if (scrollPos <= 0)      { scrollPos = 0;      scrollVel = 0; } // hard stop at the edges — no bounce
-    if (scrollPos >= maxPos) { scrollPos = maxPos;  scrollVel = 0; }
-  } else {
-    // Settling — a gentle exponential ease onto the nearest sentence.
-    const target = Math.max(0, Math.min(maxPos, Math.round(scrollPos)));
-    const dist   = target - scrollPos;
-    const rate   = 1 - Math.exp(-dt / PS_SETTLE_TAU_MS);
-    scrollPos += dist * rate;
-    if (Math.abs(target - scrollPos) < PS_SETTLE_DONE) {
-      scrollPos = target;
-      physScrollSyncCurrent();
+  if (!scrollDragging) {
+    if (Math.abs(scrollVel) > PS_STOP_V) {
+      scrollVel *= Math.exp(-PS_FRICTION * dt);       // pure friction glide — no snapping
+      physScrollAdvance(scrollVel * dt);
+    } else {
+      scrollVel = 0;
       physScrollApplyLayout();
       physScrollStop();
       return;
     }
   }
-
-  physScrollSyncCurrent();
   physScrollApplyLayout();
   scrollRAF = requestAnimationFrame(physScrollLoop);
 }
@@ -5217,12 +5158,7 @@ function physScrollLoop(ts) {
 function physScrollStart() {
   if (scrollRAF) return;
   _psLastT = 0;
-  // Force every node's transition off *before* the first physics-driven
-  // transform of this gesture, with a forced reflow in between. Without
-  // this, the very first transform write can still ride the outgoing CSS
-  // class transition (.2s) for one frame — the sentence briefly "catches
-  // up" under an eased curve instead of moving with the finger instantly,
-  // which reads as a disconnected stutter right at the start of a swipe.
+  // No CSS transition while physics drives the transform — the text must follow the finger instantly.
   nodes.forEach(el => { el.style.transition = 'none'; });
   void trackEl.offsetHeight;
   scrollRAF = requestAnimationFrame(physScrollLoop);
@@ -5231,13 +5167,18 @@ function physScrollStop() {
   if (scrollRAF) cancelAnimationFrame(scrollRAF);
   scrollRAF = null;
   _psLastT = 0;
-  // Hand control back to the CSS class transition for every other code
-  // path (keyboard nav, zoom, bionic/dict toggle, search, bookmarks —
-  // all still fully intact and untouched by this feature), clear the blur
-  // filter, and restore the `.neighbour` class's own contain:layout (its
-  // original optimization for Focus Mode's 2D system) — none of these are
-  // ever set by Focus Mode or a discrete jump themselves.
-  nodes.forEach(el => { el.style.transition = ''; el.style.filter = ''; el.style.contain = ''; el._psHidden = false; });
+  // Hand control back to the CSS transitions for every other path (keys, bookmarks, zoom, …).
+  nodes.forEach(el => { el.style.transition = ''; });
+}
+
+// Entering / leaving Focus Mode: stop any glide, re-map the pool for that mode, re-lay-out instantly.
+function psModeChanged() {
+  scrollDragging = false; scrollVel = 0; scrollOff = 0;
+  physScrollStop();
+  if (!nodes.length) return;
+  renderNodeText();
+  _cachedFocusIdx = -1; _cachedFocusLen = -1;
+  layout(false);
 }
 
 // Any touch/click that starts on real UI chrome (buttons, menus, the
@@ -5249,21 +5190,6 @@ function isReaderChromeTarget(t) {
     '#bm-panel, #timer-flower, .icon-btn, .btn, button, input, a'
   ));
 }
-
-// If Focus Mode is entered while a normal-mode scroll is still coasting or
-// settling, stop it immediately and drop scrollPos back in sync with
-// `current` so Focus Mode starts from a clean, exact position — it never
-// inherits any in-between state from this feature.
-(function watchFocusModeForPhysScroll() {
-  new MutationObserver(() => {
-    if (document.body.classList.contains('focus-mode') && (scrollRAF || scrollDragging)) {
-      scrollDragging = false;
-      physScrollStop();
-      scrollPos = current;
-      scrollVel = 0;
-    }
-  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
-})();
 
 let _wheelIdleTimer = null;
 window.addEventListener('wheel', e=>{
@@ -5278,19 +5204,15 @@ window.addEventListener('wheel', e=>{
     return;
   }
 
-  // Normal Reading Mode — continuous physical scroll.
+  // Normal Reading Mode — pixel-exact free scroll.
   e.preventDefault();
   stopAuto();
-  if (!scrollRAF) scrollPos = current; // resync if nothing of ours is currently in flight
-  scrollDragging = true; // wheel deltas drive position directly, same as a live finger drag
-  scrollVel = 0;
-  scrollPos = Math.max(0, Math.min(sentences.length - 1, scrollPos + e.deltaY / PS_WHEEL_UNIT_PX));
-  physScrollSyncCurrent();
-  physScrollApplyLayout();
+  const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? trackEl.clientHeight : 1);
+  scrollDragging = true; scrollVel = 0;
+  physScrollAdvance(dy);
   physScrollStart();
-
   clearTimeout(_wheelIdleTimer);
-  _wheelIdleTimer = setTimeout(() => { scrollDragging = false; }, 140); // let the wheel go quiet → settle takes over
+  _wheelIdleTimer = setTimeout(() => { scrollDragging = false; }, 120);
 },{passive:false});
 
 let touchY0=0, touchX0=0, touchT0=0, touchTarget=null;
@@ -5309,7 +5231,7 @@ window.addEventListener('touchstart',e=>{
 
   if (!readerEl.classList.contains('visible') || focusMode) return;
   // While the bookmark panel is open, swipes must keep working — including
-  // over the panel itself and the empty parts of the bottom bar. Real controls
+  // over the panel itself and the empty parts of the dock. Real controls
   // (buttons/inputs) still behave normally, and a bookmark list long enough to
   // scroll keeps its own native vertical scrolling.
   const inBmPanel = !!(touchTarget && touchTarget.closest && touchTarget.closest('#bm-panel'));
@@ -5320,13 +5242,10 @@ window.addEventListener('touchstart',e=>{
   } else if (bmOpen) {
     if (touchTarget && touchTarget.closest && touchTarget.closest('button, input, a, .icon-btn, .btn, #more-menu, #search-wrap')) return;
   } else if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
-  if (!scrollRAF) scrollPos = current; // resync if nothing of ours is currently in flight
   scrollDragging = true;
-  scrollVel = 0;
+  scrollVel = 0;                       // a touch stops any glide in progress
   _psSamples = [{ t: performance.now(), y: touchY0 }];
   // iOS Safari requires audio to be created/resumed from a user gesture.
-  // Prime it here so sentence-crossing ticks remain audible during the
-  // subsequent touchmove and momentum frames.
   try { getAudio(); } catch(e) {}
   physScrollStart();
 },{passive:true});
@@ -5342,21 +5261,16 @@ window.addEventListener('touchmove', e=>{
     _normalSwipeHandled = true;
     scrollDragging = false;
     scrollVel = 0;
-    if (scrollRAF) physScrollStop();
     stopAuto();
   }
   if (_normalHorizontalSwipe) return;
   if (!scrollDragging) return;
   stopAuto(); // only stop auto-play once real dragging is confirmed — a bare tap never touches it
-  const y   = t.clientY;
-  const now = performance.now();
+  const y    = t.clientY;
   const last = _psSamples[_psSamples.length - 1];
-  const dy = last.y - y; // positive = finger moved up
-  scrollPos = Math.max(0, Math.min(sentences.length - 1, scrollPos + dy / PS_DRAG_UNIT_PX));
-  _psSamples.push({ t: now, y });
+  physScrollAdvance(last.y - y);       // finger up (+) = read forward, 1:1 with the finger
+  _psSamples.push({ t: performance.now(), y });
   if (_psSamples.length > 6) _psSamples.shift();
-  physScrollSyncCurrent();
-  physScrollApplyLayout();
 },{passive:true});
 
 window.addEventListener('touchend',e=>{
@@ -5367,42 +5281,31 @@ window.addEventListener('touchend',e=>{
     const dy = t.clientY - touchY0;
     if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy)) {
       stopAuto();
-      if (dx < 0) {
-        jumpToPageRelative(-1); // left = previous page
-      } else {
-        jumpToPageRelative(1);  // right = next page
-      }
+      if (dx > 0) stepPage(-1);   // swipe RIGHT → previous page
+      else        stepPage(1);    // swipe LEFT  → next page
     }
     _normalHorizontalSwipe = false;
     _normalSwipeHandled = false;
     return;
   }
   // Focus Mode has its own dedicated single-step + swipe-and-hold gesture
-  // handling, scoped to #track (see the trackEl touchstart/touchmove/touchend
-  // listeners above) — completely untouched and unaffected by any of this.
+  // handling, scoped to #track (see the trackEl touch listeners above).
   if (focusMode) return;
   if (!scrollDragging) return; // drag never engaged (e.g. it started on UI chrome)
   scrollDragging = false;
 
   // Release velocity from the last ~100ms of samples only, so a slow
-  // finger lift at the end of a longer drag doesn't inherit speed from
-  // earlier in the gesture.
+  // finger lift at the end of a longer drag doesn't inherit earlier speed.
   const now = performance.now();
   const recent = _psSamples.filter(s => now - s.t <= 100);
   let vel = 0;
   if (recent.length >= 2) {
     const first = recent[0], last = recent[recent.length - 1];
     const dtMs = last.t - first.t;
-    if (dtMs > 0) vel = ((first.y - last.y) / dtMs) / PS_DRAG_UNIT_PX; // sentence-units per ms
+    if (dtMs > 0) vel = (first.y - last.y) / dtMs;        // px/ms, + = forward
   }
-  scrollVel = vel;
-  physScrollStart();
-  // NOTE: a single tap here is intentionally a no-op (no movement, no
-  // velocity — settling has nothing to do). Focus Mode toggles only via
-  // the dedicated Focus Mode button (#btn-focus), the F key, or a genuine
-  // double-tap on the reading surface (handled separately, and more
-  // precisely, in the trackEl touch listeners above) — never from an
-  // ordinary tap or swipe passing through this global handler.
+  scrollVel = Math.max(-PS_MAX_V, Math.min(PS_MAX_V, vel));
+  physScrollStart();   // glide (or, for a plain tap, stop immediately)
 });
 
 window.addEventListener('touchcancel', () => {
