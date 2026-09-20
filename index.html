@@ -527,7 +527,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #dict-tooltip.show{opacity:1;transform:translateY(0)}
 #dict-word{font-family:'Lora',serif;font-size:16px;font-weight:600;color:var(--gold);margin-bottom:5px}
 #dict-pos{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px}
-#dict-def{font-family:'Lora',serif;font-size:14px;line-height:1.6;color:var(--text-mid)}
+#dict-def{font-family:'Lora',serif;font-size:14px;line-height:1.6;color:var(--text-mid);white-space:pre-line}
 #dict-loading{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--text-dim);letter-spacing:.1em}
 
 /* ── AI Groq panel ── */
@@ -2695,7 +2695,7 @@ function toBionic(text, withWords = false) {
   // Only applies to Latin words; Chinese characters don't benefit.
   // When dictionary mode is also active, each bionic word is additionally
   // wrapped in .w so the dictionary can still target the exact word.
-  return text.replace(/([A-Za-z\u00C0-\u024F]+)/g, w => {
+  return text.replace(/([A-Za-z\u00C0-\u024F]+(?:['\u2019\u02BC][A-Za-z\u00C0-\u024F]+)*)/g, w => {
     if (w.length <= 1) return withWords ? `<span class="w">${w}</span>` : w;
     let inner;
     if (w.length <= 3) {
@@ -2709,7 +2709,9 @@ function toBionic(text, withWords = false) {
 }
 
 function toWordSpans(text) {
-  return text.replace(/(\w[\w''-]*)/g, '<span class="w">$1</span>');
+  // A word = letters/digits, optionally joined by an apostrophe (straight ' or curly \u2019 / \u02BC)
+  // so "isn't" / "isn\u2019t" is ONE word. Hyphenated compounds stay separate words.
+  return text.replace(/([A-Za-z0-9\u00C0-\u024F]+(?:['\u2019\u02BC][A-Za-z\u00C0-\u024F]+)*)/g, '<span class="w">$1</span>');
 }
 
 /* ── Audio — pre-baked buffers for zero-allocation ticks ─────────────────────
@@ -3467,12 +3469,14 @@ function positionTooltip() {
 }
 function renderDefinition(r) {
   tooltipLoad.textContent = '';
-  if (!r || !r.def) { tooltipPos.textContent = ''; tooltipDef.textContent = 'no definition found'; positionTooltip(); return; }
-  const from = r.word && r.word !== tooltipWord.textContent ? ' · from \u201C' + r.word + '\u201D' : '';
-  tooltipPos.textContent = (r.pos || '') + from;
-  let d = r.def;
-  if (d.length > 240) d = d.slice(0, 240).replace(/\s+\S*$/, '') + '\u2026';
-  tooltipDef.textContent = d;
+  const senses = r && (r.senses || (r.def ? [{ pos: r.pos, def: r.def }] : null));
+  if (!senses || !senses.length) { tooltipPos.textContent = ''; tooltipDef.textContent = 'no definition found'; positionTooltip(); return; }
+  const from = r.word && r.word !== tooltipWord.textContent ? ' \u00B7 from \u201C' + r.word + '\u201D' : '';
+  tooltipPos.textContent = (senses[0].pos || '') + from;
+  const cut = d => d.length > 200 ? d.slice(0, 200).replace(/\s+\S*$/, '') + '\u2026' : d;
+  let text = cut(senses[0].def);
+  if (senses[1]) text += '\n\n' + (senses[1].pos ? senses[1].pos + ' \u2014 ' : '') + cut(senses[1].def);
+  tooltipDef.textContent = text;
   positionTooltip();
 }
 function hideTooltip() {
@@ -4582,6 +4586,7 @@ trackEl.addEventListener('touchcancel', () => {
 // Improved word extraction — strip all punctuation from both ends
 function cleanWord(raw) {
   return raw
+    .replace(/[\u2018\u2019\u02BC]/g, "'")   // curly → straight apostrophe
     .replace(/^[^a-zA-Z\u00C0-\u024F]+/, '')
     .replace(/[^a-zA-Z\u00C0-\u024F]+$/, '')
     .toLowerCase();
@@ -4627,52 +4632,122 @@ function _htmlToText(h) {
   try { return (new DOMParser().parseFromString(String(h || ''), 'text/html').body.textContent || '').replace(/\s+/g, ' ').trim(); }
   catch (e) { return String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
 }
-const DICT_SOURCES = [
-  // 1. Free Dictionary API
+/* Senses we never want as the headline definition. Wiktionary-based sources list
+   "Translingual" entries first for many short words (e.g. "to" → "ISO 639-1 code for
+   Tongan"). We drop symbol/letter/code-type senses and pick real meanings instead. */
+const _SKIP_POS = /^(symbol|letter|numeral|number|punctuation mark|prefix|suffix|infix|affix|circumfix|interfix|proverb|phrase|idiom|abbreviation|initialism|acronym|character|diacritical mark|han character|hanzi|kanji|contraction)$/i;
+const _JUNK_DEF = /\b(ISO[ -]?\d{3,}|language code|IETF|country code|currency code|chemical symbol|unit symbol|abbreviation (of|for)|initialism of|acronym of|misspelling of|misconstruction of|(obsolete|archaic|nonstandard|dated) (spelling|form) of|alternative (spelling|form|case form) of|eye dialect|Roman numeral)\b/i;
+
+// list = [{pos, def}, …] in source order → up to 2 senses (best first, then a different part of speech)
+function _pickSenses(list) {
+  const all = list.filter(x => x && x.def && String(x.def).trim());
+  let good = all.filter(x => !_SKIP_POS.test(String(x.pos || '').trim()) && !_JUNK_DEF.test(x.def));
+  if (!good.length) good = all;              // nothing better exists — show what we have
+  if (!good.length) return null;
+  const out = [good[0]];
+  const p0 = String(good[0].pos || '').toLowerCase();
+  const second = good.find(x => String(x.pos || '').toLowerCase() !== p0) || good[1];
+  if (second) out.push(second);
+  return out;
+}
+
+const DICT_SOURCES = [   // ORDER = PRIORITY (best quality first)
+  // 1. Free Dictionary API (Wiktionary-derived, well structured)
   w => _httpJson('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(w), 7000).then(data => {
-    const m = Array.isArray(data) && data[0] && data[0].meanings && data[0].meanings[0];
-    const d = m && m.definitions && m.definitions[0] && m.definitions[0].definition;
-    if (!d) throw _notFound();
-    return { pos: m.partOfSpeech || '', def: d };
+    const list = [];
+    (Array.isArray(data) ? data : []).forEach(en => (en.meanings || []).forEach(m =>
+      (m.definitions || []).slice(0, 3).forEach(d => list.push({ pos: m.partOfSpeech || '', def: d.definition || '' }))));
+    const senses = _pickSenses(list);
+    if (!senses) throw _notFound();
+    return { senses };
   }),
   // 2. Wiktionary REST (definitions come back as HTML — flattened to plain text)
   w => _httpJson('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(w), 7000).then(data => {
-    const entries = (data && data.en) || [];
-    for (const en of entries) {
-      const def = _htmlToText(en.definitions && en.definitions[0] && en.definitions[0].definition);
-      if (def) return { pos: en.partOfSpeech || '', def };
-    }
-    throw _notFound();
+    const list = [];
+    ((data && data.en) || []).forEach(en => (en.definitions || []).slice(0, 3).forEach(d =>
+      list.push({ pos: en.partOfSpeech || '', def: _htmlToText(d.definition) })));
+    const senses = _pickSenses(list);
+    if (!senses) throw _notFound();
+    return { senses };
   }),
-  // 3. Datamuse (very fast, very reliable; definitions arrive as "n<TAB>text")
+  // 3. Datamuse / WordNet (last resort; definitions arrive as "n<TAB>text")
   w => _httpJson('https://api.datamuse.com/words?sp=' + encodeURIComponent(w) + '&md=d&max=1', 7000).then(arr => {
     const hit = Array.isArray(arr) && arr[0];
     if (!hit || String(hit.word).toLowerCase() !== w || !hit.defs || !hit.defs.length) throw _notFound();
-    const raw = String(hit.defs[0]);
-    const tab = raw.indexOf('\t');
-    const code = tab > -1 ? raw.slice(0, tab) : '';
-    const def  = tab > -1 ? raw.slice(tab + 1) : raw;
-    const POS  = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb' };
-    return { pos: POS[code] || '', def: def.trim() };
+    const POS = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb' };
+    const list = hit.defs.slice(0, 4).map(raw => {
+      raw = String(raw); const tab = raw.indexOf('\t');
+      return { pos: POS[tab > -1 ? raw.slice(0, tab) : ''] || '', def: (tab > -1 ? raw.slice(tab + 1) : raw).trim() };
+    });
+    const senses = _pickSenses(list);
+    if (!senses) throw _notFound();
+    return { senses };
   }),
 ];
 
-function _firstSuccess(promises) {
+// Resolve with the highest-PRIORITY source that succeeds. All sources run in parallel;
+// if a lower-priority one answers first we wait at most `graceMs` for the better ones.
+function _bestSuccess(promises, graceMs) {
   return new Promise((resolve, reject) => {
-    let left = promises.length; const errs = [];
-    promises.forEach(p => p.then(resolve, e => { errs.push(e); if (--left === 0) reject(errs); }));
+    const n = promises.length, state = new Array(n).fill(0), val = new Array(n), errs = []; // 0 pending · 1 ok · 2 failed
+    let timer = null, done = false;
+    const finish = v => { if (done) return; done = true; clearTimeout(timer); resolve(v); };
+    const evaluate = () => {
+      if (done) return;
+      for (let i = 0; i < n; i++) {
+        if (state[i] === 1) return finish(val[i]);
+        if (state[i] === 0) {
+          if (!timer && state.some(x => x === 1)) {
+            timer = setTimeout(() => { const j = state.indexOf(1); if (j >= 0) finish(val[j]); }, graceMs);
+          }
+          return;
+        }
+      }
+      done = true; clearTimeout(timer); reject(errs);   // every source failed
+    };
+    promises.forEach((p, i) => p.then(v => { state[i] = 1; val[i] = v; evaluate(); },
+                                      e => { state[i] = 2; errs.push(e); evaluate(); }));
   });
 }
 function _lookupExact(w) {
-  return _firstSuccess(DICT_SOURCES.map(fn => {
+  return _bestSuccess(DICT_SOURCES.map(fn => {
     try { return fn(w); } catch (e) { return Promise.reject(e); }
-  }));
+  }), 1200);
 }
+
+/* Contractions ("isn't", "she'll", "we've"…) are answered locally — instant, offline,
+   and always correct, instead of hoping an online dictionary has each one. */
+const _CONTR_IRREG = {
+  "can't": 'can not', "won't": 'will not', "shan't": 'shall not',
+  "ain't": 'am not / is not / are not / has not / have not (nonstandard)',
+  "let's": 'let us', "y'all": 'you all', "ma'am": 'madam', "o'clock": 'of the clock',
+};
+const _CONTR_SUFFIX = { "'ll": 'will', "'re": 'are', "'ve": 'have', "'m": 'am' };
+const _CONTR_S_BASES = new Set(['it','he','she','that','what','there','here','who','where','how','when','why','everyone','someone','nobody','everything','something','nothing']);
+function _contraction(w) {
+  const mk = exp => ({ word: w, senses: [{ pos: 'contraction', def: 'Contraction of \u201C' + exp + '\u201D.' }] });
+  const B = b => (b === 'i' ? 'I' : b);
+  if (_CONTR_IRREG[w]) return mk(_CONTR_IRREG[w]);
+  let m = w.match(/^([a-z]+)n't$/);                       // isn't, don't, couldn't …
+  if (m) return mk(B(m[1]) + ' not');
+  m = w.match(/^([a-z]+)'d$/);                            // I'd, she'd …
+  if (m) return mk(B(m[1]) + ' would / ' + B(m[1]) + ' had');
+  m = w.match(/^([a-z]+)'s$/);                            // it's, that's … (NOT possessives like dog's)
+  if (m && _CONTR_S_BASES.has(m[1])) return mk(m[1] + ' is / ' + m[1] + ' has');
+  for (const suf in _CONTR_SUFFIX) {                      // I'll, you're, we've, I'm
+    if (w.endsWith(suf)) {
+      const base = w.slice(0, -suf.length);
+      if (/^[a-z]+$/.test(base)) return mk(B(base) + ' ' + _CONTR_SUFFIX[suf]);
+    }
+  }
+  return null;
+}
+
 function _stemCandidates(w) {
   const out = [];
   const add = x => { if (x && x.length >= 3 && x !== w && !out.includes(x)) out.push(x); };
   const undouble = x => /([b-df-hj-np-tv-z])\1$/.test(x) ? x.slice(0, -1) : x;
-  if (/['\u2019]s$/.test(w)) add(w.slice(0, -2));
+  if (/'s$/.test(w)) add(w.slice(0, -2));
   if (/ies$/.test(w)) add(w.slice(0, -3) + 'y');
   if (/(ses|xes|zes|ches|shes)$/.test(w)) add(w.slice(0, -2));
   if (/s$/.test(w) && !/ss$/.test(w)) add(w.slice(0, -1));
@@ -4683,12 +4758,14 @@ function _stemCandidates(w) {
   return out.slice(0, 4);
 }
 async function lookupWord(w) {
+  const c = _contraction(w);
+  if (c) return c;
   const cands = [w, ..._stemCandidates(w)];
   let reachable = false;
-  for (const c of cands) {
+  for (const cand of cands) {
     try {
-      const r = await _lookupExact(c);
-      return { word: c, pos: r.pos, def: r.def };
+      const r = await _lookupExact(cand);
+      return { word: cand, senses: r.senses };
     } catch (errs) {
       // At least one service answered "no such word" → network is fine, keep trying stems.
       if ((errs || []).some(e => e && e.notFound)) reachable = true;
