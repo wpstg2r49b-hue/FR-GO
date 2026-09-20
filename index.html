@@ -4452,6 +4452,13 @@ trackEl.addEventListener('touchend', e => {
   _lastTouchTs = Date.now();
   const t = e.changedTouches[0];
   if (Math.hypot(t.clientX - _dictTouchX, t.clientY - _dictTouchY) > 12) return; // a swipe, not a tap
+  // Second tap of a double-tap → that's the Focus Mode toggle (handled by the double-tap
+  // listener below). Drop any lookup card from the first tap and don't start a new one.
+  if ((Date.now() - _lastTapTime) < DOUBLE_TAP_MS &&
+      Math.hypot(t.clientX - _lastTapX, t.clientY - _lastTapY) < DOUBLE_TAP_PX) {
+    hideTooltip();
+    return;
+  }
   const sp = dictWordAtPoint(t.clientX, t.clientY);
   if (!sp) { hideTooltip(); return; }
   if (e.cancelable) e.preventDefault(); // this tap was a lookup — no synthetic mouse/click follow-ups
@@ -4478,7 +4485,6 @@ trackEl.addEventListener('touchstart', e => {
 let _lastTapTime = 0, _lastTapX = 0, _lastTapY = 0;
 const DOUBLE_TAP_MS = 350, DOUBLE_TAP_PX = 40, TAP_MOVE_PX = 12;
 trackEl.addEventListener('touchend', e => {
-  if (dictOn) return; // dictionary tap handling above takes priority in that mode
   if (e.target.closest('.img-page-thumb')) return; // let the lightbox handle its own tap
   const t = e.changedTouches[0];
   const movedThisTouch = Math.hypot(t.clientX - _trackTouchStartX, t.clientY - _trackTouchStartY);
@@ -4529,7 +4535,7 @@ function fmClearTimers() {
 }
 
 trackEl.addEventListener('touchstart', e => {
-  if (!focusMode || dictOn) return;
+  if (!focusMode) return;
   const t = e.touches[0];
   _fmActive  = true;
   _fmStartX  = t.clientX;
@@ -4540,7 +4546,7 @@ trackEl.addEventListener('touchstart', e => {
 }, {passive:true});
 
 trackEl.addEventListener('touchmove', e => {
-  if (!focusMode || !_fmActive || dictOn || _fmStepped) return;
+  if (!focusMode || !_fmActive || _fmStepped) return;
   const t  = e.touches[0];
   const dy = _fmStartY - t.clientY; // positive = finger moved up
   const dx = Math.abs(t.clientX - _fmStartX);
