@@ -155,27 +155,30 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 .focus-mode #bottombar,
 .focus-mode #left-panel,
 .focus-mode #ring-wrap,
-.focus-mode #play-dot,
-.focus-mode #btn-focus-exit{
+.focus-mode #play-dot{
   opacity:0;
   pointer-events:none;
   transition:opacity .4s;
 }
-.focus-mode #btn-focus-exit{
-  opacity:1!important;
-  pointer-events:all!important;
-}
-/* Exit focus mode button — tiny, bottom centre, only visible in focus mode */
-#btn-focus-exit{
+/* Focus Mode auto-read control — the only chrome left on screen. Deliberately tiny:
+   ▶ play/pause · − · WPM · +   (double-tap the text or press Esc to leave Focus Mode) */
+#focus-auto{
   position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:2px;
   font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
-  letter-spacing:.14em;color:var(--text-dim);text-transform:uppercase;
-  background:none;border:1px solid var(--border);padding:5px 14px;
-  cursor:pointer;opacity:0;pointer-events:none;
-  transition:opacity .3s;z-index:50;
+  opacity:0;pointer-events:none;transition:opacity .3s;z-index:50;
 }
-.focus-mode #btn-focus-exit{opacity:.4;pointer-events:all}
-.focus-mode #btn-focus-exit:hover{opacity:1;color:var(--gold);border-color:var(--gold-dim)}
+.focus-mode #focus-auto{opacity:.5;pointer-events:all}
+.focus-mode #focus-auto:hover,.focus-mode #focus-auto:active{opacity:1}
+#focus-auto button{
+  width:24px;height:22px;padding:0;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font:inherit;color:var(--text-mid);background:none;border:1px solid var(--border);
+  -webkit-tap-highlight-color:transparent;
+}
+#focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
+#focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
+#fa-wpm{min-width:28px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
 /* Focus button in top-right */
 #btn-focus{position:relative}
 
@@ -657,11 +660,12 @@ body:not(.focus-mode) #track{
 
 /* ── Hourglass timer ── */
 #timer-flower{
-  display:flex;flex-direction:column;align-items:center;gap:6px;
-  margin-top:10px;
+  position:relative;
+  display:flex;flex-direction:row;align-items:center;gap:6px;
+  margin:0;
   opacity:0;pointer-events:none;transition:opacity .3s;
 }
-#timer-flower.show{opacity:1;pointer-events:all}
+#timer-flower.show{opacity:1;pointer-events:inherit} /* inherit: a closed ☰ menu (pointer-events:none) must not leave invisible tap targets behind */
 #flower-btn{
   width:38px;height:44px;cursor:pointer;
   position:relative;background:none;border:none;padding:0;
@@ -672,7 +676,7 @@ body:not(.focus-mode) #track{
 /* Tooltip */
 #flower-btn::after{
   content:attr(data-tip);
-  position:absolute;left:46px;top:50%;transform:translateY(-50%);
+  position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   letter-spacing:.1em;text-transform:uppercase;
   color:var(--text-mid);background:var(--surface);
@@ -681,11 +685,15 @@ body:not(.focus-mode) #track{
   opacity:0;transition:opacity .15s;z-index:100;
 }
 #flower-btn:hover::after{opacity:1}
+#timer-flower:has(#flower-presets.show, #flower-controls.show) #flower-btn::after{display:none} /* don't cover the open options */
 /* Preset menu */
-#flower-presets{
-  display:none;flex-direction:column;gap:3px;align-items:stretch;width:100%;
+#flower-presets,#flower-controls{
+  display:none;flex-direction:column;gap:3px;align-items:stretch;
+  position:absolute;top:calc(100% + 6px);right:0;width:64px;
+  background:var(--surface);border:1px solid var(--border);padding:6px;
+  z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.5);
 }
-#flower-presets.show{display:flex}
+#flower-presets.show,#flower-controls.show{display:flex}
 .flower-preset{
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   letter-spacing:.08em;color:var(--text-dim);background:none;
@@ -695,8 +703,6 @@ body:not(.focus-mode) #track{
 .flower-preset:hover{color:var(--gold);border-color:var(--gold-dim)}
 .flower-preset.active{color:var(--gold);border-color:var(--gold-dim);background:var(--gold-faint)}
 /* Controls */
-#flower-controls{display:none;gap:3px;flex-direction:column;width:100%}
-#flower-controls.show{display:flex}
 #flower-pause,#flower-reset{
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   letter-spacing:.06em;color:var(--text-dim);background:none;
@@ -742,9 +748,32 @@ body:not(.focus-mode) #track{
 }
 
 #flower-label{
+  display:none; /* shown only inside the phone dropdown */
   font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
   letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase;
 }
+/* Auto-scroll speed row (phone dropdown only — desktop has the WPM control in the bottom bar) */
+#more-menu-speed{ display:none; }
+#speed-val{
+  font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
+  color:var(--text-mid);min-width:44px;text-align:center;letter-spacing:.04em;
+}
+/* Dock auto-play button (phone only) */
+#btn-autoplay{
+  display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  background:none;border:none;cursor:pointer;color:var(--text-mid);
+  padding:4px 6px;min-width:38px;min-height:38px;opacity:.75;
+  transition:opacity .2s,color .2s;-webkit-tap-highlight-color:transparent;
+}
+#btn-autoplay.active{opacity:1;color:var(--gold)}
+#btn-autoplay .ap-pause{display:none}
+#btn-autoplay.active .ap-play{display:none}
+#btn-autoplay.active .ap-pause{display:block}
+#btn-autoplay .ap-wpm{
+  font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.04em;
+  line-height:1;color:var(--text-dim);
+}
+#btn-autoplay.active .ap-wpm{color:var(--gold-dim)}
 
 /* ════════════════════════════════════════════════════════════════════════
    MOBILE-FIRST RESPONSIVE LAYER
@@ -888,18 +917,26 @@ body:not(.focus-mode) #track{
     min-width:min(84vw,320px); max-width:calc(100vw - 32px);
   }
 
-  #flower-btn{ min-width:40px; min-height:40px; }
-  #timer-flower{ position:relative; gap:0; }
-  #flower-label{ display:none; } /* the icon alone is enough at this size */
-  /* Presets/pause-reset already show/hide via the existing .show class —
-     we only change WHERE they render: floating above the icon instead of
-     stacking underneath it and pushing into the reading column. */
-  #flower-presets, #flower-controls{
-    position:absolute; left:0; right:auto; bottom:calc(100% + 8px); top:auto;
-    transform:none;
-    width:60px; background:var(--surface); border:1px solid var(--border);
-    padding:6px; z-index:60; box-shadow:0 8px 24px rgba(0,0,0,.5);
+  /* Timer lives in the ☰ dropdown: a full-width row (icon + "Timer" / "12:34 left"),
+     with its presets / pause-reset as an inline row underneath. */
+  #timer-flower{ width:100%; flex-wrap:wrap; gap:0 10px; padding:4px 10px; }
+  #flower-btn{ width:34px; min-width:34px; height:38px; opacity:.85; }
+  #flower-svg{ width:34px; height:38px; }
+  #flower-btn::after{ display:none; }
+  #flower-label{
+    display:inline; flex:1; cursor:pointer;
+    font-size:12px; letter-spacing:.06em; color:var(--text-mid); text-transform:none;
   }
+  #flower-presets, #flower-controls{
+    position:static; width:100%; flex-direction:row; gap:6px;
+    padding:6px 0 4px; background:none; border:none; box-shadow:none; z-index:auto;
+  }
+  .flower-preset, #flower-pause, #flower-reset{ flex:1; padding:8px 0; font-size:12px; width:auto; }
+  #more-menu-speed{
+    display:flex; align-items:center; justify-content:space-between; padding:8px 10px 4px;
+  }
+  #more-menu-speed .speed-zone{ display:flex; align-items:center; gap:6px; }
+  #more-menu-speed .zoom-btn{ min-width:36px; min-height:32px; font-size:12px; }
 
   /* ── Progress percentage ──
      Moved to the top-right corner (the menu button now occupies top-left),
@@ -966,7 +1003,7 @@ body:not(.focus-mode) #track{
   .search-nav-btn{ min-width:44px; min-height:40px; }
 
   /* ── Focus-mode exit hint sits above the home indicator ── */
-  #btn-focus-exit{ bottom:calc(14px + env(safe-area-inset-bottom)); }
+  #focus-auto{ bottom:calc(14px + env(safe-area-inset-bottom)); }
 
   /* ── Bionic / dictionary word targets stay comfortably tappable ── */
   .snt .w{ padding:1px 0; }
@@ -1021,8 +1058,14 @@ body:not(.focus-mode) #track{
     display:grid; grid-template-columns:1fr 1fr; gap:2px;
     min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
   }
-  #more-menu-textsize, #more-menu-volume{ grid-column:1 / -1; }
-  #more-menu .icon-btn{ min-height:40px; padding:7px 10px; }
+  #more-menu-textsize, #more-menu-volume, #more-menu-speed, #timer-flower{ grid-column:1 / -1; }
+  #more-menu .icon-btn{ min-height:32px; padding:3px 10px; }
+  #more-menu{ max-height:calc(100vh - 62px); }
+  #more-menu-textsize, #more-menu-speed{ padding:3px 10px; }
+  #more-menu-volume{ padding:2px 10px; }
+  #timer-flower{ padding:2px 10px; }
+  #flower-presets, #flower-controls{ padding:3px 0 2px; }
+  .flower-preset, #flower-pause, #flower-reset{ padding:6px 0; }
   #more-menu .more-menu-label{ white-space:nowrap; }
   /* Menu is tall on a short screen — keep it above the dock, never behind it */
   #topbar{ z-index:30; }
@@ -1078,9 +1121,8 @@ body:not(.focus-mode) #track{
     flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
   }
   #left-panel{ flex-direction:row; align-items:center; gap:0; }
-  #timer-flower{ margin-top:0; }
+  #btn-autoplay{ display:flex; }
   #btn-bookmark{ padding:6px; min-width:38px; min-height:38px; }
-  #flower-btn{ min-width:38px; min-height:38px; }
   #pos-wrap{ flex-direction:row; align-items:center; gap:8px; opacity:.9; padding-top:0; min-width:0; }
   #pos-page, #pos-sent{ height:36px; gap:3px; }
   #pos-page-input{ width:34px; }
@@ -1215,6 +1257,24 @@ body:not(.focus-mode) #track{
             <span class="more-menu-label">Hand gesture</span>
           </button>
 
+          <!-- Timer — stopwatch icon (drawn in JS, see drawStopwatch) -->
+          <div id="timer-flower">
+            <button id="flower-btn" data-tip="set timer">
+              <svg id="flower-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
+            </button>
+            <span id="flower-label">Timer</span>
+            <div id="flower-presets">
+              <button class="flower-preset" data-mins="15">15m</button>
+              <button class="flower-preset" data-mins="30">30m</button>
+              <button class="flower-preset" data-mins="60">60m</button>
+            </div>
+            <div id="flower-controls">
+              <button id="flower-pause">pause</button>
+              <button id="flower-reset">reset</button>
+            </div>
+          </div>
+
+
           <!-- Text size -->
           <div id="more-menu-textsize">
             <span class="more-menu-label">Text size</span>
@@ -1222,6 +1282,16 @@ body:not(.focus-mode) #track{
               <button class="zoom-btn" id="btn-zoom-out" title="Smaller text">A−</button>
               <span id="zoom-pct">100%</span>
               <button class="zoom-btn" id="btn-zoom-in" title="Larger text">A＋</button>
+            </div>
+          </div>
+
+          <!-- Auto-scroll speed (WPM) -->
+          <div id="more-menu-speed">
+            <span class="more-menu-label">Auto speed</span>
+            <div class="speed-zone">
+              <button class="zoom-btn" id="btn-speed-down" title="Slower">−</button>
+              <span id="speed-val">200</span>
+              <button class="zoom-btn" id="btn-speed-up" title="Faster">＋</button>
             </div>
           </div>
 
@@ -1259,12 +1329,17 @@ body:not(.focus-mode) #track{
     </div>
 
     <!-- Focus mode exit hint -->
-    <button id="btn-focus-exit">Exit focus</button>
+    <div id="focus-auto">
+      <button id="fa-play" title="Auto read (play / pause)" aria-label="Auto read">▶</button>
+      <button id="fa-down" title="Slower" aria-label="Slower">−</button>
+      <span id="fa-wpm">200</span>
+      <button id="fa-up" title="Faster" aria-label="Faster">+</button>
+    </div>
 
     <!-- Bookmark toast -->
     <div id="bm-toast"></div>
-    <div id="swipe-hint">↑ Swipe to read ↓</div>
-    <div id="reader-open-hint">DOUBLE TAP TO FOCUS</div>
+    <div id="swipe-hint">Swipe to read · double-tap to exit</div>
+    <div id="reader-open-hint">DOUBLE-TAP A SENTENCE TO FOCUS</div>
 
     <!-- Search overlay — shown by Ctrl+F or search button -->
     <div id="search-wrap">
@@ -1315,22 +1390,12 @@ body:not(.focus-mode) #track{
            (bookmark dropdown, timer presets), only repositioned. -->
       <div id="status-cluster">
         <div id="left-panel">
-          <!-- Timer — stopwatch icon (drawn in JS, see drawStopwatch) -->
-          <div id="timer-flower">
-            <button id="flower-btn" data-tip="set timer">
-              <svg id="flower-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
-            </button>
-            <span id="flower-label">timer</span>
-            <div id="flower-presets">
-              <button class="flower-preset" data-mins="15">15m</button>
-              <button class="flower-preset" data-mins="30">30m</button>
-              <button class="flower-preset" data-mins="60">60m</button>
-            </div>
-            <div id="flower-controls">
-              <button id="flower-pause">pause</button>
-              <button id="flower-reset">reset</button>
-            </div>
-          </div>
+          <!-- Auto-scroll play / pause — takes the spot the timer used to have -->
+          <button id="btn-autoplay" title="Auto-scroll (play / pause)" aria-label="Auto-scroll">
+            <svg class="ap-play" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="7,4 20,12 7,20"/></svg>
+            <svg class="ap-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            <span class="ap-wpm" id="ap-wpm">200</span>
+          </button>
 
           <!-- Bookmark with dropdown panel -->
           <div style="position:relative">
@@ -2857,6 +2922,11 @@ const ringFill    = document.getElementById('ring-fill');
 const playDot     = document.getElementById('play-dot');
 const wpmDisplay  = document.getElementById('wpm-display');
 const btnPlay     = document.getElementById('btn-play');
+const apBtn       = document.getElementById('btn-autoplay');   // dock auto-scroll button (phone)
+const apWpm       = document.getElementById('ap-wpm');
+const speedVal    = document.getElementById('speed-val');
+const faPlay      = document.getElementById('fa-play');        // Focus Mode mini controls
+const faWpm       = document.getElementById('fa-wpm');
 const btnBionic   = document.getElementById('btn-bionic');
 const btnDict     = document.getElementById('btn-dict');
 const bookTitle   = document.getElementById('book-title');
@@ -2879,7 +2949,8 @@ bookTitle.addEventListener('click', () => bookTitle.classList.toggle('expanded')
 function setWPM(val) {
   wpm = Math.max(WPM_MIN, Math.min(WPM_MAX, Math.round(val/WPM_STEP)*WPM_STEP));
   wpmDisplay.textContent = wpm;
-  if (autoOn) scheduleAuto();
+  apWpm.textContent = wpm; speedVal.textContent = wpm; faWpm.textContent = wpm;
+  if (autoOn) scheduleAuto();   // Focus Mode timer restarts; normal-mode scrolling reads `wpm` live
 }
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
@@ -3407,9 +3478,25 @@ function sentenceDelay(idx) {
   }
   return Math.max(1000, Math.round((units / rate) * 60000) + 400);
 }
-function scheduleAuto() { clearTimeout(autoTimer); if(!autoOn) return; autoTimer=setTimeout(()=>navigate(1,'auto'),sentenceDelay(current)); }
-function startAuto() { autoOn=true; btnPlay.classList.add('active'); btnPlay.textContent='Ⅱ'; btnPlay.setAttribute('aria-label','Pause'); playDot.classList.add('on'); scheduleAuto(); }
-function stopAuto()  { autoOn=false; clearTimeout(autoTimer); btnPlay.classList.remove('active'); btnPlay.textContent='▶'; btnPlay.setAttribute('aria-label','Play'); playDot.classList.remove('on'); }
+/* Auto-read has two styles, chosen by mode:
+     • Focus Mode         → sentence by sentence (timer-driven), exactly as before
+     • Normal reading mode → smooth hands-free scroll at the WPM pace (driven by the scroll engine below) */
+function scheduleAuto() { clearTimeout(autoTimer); if(!autoOn || !focusMode) return; autoTimer=setTimeout(()=>navigate(1,'auto'),sentenceDelay(current)); }
+function syncPlayUI() {
+  btnPlay.classList.toggle('active', autoOn);
+  btnPlay.textContent = autoOn ? 'Ⅱ' : '▶';
+  btnPlay.setAttribute('aria-label', autoOn ? 'Pause' : 'Play');
+  playDot.classList.toggle('on', autoOn);
+  apBtn.classList.toggle('active', autoOn);
+  faPlay.classList.toggle('active', autoOn);
+  faPlay.textContent = autoOn ? 'Ⅱ' : '▶';
+}
+function startAuto() {
+  autoOn=true; syncPlayUI();
+  if (focusMode) scheduleAuto();
+  else { scrollVel = 0; physScrollStart(); }
+}
+function stopAuto()  { autoOn=false; clearTimeout(autoTimer); syncPlayUI(); }
 function toggleAuto(){ autoOn?stopAuto():startAuto(); }
 
 /* ── Navigate ─────────────────────────────────────────────────────────────── */
@@ -4214,11 +4301,10 @@ function showToast(msg) {
 document.getElementById('btn-shelf').addEventListener('click', () => { window.location.href = 'bookshelf.html'; });
 let focusMode = false;
 const btnFocus     = document.getElementById('btn-focus');
-const btnFocusExit = document.getElementById('btn-focus-exit');
 
 /* First-time Focus Mode swipe hint — shown once, ever, per browser.
    Minimal and auto-dismissing; never re-shown once localStorage records it. */
-const SWIPE_HINT_KEY = 'focusreader_swipe_hint_seen';
+const SWIPE_HINT_KEY = 'focusreader_focus_exit_hint_seen';   // new key: the hint now also explains how to exit
 const swipeHintEl = document.getElementById('swipe-hint');
 const readerOpenHintEl = document.getElementById('reader-open-hint');
 let _swipeHintTimer = null;
@@ -4236,7 +4322,7 @@ function maybeShowSwipeHint() {
   try { localStorage.setItem(SWIPE_HINT_KEY, '1'); } catch(e) {}
   swipeHintEl.classList.add('show');
   clearTimeout(_swipeHintTimer);
-  _swipeHintTimer = setTimeout(() => swipeHintEl.classList.remove('show'), 2200);
+  _swipeHintTimer = setTimeout(() => swipeHintEl.classList.remove('show'), 3200);
 }
 
 function enterFocusMode() {
@@ -4245,6 +4331,31 @@ function enterFocusMode() {
   btnFocus.classList.add('active');
   maybeShowSwipeHint();
   psModeChanged();
+}
+// Double-tap on a sentence in normal reading mode: Focus Mode opens ON THAT SENTENCE.
+function enterFocusAt(idx) {
+  if (idx >= 0 && idx < sentences.length && idx !== current) {
+    hideTooltip();
+    current = idx; scrollOff = 0; scrollVel = 0;
+    _lastHUDpg = -1;
+    updateHUD();
+    if (currentBookId) saveProgress();
+  }
+  enterFocusMode();
+}
+// Which sentence is under (or nearest to) this screen point?
+function sentenceIdxAtPoint(x, y) {
+  const tr = trackEl.getBoundingClientRect();
+  let best = -1, bestD = Infinity;
+  for (const el of nodes) {
+    const idx = el._sentIdx;
+    if (idx == null || idx < 0 || idx >= sentences.length) continue;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < tr.top || r.top > tr.bottom) continue;          // outside the reading window
+    const d = y < r.top ? r.top - y : (y > r.bottom ? y - r.bottom : 0);
+    if (d < bestD) { bestD = d; best = idx; }
+  }
+  return best;
 }
 function exitFocusMode() {
   focusMode = false;
@@ -4255,7 +4366,14 @@ function exitFocusMode() {
 }
 
 btnFocus.addEventListener('click', () => focusMode ? exitFocusMode() : enterFocusMode());
-btnFocusExit.addEventListener('click', exitFocusMode);
+
+/* Auto-play / speed controls: dock button, ☰ menu speed row, Focus Mode mini bar */
+apBtn.addEventListener('click', e => { e.stopPropagation(); toggleAuto(); });
+faPlay.addEventListener('click', e => { e.stopPropagation(); toggleAuto(); });
+document.getElementById('fa-down').addEventListener('click', e => { e.stopPropagation(); setWPM(wpm - WPM_STEP); });
+document.getElementById('fa-up'  ).addEventListener('click', e => { e.stopPropagation(); setWPM(wpm + WPM_STEP); });
+document.getElementById('btn-speed-down').addEventListener('click', e => { e.stopPropagation(); setWPM(wpm - WPM_STEP); });
+document.getElementById('btn-speed-up'  ).addEventListener('click', e => { e.stopPropagation(); setWPM(wpm + WPM_STEP); });
 
 /* ── "More" menu (mobile) — purely a visibility toggle around the exact
    same buttons/handlers defined elsewhere; no reading or Focus Mode logic
@@ -4550,6 +4668,7 @@ let _lastTapTime = 0, _lastTapX = 0, _lastTapY = 0;
 const DOUBLE_TAP_MS = 350, DOUBLE_TAP_PX = 40, TAP_MOVE_PX = 12;
 trackEl.addEventListener('touchend', e => {
   if (e.target.closest('.img-page-thumb')) return; // let the lightbox handle its own tap
+  if (dropdownOpen()) { _lastTapTime = 0; return; } // a tap while a dropdown is open just dismisses it
   const t = e.changedTouches[0];
   const movedThisTouch = Math.hypot(t.clientX - _trackTouchStartX, t.clientY - _trackTouchStartY);
   if (movedThisTouch > TAP_MOVE_PX) { _lastTapTime = 0; return; } // swipe/drag, not a tap
@@ -4561,7 +4680,8 @@ trackEl.addEventListener('touchend', e => {
   if (isDoubleTap) {
     e.preventDefault(); // belt-and-suspenders against the browser's own double-tap-zoom
     _lastTapTime = 0;
-    focusMode ? exitFocusMode() : enterFocusMode();
+    if (focusMode) exitFocusMode();
+    else enterFocusAt(sentenceIdxAtPoint(t.clientX, t.clientY));   // focus the sentence that was double-tapped
   } else {
     _lastTapTime = now; _lastTapX = t.clientX; _lastTapY = t.clientY;
   }
@@ -4599,7 +4719,7 @@ function fmClearTimers() {
 }
 
 trackEl.addEventListener('touchstart', e => {
-  if (!focusMode) return;
+  if (!focusMode || dropdownOpen()) return;
   const t = e.touches[0];
   _fmActive  = true;
   _fmStartX  = t.clientX;
@@ -5050,6 +5170,23 @@ let _psLastT        = 0;
 let _psLastTick     = 0;
 let _psSamples      = [];    // recent {t,y} touch samples for release velocity
 
+// While ANY dropdown (☰ menu, timer options, bookmark list) is open, the reading text must not
+// scroll or swipe — it prevents accidental moves while you're using the menu.
+function dropdownOpen() {
+  return moreMenu.classList.contains('open') || bmPanel.classList.contains('show');
+}
+
+// Hands-free scroll speed (px/ms) at the current position: cover the distance to the next
+// sentence in exactly the time that sentence takes to read at the chosen WPM.
+function psAutoSpeed() {
+  const last = sentences.length - 1;
+  let i = scrollOff >= 0 ? current : current - 1;     // the sentence we're currently "reading through"
+  if (i < 0) i = 0;
+  if (i >= last) return 0;
+  const dist = psH(i) / 2 + PS_GAP + psH(i + 1) / 2;
+  return dist / sentenceDelay(i);
+}
+
 // Live height of sentence idx (its pool node must currently hold it), else a sane estimate.
 function psH(idx) {
   if (idx < 0 || idx >= sentences.length) return 0;
@@ -5090,7 +5227,7 @@ function psCommit(prev) {
   updateHUD();
   if (currentBookId) saveProgress();
   const now = performance.now();
-  if (now - _psLastTick >= PS_TICK_MIN_MS) { _psLastTick = now; playTick('manual'); }
+  if (now - _psLastTick >= PS_TICK_MIN_MS) { _psLastTick = now; playTick(autoOn && !scrollDragging ? 'auto' : 'manual'); }
 }
 
 // Scroll by dPx (+ = forward). Processed in bounded steps so a huge fling or wheel
@@ -5141,7 +5278,11 @@ function physScrollLoop(ts) {
   _psLastT = ts;
 
   if (!scrollDragging) {
-    if (Math.abs(scrollVel) > PS_STOP_V) {
+    if (autoOn) {
+      scrollVel = 0;
+      if (current >= sentences.length - 1 && scrollOff >= 0) stopAuto();      // reached the end of the book
+      else physScrollAdvance(psAutoSpeed() * dt);                              // steady reading-pace scroll
+    } else if (Math.abs(scrollVel) > PS_STOP_V) {
       scrollVel *= Math.exp(-PS_FRICTION * dt);       // pure friction glide — no snapping
       physScrollAdvance(scrollVel * dt);
     } else {
@@ -5179,6 +5320,10 @@ function psModeChanged() {
   renderNodeText();
   _cachedFocusIdx = -1; _cachedFocusLen = -1;
   layout(false);
+  if (autoOn) {                       // keep reading hands-free in the new mode's style
+    clearTimeout(autoTimer);
+    if (focusMode) scheduleAuto(); else physScrollStart();
+  }
 }
 
 // Any touch/click that starts on real UI chrome (buttons, menus, the
@@ -5196,6 +5341,7 @@ window.addEventListener('wheel', e=>{
   if (!readerEl.classList.contains('visible')) return;
   // Let the bookmark panel (and any other scrollable overlay) scroll naturally
   if (e.target.closest('#bm-panel')) return;
+  if (dropdownOpen()) return;          // menus own the gestures while open
 
   if (focusMode) {
     // Focus Mode's original wheel behavior — completely unchanged.
@@ -5216,6 +5362,7 @@ window.addEventListener('wheel', e=>{
 },{passive:false});
 
 let touchY0=0, touchX0=0, touchT0=0, touchTarget=null;
+let _psBlocked = false;   // true when this touch began while a dropdown was open
 let _normalHorizontalSwipe = false;
 let _normalSwipeHandled = false;
 const NORMAL_PAGE_SWIPE_PX = 55;
@@ -5229,19 +5376,13 @@ window.addEventListener('touchstart',e=>{
   _normalHorizontalSwipe = false;
   _normalSwipeHandled = false;
 
+  _psBlocked = false;
   if (!readerEl.classList.contains('visible') || focusMode) return;
-  // While the bookmark panel is open, swipes must keep working — including
-  // over the panel itself and the empty parts of the dock. Real controls
-  // (buttons/inputs) still behave normally, and a bookmark list long enough to
-  // scroll keeps its own native vertical scrolling.
-  const inBmPanel = !!(touchTarget && touchTarget.closest && touchTarget.closest('#bm-panel'));
-  const bmOpen    = bmPanel.classList.contains('show');
-  if (inBmPanel) {
-    const list = touchTarget.closest('#bm-list');
-    if (list && list.scrollHeight > list.clientHeight + 1) return;
-  } else if (bmOpen) {
-    if (touchTarget && touchTarget.closest && touchTarget.closest('button, input, a, .icon-btn, .btn, #more-menu, #search-wrap')) return;
-  } else if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
+  // While any dropdown is open (☰ menu, timer options, bookmark list) the text ignores
+  // scrolling and swiping entirely, so nothing moves by accident while you use the menu.
+  _psBlocked = dropdownOpen();
+  if (_psBlocked) return;
+  if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
   scrollDragging = true;
   scrollVel = 0;                       // a touch stops any glide in progress
   _psSamples = [{ t: performance.now(), y: touchY0 }];
@@ -5251,7 +5392,7 @@ window.addEventListener('touchstart',e=>{
 },{passive:true});
 
 window.addEventListener('touchmove', e=>{
-  if (focusMode || !readerEl.classList.contains('visible')) return;
+  if (focusMode || _psBlocked || !readerEl.classList.contains('visible')) return;
   const t = e.touches[0];
   // Compare the full gesture displacement against its original touch point.
   const totalDx = t.clientX - touchX0;
@@ -5275,6 +5416,7 @@ window.addEventListener('touchmove', e=>{
 
 window.addEventListener('touchend',e=>{
   if (!readerEl.classList.contains('visible')) return;
+  if (_psBlocked) return;
   if (!focusMode && _normalHorizontalSwipe) {
     const t = e.changedTouches[0];
     const dx = t.clientX - touchX0;
@@ -6029,6 +6171,7 @@ ${inputJson}`;
 const flowerDiv  = document.getElementById('timer-flower');
 const flowerBtn  = document.getElementById('flower-btn');
 const flowerSvg  = document.getElementById('flower-svg');
+const flowerLabel = document.getElementById('flower-label');
 const presets    = document.getElementById('flower-presets');
 const controls   = document.getElementById('flower-controls');
 const btnPause   = document.getElementById('flower-pause');
@@ -6221,11 +6364,12 @@ function stopDrawLoop() {
   if (_drawLoop) { cancelAnimationFrame(_drawLoop); _drawLoop = null; }
 }
 function updateTip() {
-  if (!totalSecs) { flowerBtn.dataset.tip = 'set timer'; return; }
+  if (!totalSecs) { flowerBtn.dataset.tip = 'set timer'; flowerLabel.textContent = 'Timer'; return; }
   const m = Math.floor(remaining / 60);
   const s = remaining % 60;
   const paused = (!running && remaining < totalSecs) ? ' (paused)' : '';
   flowerBtn.dataset.tip = `${m}:${String(s).padStart(2,'0')} left${paused}`;
+  flowerLabel.textContent = `${m}:${String(s).padStart(2,'0')} left${paused}`;
 }
 
 // ── Tick ──────────────────────────────────────────────────────────────────────
@@ -6235,6 +6379,7 @@ function tick() {
     stopDrawLoop(); stopDrip();
     drawStopwatch(1);
     flowerBtn.dataset.tip = 'done \u2746';
+    flowerLabel.textContent = 'Time\u2019s up';
     flowerBtn.style.opacity = '1';
     return;
   }
@@ -6263,6 +6408,7 @@ function startTimer(mins) {
   iv = setInterval(tick, 1000);
   startDrawLoop();
   startDrip();
+  document.getElementById('more-menu').classList.remove('open');   // timer is set — close the dropdown
 }
 
 // ── Interactions ──────────────────────────────────────────────────────────────
@@ -6311,9 +6457,11 @@ btnReset.addEventListener('click', () => {
   controlsOpen = false;
   document.querySelectorAll('.flower-preset').forEach(b => b.classList.remove('active'));
   flowerBtn.dataset.tip = 'set timer';
+  flowerLabel.textContent = 'Timer';
   flowerBtn.style.opacity = '';
   drawStopwatch(0);
 });
+flowerLabel.addEventListener('click', () => flowerBtn.click());
 
 // Initial state
 drawStopwatch(0);
