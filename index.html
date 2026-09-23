@@ -340,18 +340,6 @@ body:not(.focus-mode) #track{
 #pos-page-input::-webkit-outer-spin-button{-webkit-appearance:none}
 #pos-page-total{color:var(--text-dim)}
 #pos-page{white-space:nowrap}
-/* Page stepper buttons — sit on the same line as "PG."  (− left of the number, + right of the total) */
-.pg-step{
-  font-family:'DM Mono',monospace;font-size:18px;font-weight:700;line-height:1;
-  color:var(--text-mid);background:none;border:1px solid var(--border);
-  width:30px;height:30px;padding:0;cursor:pointer;flex-shrink:0;
-  display:flex;align-items:center;justify-content:center;
-  transition:color .15s,border-color .15s,background .15s;
-  -webkit-tap-highlight-color:transparent;user-select:none;
-}
-.pg-step:hover{color:var(--gold);border-color:var(--gold-dim)}
-#pos-page .pg-step{color:var(--gold);border-color:var(--gold-dim)}
-.pg-step:active{color:var(--gold);border-color:var(--gold-dim);background:var(--gold-faint)}
 
 /* ── Progress ring — Fix 4: clickable to go to first sentence ── */
 #ring-wrap{
@@ -441,7 +429,7 @@ body:not(.focus-mode) #track{
 #vol-slider:hover{opacity:1}
 #vol-label{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase}
 
-#play-dot{position:absolute;right:90px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:0;transition:opacity .3s}
+#play-dot{fill:var(--gold);opacity:0;transition:opacity .3s;pointer-events:none}
 #play-dot.on{opacity:1;animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
 
@@ -752,28 +740,91 @@ body:not(.focus-mode) #track{
   font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
   letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase;
 }
-/* Auto-scroll speed row (phone dropdown only — desktop has the WPM control in the bottom bar) */
-#more-menu-speed{ display:none; }
-#speed-val{
-  font-family:'DM Mono',monospace;font-size:15px;font-weight:700;
-  color:var(--text-mid);min-width:44px;text-align:center;letter-spacing:.04em;
-}
-/* Dock auto-play button (phone only) */
+/* Dock auto-play control (phone only): [ ▶ / ⏸ ] with a tiny speed caption underneath.
+   Tapping the caption drops a vertical "rocker" slider UP for the auto-scroll speed. */
+#ap-wrap{ display:none; position:relative; flex-direction:column; align-items:center; }
 #btn-autoplay{
-  display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+  display:flex;align-items:center;justify-content:center;
   background:none;border:none;cursor:pointer;color:var(--text-mid);
-  padding:4px 6px;min-width:38px;min-height:38px;opacity:.75;
+  padding:0;width:40px;height:28px;opacity:.8;
   transition:opacity .2s,color .2s;-webkit-tap-highlight-color:transparent;
 }
 #btn-autoplay.active{opacity:1;color:var(--gold)}
 #btn-autoplay .ap-pause{display:none}
 #btn-autoplay.active .ap-play{display:none}
 #btn-autoplay.active .ap-pause{display:block}
-#btn-autoplay .ap-wpm{
-  font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.04em;
-  line-height:1;color:var(--text-dim);
+#ap-speed-toggle{
+  display:flex;align-items:center;justify-content:center;gap:2px;
+  background:none;border:none;cursor:pointer;padding:0 6px;height:18px;min-width:40px;
+  font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.04em;line-height:1;
+  color:var(--text-mid);-webkit-tap-highlight-color:transparent;
 }
-#btn-autoplay.active .ap-wpm{color:var(--gold-dim)}
+#ap-speed-toggle .ap-caret{font-size:8px;transition:transform .2s}
+#ap-wrap.open #ap-speed-toggle{color:var(--gold)}
+#ap-wrap.open #ap-speed-toggle .ap-caret{transform:rotate(180deg)}
+#ap-wrap.active #ap-speed-toggle{color:var(--gold-dim)}
+#ap-wrap.active.open #ap-speed-toggle{color:var(--gold)}
+/* the drop-up slider */
+#ap-pop{
+  display:none;position:absolute;bottom:calc(100% + 8px);left:0;
+  width:62px;padding:10px 0 8px;flex-direction:column;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);
+  box-shadow:0 8px 28px rgba(0,0,0,.55);z-index:120;
+  font-family:'DM Mono',monospace;font-weight:700;
+}
+#ap-pop.show{display:flex}
+.ap-pop-end{font-size:8px;letter-spacing:.16em;color:var(--text-dim);text-transform:uppercase}
+#ap-track{
+  position:relative;width:44px;height:150px;cursor:pointer;
+  touch-action:none;-webkit-tap-highlight-color:transparent;outline:none;
+}
+#ap-track::before{                       /* groove */
+  content:'';position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;
+  background:var(--border);border-radius:2px;
+}
+#ap-fill{                                /* filled part, from SLOW up to the thumb */
+  position:absolute;left:50%;bottom:0;width:4px;margin-left:-2px;height:0;
+  background:var(--gold-dim);border-radius:2px;
+}
+#ap-thumb{                               /* the rocker */
+  position:absolute;left:50%;bottom:0;width:34px;height:18px;margin-left:-17px;
+  background:var(--bg);border:1px solid var(--gold);border-radius:4px;
+  display:flex;align-items:center;justify-content:center;
+}
+#ap-thumb::before{                       /* grip lines */
+  content:'';width:14px;height:6px;
+  border-top:1px solid var(--gold-dim);border-bottom:1px solid var(--gold-dim);
+}
+#ap-track:focus-visible #ap-thumb{box-shadow:0 0 0 2px var(--gold-dim)}
+#ap-pop-val{font-size:12px;color:var(--gold);letter-spacing:.02em;text-align:center;line-height:1.1}
+#ap-pop-val small{display:block;font-size:8px;color:var(--text-dim);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
+
+/* ── "Time's up" pop-up ── */
+#timer-modal{
+  position:fixed;inset:0;z-index:800;display:none;align-items:center;justify-content:center;
+  background:rgba(12,11,9,.88);
+  padding:24px calc(24px + env(safe-area-inset-right,0px)) 24px calc(24px + env(safe-area-inset-left,0px));
+}
+#timer-modal.show{display:flex}
+#tm-card{
+  width:340px;max-width:100%;background:var(--surface);border:1px solid var(--border);
+  padding:28px 24px 22px;text-align:center;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  animation:tmIn .28s cubic-bezier(.22,1,.36,1);
+}
+@keyframes tmIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+#tm-title{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+#tm-msg{font-family:'Lora',serif;font-size:15px;line-height:1.7;color:var(--text-mid)}
+#tm-msg b{color:var(--text);font-weight:600}
+#tm-btns{display:flex;gap:10px;width:100%;margin-top:8px}
+#tm-btns button{
+  flex:1;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:13px 8px;cursor:pointer;background:none;border:1px solid var(--border);color:var(--text-mid);
+  transition:color .15s,border-color .15s,background .15s;
+}
+#tm-btns button:hover{color:var(--text);border-color:var(--gold-dim)}
+#tm-restart{color:var(--gold)!important;border-color:var(--gold-dim)!important}
+#tm-restart:hover{background:var(--gold-faint)}
 
 /* ════════════════════════════════════════════════════════════════════════
    MOBILE-FIRST RESPONSIVE LAYER
@@ -932,11 +983,6 @@ body:not(.focus-mode) #track{
     padding:6px 0 4px; background:none; border:none; box-shadow:none; z-index:auto;
   }
   .flower-preset, #flower-pause, #flower-reset{ flex:1; padding:8px 0; font-size:12px; width:auto; }
-  #more-menu-speed{
-    display:flex; align-items:center; justify-content:space-between; padding:8px 10px 4px;
-  }
-  #more-menu-speed .speed-zone{ display:flex; align-items:center; gap:6px; }
-  #more-menu-speed .zoom-btn{ min-width:36px; min-height:32px; font-size:12px; }
 
   /* ── Progress percentage ──
      Moved to the top-right corner (the menu button now occupies top-left),
@@ -969,7 +1015,6 @@ body:not(.focus-mode) #track{
 
   #pos-wrap{ display:flex; flex-direction:column; align-items:flex-start; gap:6px; opacity:.7; padding-top:2px; }
   #pos-page, #pos-sent{ font-size:12px; gap:5px; height:40px; display:flex; align-items:center; }
-  .pg-step{ width:36px; height:36px; font-size:20px; }
   .pos-page-label, .pos-sent-label{
     font-family:'DM Mono',monospace; letter-spacing:.08em;
     color:var(--text-dim); text-transform:uppercase; font-size:10px;
@@ -1058,10 +1103,10 @@ body:not(.focus-mode) #track{
     display:grid; grid-template-columns:1fr 1fr; gap:2px;
     min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
   }
-  #more-menu-textsize, #more-menu-volume, #more-menu-speed, #timer-flower{ grid-column:1 / -1; }
+  #more-menu-textsize, #more-menu-volume, #timer-flower{ grid-column:1 / -1; }
   #more-menu .icon-btn{ min-height:32px; padding:3px 10px; }
   #more-menu{ max-height:calc(100vh - 62px); }
-  #more-menu-textsize, #more-menu-speed{ padding:3px 10px; }
+  #more-menu-textsize{ padding:3px 10px; }
   #more-menu-volume{ padding:2px 10px; }
   #timer-flower{ padding:2px 10px; }
   #flower-presets, #flower-controls{ padding:3px 0 2px; }
@@ -1121,14 +1166,13 @@ body:not(.focus-mode) #track{
     flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
   }
   #left-panel{ flex-direction:row; align-items:center; gap:0; }
-  #btn-autoplay{ display:flex; }
+  #ap-wrap{ display:flex; }
   #btn-bookmark{ padding:6px; min-width:38px; min-height:38px; }
   #pos-wrap{ flex-direction:row; align-items:center; gap:8px; opacity:.9; padding-top:0; min-width:0; }
   #pos-page, #pos-sent{ height:36px; gap:3px; }
   #pos-page-input{ width:34px; }
   #pos-sent-input{ width:42px; }
   #pos-page-total, #pos-sent-total{ font-size:12px; }
-  .pg-step{ width:28px; height:28px; font-size:16px; }
 }
 /* Very narrow phones: drop the tiny PG. / S. labels so the dock never overflows */
 @media (max-width:350px){
@@ -1285,16 +1329,6 @@ body:not(.focus-mode) #track{
             </div>
           </div>
 
-          <!-- Auto-scroll speed (WPM) -->
-          <div id="more-menu-speed">
-            <span class="more-menu-label">Auto speed</span>
-            <div class="speed-zone">
-              <button class="zoom-btn" id="btn-speed-down" title="Slower">−</button>
-              <span id="speed-val">200</span>
-              <button class="zoom-btn" id="btn-speed-up" title="Faster">＋</button>
-            </div>
-          </div>
-
           <!-- Volume — moved here from the reading area. Mute toggle is
                untouched; the slider just renders inline in this row now
                instead of a separate floating popover. -->
@@ -1351,7 +1385,6 @@ body:not(.focus-mode) #track{
     </div>
 
     <div id="track"><div class="fl"></div></div>
-    <div id="play-dot"></div>
     <div id="ring-wrap">
       <svg id="ring" width="54" height="54" viewBox="0 0 54 54">
         <circle id="ring-bg"   cx="27" cy="27" r="23"/>
@@ -1364,6 +1397,7 @@ body:not(.focus-mode) #track{
           x="27" y="36" text-anchor="middle" dominant-baseline="middle"
           font-family="'DM Mono',monospace" font-size="6.5" fill="#3d3829"
           letter-spacing="1">PAGE</text>
+        <circle id="play-dot" cx="27" cy="40.5" r="1.8"/>
       </svg>
     </div>
 
@@ -1391,11 +1425,22 @@ body:not(.focus-mode) #track{
       <div id="status-cluster">
         <div id="left-panel">
           <!-- Auto-scroll play / pause — takes the spot the timer used to have -->
-          <button id="btn-autoplay" title="Auto-scroll (play / pause)" aria-label="Auto-scroll">
-            <svg class="ap-play" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="7,4 20,12 7,20"/></svg>
-            <svg class="ap-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            <span class="ap-wpm" id="ap-wpm">200</span>
-          </button>
+          <div id="ap-wrap">
+            <button id="btn-autoplay" title="Auto-scroll (play / pause)" aria-label="Auto-scroll">
+              <svg class="ap-play" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="7,4 20,12 7,20"/></svg>
+              <svg class="ap-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            </button>
+            <button id="ap-speed-toggle" title="Auto-scroll speed" aria-label="Auto-scroll speed" aria-expanded="false"><span class="ap-caret">▴</span><span id="ap-wpm">200</span></button>
+            <!-- Drop-up rocker slider: slide up = faster, down = slower -->
+            <div id="ap-pop" role="group" aria-label="Auto-scroll speed">
+              <span class="ap-pop-end">Fast</span>
+              <div id="ap-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="60" aria-valuemax="500" aria-valuenow="200" aria-label="Auto-scroll speed in words per minute">
+                <div id="ap-fill"></div><div id="ap-thumb"></div>
+              </div>
+              <span class="ap-pop-end">Slow</span>
+              <div id="ap-pop-val">200<small>wpm</small></div>
+            </div>
+          </div>
 
           <!-- Bookmark with dropdown panel -->
           <div style="position:relative">
@@ -1423,10 +1468,8 @@ body:not(.focus-mode) #track{
         <div id="pos-wrap">
           <div id="pos-page">
             <span class="pos-page-label">PG.</span>
-            <button type="button" class="pg-step" id="btn-page-minus" aria-label="Previous page" title="Previous page">−</button>
             <input type="number" id="pos-page-input" min="1" value="1" title="Jump to page">
             <span id="pos-page-total"></span>
-            <button type="button" class="pg-step" id="btn-page-plus" aria-label="Next page" title="Next page">+</button>
           </div>
           <div id="pos-sent">
             <span class="pos-sent-label">S.</span>
@@ -1444,6 +1487,24 @@ body:not(.focus-mode) #track{
 
     <div id="dict-def"></div>
     <div id="dict-loading"></div>
+  </div>
+
+  <!-- Timer finished pop-up -->
+  <div id="timer-modal" role="dialog" aria-modal="true" aria-labelledby="tm-title">
+    <div id="tm-card">
+      <svg id="tm-face" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#c8a96e" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <circle cx="32" cy="32" r="27"/>
+        <circle cx="23" cy="26" r="2.4" fill="#c8a96e" stroke="none"/>
+        <circle cx="41" cy="26" r="2.4" fill="#c8a96e" stroke="none"/>
+        <path d="M20 37 Q32 50 44 37"/>
+      </svg>
+      <div id="tm-title">Time’s up</div>
+      <div id="tm-msg">You’ve been reading for <b id="tm-mins">15</b> minutes.<br>Take a short break — rest your eyes and stretch a little.</div>
+      <div id="tm-btns">
+        <button id="tm-dismiss">Dismiss</button>
+        <button id="tm-restart">Restart timer</button>
+      </div>
+    </div>
   </div>
 
   <!-- Lightbox for inline page images -->
@@ -2924,8 +2985,14 @@ const wpmDisplay  = document.getElementById('wpm-display');
 const btnPlay     = document.getElementById('btn-play');
 const apBtn       = document.getElementById('btn-autoplay');   // dock auto-scroll button (phone)
 const apWpm       = document.getElementById('ap-wpm');
-const speedVal    = document.getElementById('speed-val');
-const faPlay      = document.getElementById('fa-play');        // Focus Mode mini controls
+const apWrap      = document.getElementById('ap-wrap');
+const apToggle    = document.getElementById('ap-speed-toggle');
+const apPop       = document.getElementById('ap-pop');
+const apTrack     = document.getElementById('ap-track');
+const apThumb     = document.getElementById('ap-thumb');
+const apFill      = document.getElementById('ap-fill');
+const apPopVal    = document.getElementById('ap-pop-val');
+const timerModalEl = document.getElementById('timer-modal');const faPlay      = document.getElementById('fa-play');        // Focus Mode mini controls
 const faWpm       = document.getElementById('fa-wpm');
 const btnBionic   = document.getElementById('btn-bionic');
 const btnDict     = document.getElementById('btn-dict');
@@ -2949,7 +3016,8 @@ bookTitle.addEventListener('click', () => bookTitle.classList.toggle('expanded')
 function setWPM(val) {
   wpm = Math.max(WPM_MIN, Math.min(WPM_MAX, Math.round(val/WPM_STEP)*WPM_STEP));
   wpmDisplay.textContent = wpm;
-  apWpm.textContent = wpm; speedVal.textContent = wpm; faWpm.textContent = wpm;
+  apWpm.textContent = wpm; faWpm.textContent = wpm;
+  apUpdateSlider();
   if (autoOn) scheduleAuto();   // Focus Mode timer restarts; normal-mode scrolling reads `wpm` live
 }
 
@@ -3488,6 +3556,7 @@ function syncPlayUI() {
   btnPlay.setAttribute('aria-label', autoOn ? 'Pause' : 'Play');
   playDot.classList.toggle('on', autoOn);
   apBtn.classList.toggle('active', autoOn);
+  apWrap.classList.toggle('active', autoOn);
   faPlay.classList.toggle('active', autoOn);
   faPlay.textContent = autoOn ? 'Ⅱ' : '▶';
 }
@@ -4008,7 +4077,7 @@ function updateBmIcon() {
   bmPath.style.stroke = has ? 'var(--gold)' : '#6b5a38';
 }
 
-function openBmPanel() { renderBmPanel(); bmPanel.classList.add('show'); }
+function openBmPanel() { closeApPop(); renderBmPanel(); bmPanel.classList.add('show'); }
 function closeBmPanel(){ bmPanel.classList.remove('show'); }
 
 // Toggle panel on click
@@ -4369,11 +4438,52 @@ btnFocus.addEventListener('click', () => focusMode ? exitFocusMode() : enterFocu
 
 /* Auto-play / speed controls: dock button, ☰ menu speed row, Focus Mode mini bar */
 apBtn.addEventListener('click', e => { e.stopPropagation(); toggleAuto(); });
+
+/* Drop-up speed slider (dock): slide up = faster, down = slower. Steps of WPM_STEP. */
+function apUpdateSlider() {
+  const t = (wpm - WPM_MIN) / (WPM_MAX - WPM_MIN);              // 0 = slow … 1 = fast
+  const th = 18, trackH = apTrack.clientHeight || 150;
+  const y = t * (trackH - th);
+  apThumb.style.bottom = y + 'px';
+  apFill.style.height  = (y + th / 2) + 'px';
+  apPopVal.firstChild.nodeValue = wpm;
+  apTrack.setAttribute('aria-valuenow', wpm);
+}
+function apSetFromY(clientY) {
+  const r = apTrack.getBoundingClientRect(), th = 18;
+  let t = 1 - (clientY - r.top - th / 2) / (r.height - th);
+  t = Math.max(0, Math.min(1, t));
+  setWPM(WPM_MIN + t * (WPM_MAX - WPM_MIN));
+}
+function openApPop() {
+  moreMenu.classList.remove('open');
+  closeBmPanel();
+  apPop.classList.add('show'); apWrap.classList.add('open'); apToggle.setAttribute('aria-expanded', 'true');
+  apUpdateSlider();
+}
+function closeApPop() {
+  apPop.classList.remove('show'); apWrap.classList.remove('open'); apToggle.setAttribute('aria-expanded', 'false');
+}
+apToggle.addEventListener('click', e => { e.stopPropagation(); apPop.classList.contains('show') ? closeApPop() : openApPop(); });
+let _apDrag = false;
+apTrack.addEventListener('pointerdown', e => {
+  e.preventDefault(); e.stopPropagation();
+  _apDrag = true;
+  try { apTrack.setPointerCapture(e.pointerId); } catch(err) {}
+  apSetFromY(e.clientY);
+});
+apTrack.addEventListener('pointermove', e => { if (_apDrag) { e.preventDefault(); apSetFromY(e.clientY); } });
+const _apEnd = e => { _apDrag = false; try { apTrack.releasePointerCapture(e.pointerId); } catch(err) {} };
+apTrack.addEventListener('pointerup', _apEnd);
+apTrack.addEventListener('pointercancel', _apEnd);
+apTrack.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); setWPM(wpm + WPM_STEP); }
+  if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); setWPM(wpm - WPM_STEP); }
+});
+document.addEventListener('click', e => { if (apPop.classList.contains('show') && !apWrap.contains(e.target)) closeApPop(); });
 faPlay.addEventListener('click', e => { e.stopPropagation(); toggleAuto(); });
 document.getElementById('fa-down').addEventListener('click', e => { e.stopPropagation(); setWPM(wpm - WPM_STEP); });
 document.getElementById('fa-up'  ).addEventListener('click', e => { e.stopPropagation(); setWPM(wpm + WPM_STEP); });
-document.getElementById('btn-speed-down').addEventListener('click', e => { e.stopPropagation(); setWPM(wpm - WPM_STEP); });
-document.getElementById('btn-speed-up'  ).addEventListener('click', e => { e.stopPropagation(); setWPM(wpm + WPM_STEP); });
 
 /* ── "More" menu (mobile) — purely a visibility toggle around the exact
    same buttons/handlers defined elsewhere; no reading or Focus Mode logic
@@ -4382,6 +4492,7 @@ const btnMore  = document.getElementById('btn-more');
 const moreMenu = document.getElementById('more-menu');
 btnMore.addEventListener('click', e => {
   e.stopPropagation();
+  closeApPop();
   moreMenu.classList.toggle('open');
 });
 document.addEventListener('click', e => {
@@ -4497,7 +4608,7 @@ posPageInputEl.addEventListener('blur', () => {
   posPageInputEl.value = pg !== null ? pg : '';
 });
 
-/* ── Page − / + buttons ─────────────────────────────────────────────────────
+/* ── Page stepping (used by the left / right swipe) ─────────────────────────────────────────────────────
    Step one page at a time, landing on the FIRST sentence of the target page
    (both directions). Pages that contain no sentences are skipped over. */
 function stepPage(delta) {
@@ -4522,8 +4633,6 @@ function stepPage(delta) {
   _lastHUDpg = -1;
   jumpTo(idx);
 }
-document.getElementById('btn-page-minus').addEventListener('click', e => { e.stopPropagation(); stepPage(-1); });
-document.getElementById('btn-page-plus' ).addEventListener('click', e => { e.stopPropagation(); stepPage(1); });
 
 /* ── Zoom system ──────────────────────────────────────────────────────────────
    Scales sentence text via CSS font-size. 100% = base 26px.
@@ -5173,7 +5282,8 @@ let _psSamples      = [];    // recent {t,y} touch samples for release velocity
 // While ANY dropdown (☰ menu, timer options, bookmark list) is open, the reading text must not
 // scroll or swipe — it prevents accidental moves while you're using the menu.
 function dropdownOpen() {
-  return moreMenu.classList.contains('open') || bmPanel.classList.contains('show');
+  return moreMenu.classList.contains('open') || bmPanel.classList.contains('show') ||
+         apPop.classList.contains('show') || timerModalEl.classList.contains('show');
 }
 
 // Hands-free scroll speed (px/ms) at the current position: cover the distance to the next
@@ -5314,6 +5424,7 @@ function physScrollStop() {
 
 // Entering / leaving Focus Mode: stop any glide, re-map the pool for that mode, re-lay-out instantly.
 function psModeChanged() {
+  closeApPop();
   scrollDragging = false; scrollVel = 0; scrollOff = 0;
   physScrollStop();
   if (!nodes.length) return;
@@ -6189,6 +6300,8 @@ let remaining = 0;
 let running   = false;
 let iv        = null;
 let menuOpen  = false;
+let endAt     = 0;      // wall-clock ms when the countdown hits zero (keeps time right even if the tab is throttled)
+let lastMins  = 15;     // last chosen duration, used by "Restart timer"
 let controlsOpen = false; // whether the pause/reset dropdown is showing while a timer is active
 
 // ── Hourglass SVG drawing ─────────────────────────────────────────────────────
@@ -6374,19 +6487,40 @@ function updateTip() {
 
 // ── Tick ──────────────────────────────────────────────────────────────────────
 function tick() {
-  if (remaining <= 0) {
-    clearInterval(iv); running = false; remaining = 0;
-    stopDrawLoop(); stopDrip();
-    drawStopwatch(1);
-    flowerBtn.dataset.tip = 'done \u2746';
-    flowerLabel.textContent = 'Time\u2019s up';
-    flowerBtn.style.opacity = '1';
-    return;
-  }
-  remaining--;
+  if (!running) return;
+  remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+  if (remaining <= 0) { finishTimer(); return; }
   updateTip();
   // drawStopwatch is called by the rAF loop; no need to call here
 }
+function finishTimer() {
+  clearInterval(iv); running = false; remaining = 0;
+  stopDrawLoop(); stopDrip();
+  drawStopwatch(1);
+  flowerBtn.dataset.tip = 'done \u2746';
+  flowerLabel.textContent = 'Time\u2019s up';
+  flowerBtn.style.opacity = '1';
+  showTimesUp();
+}
+
+// ── "Time's up" pop-up ────────────────────────────────────────────────────────
+const timerModal = document.getElementById('timer-modal');
+function showTimesUp() {
+  try { stopAuto(); } catch(e) {}                                   // ALL auto-play stops (normal scroll + Focus Mode)
+  document.getElementById('more-menu').classList.remove('open');
+  try { closeApPop(); } catch(e) {}
+  document.getElementById('tm-mins').textContent = lastMins;
+  timerModal.classList.add('show');
+  document.getElementById('tm-dismiss').focus({preventScroll:true});
+}
+function hideTimesUp() { timerModal.classList.remove('show'); }
+document.getElementById('tm-dismiss').addEventListener('click', () => { hideTimesUp(); btnReset.click(); });   // back to an idle timer
+document.getElementById('tm-restart').addEventListener('click', () => { hideTimesUp(); startTimer(lastMins); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && timerModal.classList.contains('show')) { e.stopPropagation(); hideTimesUp(); btnReset.click(); }
+}, true);
+// If the phone slept / the tab was in the background, check the clock the moment we're back.
+document.addEventListener('visibilitychange', () => { if (!document.hidden && running) tick(); });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 function startTimer(mins) {
@@ -6394,6 +6528,8 @@ function startTimer(mins) {
   stopDrawLoop(); stopDrip();
   totalSecs = mins * 60;
   remaining = totalSecs;
+  lastMins  = mins;
+  endAt     = Date.now() + totalSecs * 1000;
   running   = true;
   document.querySelectorAll('.flower-preset').forEach(b => {
     b.classList.toggle('active', parseInt(b.dataset.mins) === mins);
@@ -6435,12 +6571,14 @@ document.querySelectorAll('.flower-preset').forEach(btn => {
 
 btnPause.addEventListener('click', () => {
   if (running) {
+    remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
     clearInterval(iv); running = false;
     stopDrawLoop(); stopDrip();
     btnPause.textContent = 'resume'; updateTip();
     drawStopwatch(1 - remaining / totalSecs); // freeze frame
   } else if (remaining > 0) {
     running = true;
+    endAt = Date.now() + remaining * 1000;
     iv = setInterval(tick, 1000);
     startDrawLoop(); startDrip();
     btnPause.textContent = 'pause';
