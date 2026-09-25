@@ -6,12 +6,24 @@
 <meta name="theme-color" content="#0c0b09"/>
 <title>Focus Reader</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&family=Literata:ital,wght@0,400;0,500;0,600;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:#0c0b09; --surface:#111009; --border:#242018;
   --gold:#c8a96e; --gold-dim:#6b5a38; --gold-faint:#1e1a12;
   --text:#e2d9c5; --text-mid:#8a7d65; --text-dim:#3d3829;
+  --reading-font:'Lora',serif;
+  color-scheme: dark;
+}
+/* ── Light mode ── black text, white background, same gold accent throughout.
+   Every colour in this app is already driven by these custom properties, so
+   redefining them here is enough to retheme everything — chrome, dock,
+   dropdowns, dictionary card, timer pop-up, bookshelf-style modals, etc. */
+:root[data-theme="light"] {
+  --bg:#ffffff; --surface:#f6f4ef; --border:#e2ddd0;
+  --gold:#9c7332; --gold-dim:#c9b48a; --gold-faint:#f4ecd9;
+  --text:#141310; --text-mid:#6b6255; --text-dim:#a89c88;
+  color-scheme: light;
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100vh;overflow:hidden;user-select:none}
@@ -257,7 +269,7 @@ body:not(.focus-mode) #track{
 /* ── Sentence nodes ── */
 .snt{
   position:absolute;width:100%;text-align:center;
-  font-family:'Lora',serif;font-size:var(--focus-font-size,26px);font-weight:500;
+  font-family:var(--reading-font,'Lora'),serif;font-size:var(--focus-font-size,26px);font-weight:500;
   line-height:1.75;padding:0 var(--snt-pad,24px);color:var(--text);top:50%;
   transition:transform .2s cubic-bezier(.22,1,.36,1),
              opacity   .15s ease;
@@ -267,7 +279,7 @@ body:not(.focus-mode) #track{
      tall focused sentences. We apply it per-node only on non-focused slots. */
 }
 .snt.neighbour{contain:layout style} /* applied via JS on non-focused nodes */
-.snt.zh{font-family:'Noto Serif SC','Lora',serif;line-height:1.9;font-size:24px}
+.snt.zh{font-family:'Noto Serif SC',var(--reading-font,'Lora'),serif;line-height:1.9;font-size:24px}
 .snt b{font-weight:700;font-style:inherit}
 /* Bionic reading — fixation anchor + faded tail */
 .snt .bio-fix{
@@ -358,6 +370,19 @@ body:not(.focus-mode) #track{
   display:flex;flex-direction:column;align-items:center;gap:20px;
   z-index:150;
 }
+
+/* Theme toggle — sun / moon swap, same footprint as the bookmark button beside it */
+#btn-theme{
+  background:none;border:none;cursor:pointer;
+  padding:10px;display:flex;align-items:center;justify-content:center;
+  opacity:.5;transition:opacity .2s,color .2s;color:var(--text-mid);
+  -webkit-tap-highlight-color:transparent;
+}
+#btn-theme:hover{opacity:1;color:var(--gold)}
+#btn-theme .icon-moon{display:block}
+#btn-theme .icon-sun{display:none}
+:root[data-theme="light"] #btn-theme .icon-moon{display:none}
+:root[data-theme="light"] #btn-theme .icon-sun{display:block}
 
 /* Bookmark button */
 #btn-bookmark{
@@ -704,6 +729,16 @@ body:not(.focus-mode) #track{
    unstyled/leaked defaults. */
 .more-menu-label{ display:none; } /* only shown inside the mobile dropdown list */
 #more-menu-textsize{ display:flex; align-items:center; gap:4px; }
+#more-menu-font{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#font-select{
+  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
+  color:var(--text-mid);background:var(--surface);
+  border:1px solid var(--border);padding:6px 8px;
+  cursor:pointer;letter-spacing:.02em;max-width:150px;
+  transition:color .15s,border-color .15s;
+}
+#font-select:hover{color:var(--gold);border-color:var(--gold-dim)}
+#font-select:focus{outline:none;border-color:var(--gold-dim)}
 #more-menu-volume{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
 
 /* Volume slider — horizontal, transparent track (not the browser's default
@@ -1033,6 +1068,8 @@ body:not(.focus-mode) #track{
   }
   #more-menu-textsize #zoom-zone{ gap:6px; }
   #more-menu-textsize .zoom-btn{ min-width:36px; min-height:32px; font-size:12px; }
+  #more-menu-font{ padding:8px 10px 4px; }
+  #font-select{ max-width:none; flex:1; margin-left:10px; }
 
   /* Reclaim the vertical room the old, taller bottom bar used to take —
      the reading area (and the Focus Sentence within it) grows to fill it. */
@@ -1166,6 +1203,7 @@ body:not(.focus-mode) #track{
     flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
   }
   #left-panel{ flex-direction:row; align-items:center; gap:0; }
+  #btn-theme{ padding:6px; min-width:38px; min-height:38px; }
   #ap-wrap{ display:flex; }
   #btn-bookmark{ padding:6px; min-width:38px; min-height:38px; }
   #pos-wrap{ flex-direction:row; align-items:center; gap:8px; opacity:.9; padding-top:0; min-width:0; }
@@ -1319,6 +1357,18 @@ body:not(.focus-mode) #track{
           </div>
 
 
+          <!-- Reading font — a short list of faces chosen for on-screen long-form reading -->
+          <div id="more-menu-font">
+            <span class="more-menu-label">Font</span>
+            <select id="font-select" title="Reading font">
+              <option value="lora">Lora</option>
+              <option value="georgia">Georgia</option>
+              <option value="literata">Literata</option>
+              <option value="merriweather">Merriweather</option>
+              <option value="atkinson">Atkinson Hyperlegible</option>
+            </select>
+          </div>
+
           <!-- Text size -->
           <div id="more-menu-textsize">
             <span class="more-menu-label">Text size</span>
@@ -1460,6 +1510,12 @@ body:not(.focus-mode) #track{
               </div>
             </div>
           </div>
+
+          <!-- Light / dark theme toggle -->
+          <button id="btn-theme" title="Switch to light mode" aria-label="Switch to light mode">
+            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
+            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+          </button>
         </div>
 
         <!-- Position — both readouts are shown as small, secondary info.
@@ -3358,11 +3414,18 @@ function writeNode(el, sentIdx) {
   // Build display HTML from clean text (never the raw TYPE:... prefix)
   const html = getSentHTMLFrom(sentIdx, chunkText, isFocused);
 
-  // Only touch the DOM if content actually changed
-  if (bionicOn || (dictOn && isFocused)) {
-    if (el.innerHTML !== html) el.innerHTML = html;
-  } else {
-    if (el.textContent !== chunkText) el.textContent = chunkText;
+  // Only touch the DOM if content actually changed. IMPORTANT: comparing el.textContent to
+  // chunkText is NOT enough to detect a mode change on its own — reading .textContent off an
+  // element that holds bionic/dict markup (<b>, <span class="w">, …) strips those tags and
+  // returns the exact same plain text, so that comparison alone can never tell "still has
+  // bionic HTML" apart from "already plain". That let turning bionic reading off leave the old
+  // bold markup on screen. Track the mode explicitly alongside the text instead.
+  const mode = bionicOn ? 'bionic' : ((dictOn && isFocused) ? 'dict' : 'plain');
+  if (el._contentMode !== mode || el._contentKey !== chunkText) {
+    if (mode === 'plain') el.textContent = chunkText;
+    else el.innerHTML = html;
+    el._contentMode = mode;
+    el._contentKey  = chunkText;
   }
   el.classList.toggle('focused', isFocused);
 }
@@ -5140,6 +5203,50 @@ btnMute.addEventListener('click', () => {
 tickVolume = 0.60 * 3.2;
 updateMuteUI();
 
+/* ── Theme (light / dark) ─────────────────────────────────────────────────── */
+const THEME_KEY   = 'focusreader_theme';
+const btnTheme    = document.getElementById('btn-theme');
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+function loadTheme() { try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch(e) { return 'dark'; } }
+function saveTheme(t) { try { localStorage.setItem(THEME_KEY, t); } catch(e) {} }
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  if (themeColorMeta) themeColorMeta.setAttribute('content', t === 'light' ? '#ffffff' : '#0c0b09');
+  const label = t === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
+  btnTheme.title = label; btnTheme.setAttribute('aria-label', label);
+}
+let currentTheme = loadTheme();
+applyTheme(currentTheme);
+btnTheme.addEventListener('click', () => {
+  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+  saveTheme(currentTheme);
+  applyTheme(currentTheme);
+});
+
+/* ── Reading font ─────────────────────────────────────────────────────────── */
+const FONT_KEY = 'focusreader_font';
+const FONT_STACKS = {
+  lora:         "'Lora',serif",
+  georgia:      "Georgia,'Iowan Old Style','Times New Roman',serif",
+  literata:     "'Literata',serif",
+  merriweather: "'Merriweather',serif",
+  atkinson:     "'Atkinson Hyperlegible',sans-serif",
+};
+const fontSelect = document.getElementById('font-select');
+function loadFont() { try { const f = localStorage.getItem(FONT_KEY); return FONT_STACKS[f] ? f : 'lora'; } catch(e) { return 'lora'; } }
+function saveFont(f) { try { localStorage.setItem(FONT_KEY, f); } catch(e) {} }
+function applyFont(f) {
+  document.documentElement.style.setProperty('--reading-font', FONT_STACKS[f] || FONT_STACKS.lora);
+  if (fontSelect) fontSelect.value = f;
+}
+let currentFont = loadFont();
+applyFont(currentFont);
+if (fontSelect) fontSelect.addEventListener('change', () => {
+  currentFont = FONT_STACKS[fontSelect.value] ? fontSelect.value : 'lora';
+  saveFont(currentFont);
+  applyFont(currentFont);
+});
+
 /* ── Search system ────────────────────────────────────────────────────────────
    Ctrl+F / Cmd+F or the ⌕ button opens a search bar.
    - Searches all sentences for the query string (case-insensitive)
@@ -5431,10 +5538,44 @@ function psModeChanged() {
   renderNodeText();
   _cachedFocusIdx = -1; _cachedFocusLen = -1;
   layout(false);
+  // Settle pass (mirrors openBook()/navigate()): the instant layout() above measures
+  // heights synchronously right after the text write, which is usually exact — but if a
+  // web font is still swapping in (FOUT/FOIT) or an image is still decoding, that measurement
+  // can be briefly stale, which used to show as a wrongly-spaced/overlapping neighbour right
+  // after switching into Focus Mode. Re-measure and re-lay-out once more after paint, and keep
+  // watching the focused node for any further height change (this watch was previously only
+  // wired up in openBook()/navigate(), never here — the gap that let this go stale).
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (!nodes.length) return;
+    for (let s = 0; s < POOL_SIZE; s++) {
+      const h = nodes[s].offsetHeight;
+      if (h > 0) _slotH[s] = h;
+    }
+    const focusSlot = sentToSlot(current);
+    const focusEl = nodes[focusSlot];
+    if (focusEl) {
+      const h = focusEl.offsetHeight;
+      if (h > 0) { _cachedFocusH = h; _cachedFocusIdx = current; _cachedFocusLen = (sentences[current] || '').length; _slotH[focusSlot] = h; }
+      observeFocusNode(focusEl);
+    }
+    layout(false);
+  }));
   if (autoOn) {                       // keep reading hands-free in the new mode's style
     clearTimeout(autoTimer);
     if (focusMode) scheduleAuto(); else physScrollStart();
   }
+}
+// Belt-and-suspenders for the same font-swap race: if a web font finishes loading (FOUT/FOIT)
+// while Focus Mode is already open, re-measure once so a neighbour can never end up mis-spaced
+// against stale (pre-swap) text metrics.
+if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    if (focusMode && nodes.length) {
+      for (let s = 0; s < POOL_SIZE; s++) { const h = nodes[s].offsetHeight; if (h > 0) _slotH[s] = h; }
+      _cachedFocusIdx = -1; _cachedFocusLen = -1;
+      layout(true);
+    }
+  }).catch(() => {});
 }
 
 // Any touch/click that starts on real UI chrome (buttons, menus, the
