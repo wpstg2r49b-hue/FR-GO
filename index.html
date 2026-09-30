@@ -6,24 +6,12 @@
 <meta name="theme-color" content="#0c0b09"/>
 <title>Focus Reader</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&family=Literata:ital,wght@0,400;0,500;0,600;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:#0c0b09; --surface:#111009; --border:#242018;
   --gold:#c8a96e; --gold-dim:#6b5a38; --gold-faint:#1e1a12;
   --text:#e2d9c5; --text-mid:#8a7d65; --text-dim:#3d3829;
-  --reading-font:'Lora',serif;
-  color-scheme: dark;
-}
-/* ── Light mode ── black text, white background, same gold accent throughout.
-   Every colour in this app is already driven by these custom properties, so
-   redefining them here is enough to retheme everything — chrome, dock,
-   dropdowns, dictionary card, timer pop-up, bookshelf-style modals, etc. */
-:root[data-theme="light"] {
-  --bg:#ffffff; --surface:#f6f4ef; --border:#e2ddd0;
-  --gold:#9c7332; --gold-dim:#c9b48a; --gold-faint:#f4ecd9;
-  --text:#141310; --text-mid:#6b6255; --text-dim:#a89c88;
-  color-scheme: light;
 }
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100vh;overflow:hidden;user-select:none}
@@ -139,7 +127,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   z-index:70;white-space:nowrap;
 }
 #reader-open-hint.show{opacity:.92;transform:translate(-50%,-50%) scale(1)}
-@media (max-width:680px), (orientation:landscape) and (max-height:500px){
+@media (max-width:680px){
   #swipe-hint{ bottom:calc(90px + env(safe-area-inset-bottom)); font-size:10px; }
   #reader-open-hint{font-size:10px;letter-spacing:.14em;padding:9px 14px;}
 }
@@ -167,30 +155,27 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 .focus-mode #bottombar,
 .focus-mode #left-panel,
 .focus-mode #ring-wrap,
-.focus-mode #play-dot{
+.focus-mode #play-dot,
+.focus-mode #btn-focus-exit{
   opacity:0;
   pointer-events:none;
   transition:opacity .4s;
 }
-/* Focus Mode auto-read control — the only chrome left on screen. Deliberately tiny:
-   ▶ play/pause · − · WPM · +   (double-tap the text or press Esc to leave Focus Mode) */
-#focus-auto{
+.focus-mode #btn-focus-exit{
+  opacity:1!important;
+  pointer-events:all!important;
+}
+/* Exit focus mode button — tiny, bottom centre, only visible in focus mode */
+#btn-focus-exit{
   position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:2px;
   font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
-  opacity:0;pointer-events:none;transition:opacity .3s;z-index:50;
+  letter-spacing:.14em;color:var(--text-dim);text-transform:uppercase;
+  background:none;border:1px solid var(--border);padding:5px 14px;
+  cursor:pointer;opacity:0;pointer-events:none;
+  transition:opacity .3s;z-index:50;
 }
-.focus-mode #focus-auto{opacity:.5;pointer-events:all}
-.focus-mode #focus-auto:hover,.focus-mode #focus-auto:active{opacity:1}
-#focus-auto button{
-  width:24px;height:22px;padding:0;line-height:1;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  font:inherit;color:var(--text-mid);background:none;border:1px solid var(--border);
-  -webkit-tap-highlight-color:transparent;
-}
-#focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
-#focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
-#fa-wpm{min-width:28px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
+.focus-mode #btn-focus-exit{opacity:.4;pointer-events:all}
+.focus-mode #btn-focus-exit:hover{opacity:1;color:var(--gold);border-color:var(--gold-dim)}
 /* Focus button in top-right */
 #btn-focus{position:relative}
 
@@ -242,24 +227,14 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   height:calc(100vh - 96px);
   overflow:visible;
   flex-shrink:0;
+  /* 3D depth for Normal Reading Mode's rotating-wheel scroll effect (see
+     physScrollApplyLayout in the script). Perspective alone has no visual
+     effect on elements that never receive a rotateX — i.e. it's completely
+     inert for Focus Mode, which only ever uses translateY/scale. */
+  perspective:1000px;
+  perspective-origin:center center;
 }
-/* ── Normal Reading Mode = a free-scrolling reading window ─────────────────
-   The track is a window onto a continuous column of sentences. Text is clipped
-   at the window's top/bottom edge (sideways overflow stays visible) so it can
-   never run under the top bar or the control dock, with a short fade at the
-   two edges. Focus Mode drops all of this and uses the whole screen as before. */
-body:not(.focus-mode) #track{
-  height:calc(100vh - 190px);
-  clip-path:inset(0 -80px);
-}
-.focus-mode #track{ height:calc(100vh - 96px); }
-#track::before,#track::after{
-  content:'';position:absolute;left:0;right:0;height:26px;
-  pointer-events:none;z-index:300;transition:opacity .25s;
-}
-#track::before{ top:0;    background:linear-gradient(to bottom, var(--bg), rgba(12,11,9,0)); }
-#track::after { bottom:0; background:linear-gradient(to top,    var(--bg), rgba(12,11,9,0)); }
-.focus-mode #track::before,.focus-mode #track::after{ opacity:0; }
+/* No gradient masks — neighbours are separated by GAP_PX, no fading overlay */
 
 /* Focus bracket ticks */
 .fl{position:absolute;left:-18px;right:-18px;top:50%;transform:translateY(-50%);height:1px;pointer-events:none;z-index:10}
@@ -269,7 +244,7 @@ body:not(.focus-mode) #track{
 /* ── Sentence nodes ── */
 .snt{
   position:absolute;width:100%;text-align:center;
-  font-family:var(--reading-font,'Lora'),serif;font-size:var(--focus-font-size,26px);font-weight:500;
+  font-family:'Lora',serif;font-size:var(--focus-font-size,26px);font-weight:500;
   line-height:1.75;padding:0 var(--snt-pad,24px);color:var(--text);top:50%;
   transition:transform .2s cubic-bezier(.22,1,.36,1),
              opacity   .15s ease;
@@ -279,7 +254,7 @@ body:not(.focus-mode) #track{
      tall focused sentences. We apply it per-node only on non-focused slots. */
 }
 .snt.neighbour{contain:layout style} /* applied via JS on non-focused nodes */
-.snt.zh{font-family:'Noto Serif SC',var(--reading-font,'Lora'),serif;line-height:1.9;font-size:24px}
+.snt.zh{font-family:'Noto Serif SC','Lora',serif;line-height:1.9;font-size:24px}
 .snt b{font-weight:700;font-style:inherit}
 /* Bionic reading — fixation anchor + faded tail */
 .snt .bio-fix{
@@ -296,11 +271,6 @@ body:not(.focus-mode) #track{
 }
 .snt .w{display:inline;border-bottom:1px solid transparent;transition:border-color .15s,color .15s;cursor:default}
 .dict-on .snt.focused .w:hover{color:var(--gold);border-bottom-color:var(--gold-dim)}
-.snt .w{-webkit-tap-highlight-color:transparent}
-.snt .w.dict-active,
-.snt .w.dict-active .bio-fix,
-.snt .w.dict-active .bio-tail{color:var(--gold)}
-.snt .w.dict-active{border-bottom-color:var(--gold-dim)}
 
 /* ── Bottom bar — doubled ── */
 #bottombar{position:absolute;bottom:0;left:0;right:0;padding:18px 28px;display:flex;justify-content:space-between;align-items:center;z-index:10}
@@ -351,7 +321,6 @@ body:not(.focus-mode) #track{
 #pos-page-input::-webkit-inner-spin-button,
 #pos-page-input::-webkit-outer-spin-button{-webkit-appearance:none}
 #pos-page-total{color:var(--text-dim)}
-#pos-page{white-space:nowrap}
 
 /* ── Progress ring — Fix 4: clickable to go to first sentence ── */
 #ring-wrap{
@@ -371,19 +340,6 @@ body:not(.focus-mode) #track{
   z-index:150;
 }
 
-/* Theme toggle — sun / moon swap, same footprint as the bookmark button beside it */
-#btn-theme{
-  background:none;border:none;cursor:pointer;
-  padding:10px;display:flex;align-items:center;justify-content:center;
-  opacity:.5;transition:opacity .2s,color .2s;color:var(--text-mid);
-  -webkit-tap-highlight-color:transparent;
-}
-#btn-theme:hover{opacity:1;color:var(--gold)}
-#btn-theme .icon-moon{display:block}
-#btn-theme .icon-sun{display:none}
-:root[data-theme="light"] #btn-theme .icon-moon{display:none}
-:root[data-theme="light"] #btn-theme .icon-sun{display:block}
-
 /* Bookmark button */
 #btn-bookmark{
   background:none;border:none;cursor:pointer;
@@ -393,6 +349,15 @@ body:not(.focus-mode) #track{
 #btn-bookmark:hover{opacity:1}
 #btn-bookmark.has-bookmarks #bm-path{stroke:var(--gold)}
 #btn-bookmark.has-bookmarks{opacity:.9}
+#bm-key-hint{
+  position:absolute;bottom:2px;right:2px;
+  font-family:'DM Mono',monospace;font-size:9px;font-weight:700;
+  color:var(--gold);opacity:0;
+  transition:opacity .15s;
+  letter-spacing:0;line-height:1;
+  pointer-events:none;
+}
+#btn-bookmark:hover #bm-key-hint{opacity:.85}
 
 /* Bookmark dropdown panel */
 #bm-panel{
@@ -454,7 +419,7 @@ body:not(.focus-mode) #track{
 #vol-slider:hover{opacity:1}
 #vol-label{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase}
 
-#play-dot{fill:var(--gold);opacity:0;transition:opacity .3s;pointer-events:none}
+#play-dot{position:absolute;right:90px;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:var(--gold);opacity:0;transition:opacity .3s}
 #play-dot.on{opacity:1;animation:pulse 1.2s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
 
@@ -553,7 +518,7 @@ body:not(.focus-mode) #track{
 #dict-tooltip.show{opacity:1;transform:translateY(0)}
 #dict-word{font-family:'Lora',serif;font-size:16px;font-weight:600;color:var(--gold);margin-bottom:5px}
 #dict-pos{font-family:'DM Mono',monospace;font-size:11px;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--text-dim);margin-bottom:8px}
-#dict-def{font-family:'Lora',serif;font-size:14px;line-height:1.6;color:var(--text-mid);white-space:pre-line}
+#dict-def{font-family:'Lora',serif;font-size:14px;line-height:1.6;color:var(--text-mid)}
 #dict-loading{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--text-dim);letter-spacing:.1em}
 
 /* ── AI Groq panel ── */
@@ -673,12 +638,11 @@ body:not(.focus-mode) #track{
 
 /* ── Hourglass timer ── */
 #timer-flower{
-  position:relative;
-  display:flex;flex-direction:row;align-items:center;gap:6px;
-  margin:0;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  margin-top:10px;
   opacity:0;pointer-events:none;transition:opacity .3s;
 }
-#timer-flower.show{opacity:1;pointer-events:inherit} /* inherit: a closed ☰ menu (pointer-events:none) must not leave invisible tap targets behind */
+#timer-flower.show{opacity:1;pointer-events:all}
 #flower-btn{
   width:38px;height:44px;cursor:pointer;
   position:relative;background:none;border:none;padding:0;
@@ -689,7 +653,7 @@ body:not(.focus-mode) #track{
 /* Tooltip */
 #flower-btn::after{
   content:attr(data-tip);
-  position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);
+  position:absolute;left:46px;top:50%;transform:translateY(-50%);
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   letter-spacing:.1em;text-transform:uppercase;
   color:var(--text-mid);background:var(--surface);
@@ -698,15 +662,11 @@ body:not(.focus-mode) #track{
   opacity:0;transition:opacity .15s;z-index:100;
 }
 #flower-btn:hover::after{opacity:1}
-#timer-flower:has(#flower-presets.show, #flower-controls.show) #flower-btn::after{display:none} /* don't cover the open options */
 /* Preset menu */
-#flower-presets,#flower-controls{
-  display:none;flex-direction:column;gap:3px;align-items:stretch;
-  position:absolute;top:calc(100% + 6px);right:0;width:64px;
-  background:var(--surface);border:1px solid var(--border);padding:6px;
-  z-index:60;box-shadow:0 8px 24px rgba(0,0,0,.5);
+#flower-presets{
+  display:none;flex-direction:column;gap:3px;align-items:stretch;width:100%;
 }
-#flower-presets.show,#flower-controls.show{display:flex}
+#flower-presets.show{display:flex}
 .flower-preset{
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   letter-spacing:.08em;color:var(--text-dim);background:none;
@@ -716,6 +676,8 @@ body:not(.focus-mode) #track{
 .flower-preset:hover{color:var(--gold);border-color:var(--gold-dim)}
 .flower-preset.active{color:var(--gold);border-color:var(--gold-dim);background:var(--gold-faint)}
 /* Controls */
+#flower-controls{display:none;gap:3px;flex-direction:column;width:100%}
+#flower-controls.show{display:flex}
 #flower-pause,#flower-reset{
   font-family:'DM Mono',monospace;font-size:10px;font-weight:700;
   letter-spacing:.06em;color:var(--text-dim);background:none;
@@ -729,16 +691,6 @@ body:not(.focus-mode) #track{
    unstyled/leaked defaults. */
 .more-menu-label{ display:none; } /* only shown inside the mobile dropdown list */
 #more-menu-textsize{ display:flex; align-items:center; gap:4px; }
-#more-menu-font{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-#font-select{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  color:var(--text-mid);background:var(--surface);
-  border:1px solid var(--border);padding:6px 8px;
-  cursor:pointer;letter-spacing:.02em;max-width:150px;
-  transition:color .15s,border-color .15s;
-}
-#font-select:hover{color:var(--gold);border-color:var(--gold-dim)}
-#font-select:focus{outline:none;border-color:var(--gold-dim)}
 #more-menu-volume{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
 
 /* Volume slider — horizontal, transparent track (not the browser's default
@@ -771,95 +723,9 @@ body:not(.focus-mode) #track{
 }
 
 #flower-label{
-  display:none; /* shown only inside the phone dropdown */
   font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
   letter-spacing:.1em;color:var(--text-dim);text-transform:uppercase;
 }
-/* Dock auto-play control (phone only): [ ▶ / ⏸ ] with a tiny speed caption underneath.
-   Tapping the caption drops a vertical "rocker" slider UP for the auto-scroll speed. */
-#ap-wrap{ display:none; position:relative; flex-direction:column; align-items:center; }
-#btn-autoplay{
-  display:flex;align-items:center;justify-content:center;
-  background:none;border:none;cursor:pointer;color:var(--text-mid);
-  padding:0;width:40px;height:28px;opacity:.8;
-  transition:opacity .2s,color .2s;-webkit-tap-highlight-color:transparent;
-}
-#btn-autoplay.active{opacity:1;color:var(--gold)}
-#btn-autoplay .ap-pause{display:none}
-#btn-autoplay.active .ap-play{display:none}
-#btn-autoplay.active .ap-pause{display:block}
-#ap-speed-toggle{
-  display:flex;align-items:center;justify-content:center;gap:2px;
-  background:none;border:none;cursor:pointer;padding:0 6px;height:18px;min-width:40px;
-  font-family:'DM Mono',monospace;font-size:9px;font-weight:700;letter-spacing:.04em;line-height:1;
-  color:var(--text-mid);-webkit-tap-highlight-color:transparent;
-}
-#ap-speed-toggle .ap-caret{font-size:8px;transition:transform .2s}
-#ap-wrap.open #ap-speed-toggle{color:var(--gold)}
-#ap-wrap.open #ap-speed-toggle .ap-caret{transform:rotate(180deg)}
-#ap-wrap.active #ap-speed-toggle{color:var(--gold-dim)}
-#ap-wrap.active.open #ap-speed-toggle{color:var(--gold)}
-/* the drop-up slider */
-#ap-pop{
-  display:none;position:absolute;bottom:calc(100% + 8px);left:0;
-  width:62px;padding:10px 0 8px;flex-direction:column;align-items:center;gap:6px;
-  background:var(--surface);border:1px solid var(--border);
-  box-shadow:0 8px 28px rgba(0,0,0,.55);z-index:120;
-  font-family:'DM Mono',monospace;font-weight:700;
-}
-#ap-pop.show{display:flex}
-.ap-pop-end{font-size:8px;letter-spacing:.16em;color:var(--text-dim);text-transform:uppercase}
-#ap-track{
-  position:relative;width:44px;height:150px;cursor:pointer;
-  touch-action:none;-webkit-tap-highlight-color:transparent;outline:none;
-}
-#ap-track::before{                       /* groove */
-  content:'';position:absolute;left:50%;top:0;bottom:0;width:4px;margin-left:-2px;
-  background:var(--border);border-radius:2px;
-}
-#ap-fill{                                /* filled part, from SLOW up to the thumb */
-  position:absolute;left:50%;bottom:0;width:4px;margin-left:-2px;height:0;
-  background:var(--gold-dim);border-radius:2px;
-}
-#ap-thumb{                               /* the rocker */
-  position:absolute;left:50%;bottom:0;width:34px;height:18px;margin-left:-17px;
-  background:var(--bg);border:1px solid var(--gold);border-radius:4px;
-  display:flex;align-items:center;justify-content:center;
-}
-#ap-thumb::before{                       /* grip lines */
-  content:'';width:14px;height:6px;
-  border-top:1px solid var(--gold-dim);border-bottom:1px solid var(--gold-dim);
-}
-#ap-track:focus-visible #ap-thumb{box-shadow:0 0 0 2px var(--gold-dim)}
-#ap-pop-val{font-size:12px;color:var(--gold);letter-spacing:.02em;text-align:center;line-height:1.1}
-#ap-pop-val small{display:block;font-size:8px;color:var(--text-dim);letter-spacing:.14em;text-transform:uppercase;margin-top:2px}
-
-/* ── "Time's up" pop-up ── */
-#timer-modal{
-  position:fixed;inset:0;z-index:800;display:none;align-items:center;justify-content:center;
-  background:rgba(12,11,9,.88);
-  padding:24px calc(24px + env(safe-area-inset-right,0px)) 24px calc(24px + env(safe-area-inset-left,0px));
-}
-#timer-modal.show{display:flex}
-#tm-card{
-  width:340px;max-width:100%;background:var(--surface);border:1px solid var(--border);
-  padding:28px 24px 22px;text-align:center;
-  display:flex;flex-direction:column;align-items:center;gap:12px;
-  animation:tmIn .28s cubic-bezier(.22,1,.36,1);
-}
-@keyframes tmIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
-#tm-title{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
-#tm-msg{font-family:'Lora',serif;font-size:15px;line-height:1.7;color:var(--text-mid)}
-#tm-msg b{color:var(--text);font-weight:600}
-#tm-btns{display:flex;gap:10px;width:100%;margin-top:8px}
-#tm-btns button{
-  flex:1;font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
-  padding:13px 8px;cursor:pointer;background:none;border:1px solid var(--border);color:var(--text-mid);
-  transition:color .15s,border-color .15s,background .15s;
-}
-#tm-btns button:hover{color:var(--text);border-color:var(--gold-dim)}
-#tm-restart{color:var(--gold)!important;border-color:var(--gold-dim)!important}
-#tm-restart:hover{background:var(--gold-faint)}
 
 /* ════════════════════════════════════════════════════════════════════════
    MOBILE-FIRST RESPONSIVE LAYER
@@ -884,7 +750,7 @@ body:not(.focus-mode) #track{
   #track{ --focus-font-size:22px; --snt-pad:20px; }
 }
 
-@media (max-width:680px), (orientation:landscape) and (max-height:500px){
+@media (max-width: 680px){
 
   /* Mobile browser chrome (address bar / toolbar) resizes the viewport as
      the user scrolls; 100vh then over/under-shoots. dvh tracks the real
@@ -911,7 +777,6 @@ body:not(.focus-mode) #track{
 
   /* ── Reading size / measure ── */
   #track{ --focus-font-size:20px; --snt-pad:6px; width:100%; max-width:100%; }
-  .fl{ left:0; right:0; } /* was -18px: made the page wider than the screen and clipped the % ring */
   .snt{ line-height:1.7; }
   .snt.zh{ font-size:19px; }
 
@@ -1003,21 +868,18 @@ body:not(.focus-mode) #track{
     min-width:min(84vw,320px); max-width:calc(100vw - 32px);
   }
 
-  /* Timer lives in the ☰ dropdown: a full-width row (icon + "Timer" / "12:34 left"),
-     with its presets / pause-reset as an inline row underneath. */
-  #timer-flower{ width:100%; flex-wrap:wrap; gap:0 10px; padding:4px 10px; }
-  #flower-btn{ width:34px; min-width:34px; height:38px; opacity:.85; }
-  #flower-svg{ width:34px; height:38px; }
-  #flower-btn::after{ display:none; }
-  #flower-label{
-    display:inline; flex:1; cursor:pointer;
-    font-size:12px; letter-spacing:.06em; color:var(--text-mid); text-transform:none;
-  }
+  #flower-btn{ min-width:40px; min-height:40px; }
+  #timer-flower{ position:relative; gap:0; }
+  #flower-label{ display:none; } /* the icon alone is enough at this size */
+  /* Presets/pause-reset already show/hide via the existing .show class —
+     we only change WHERE they render: floating above the icon instead of
+     stacking underneath it and pushing into the reading column. */
   #flower-presets, #flower-controls{
-    position:static; width:100%; flex-direction:row; gap:6px;
-    padding:6px 0 4px; background:none; border:none; box-shadow:none; z-index:auto;
+    position:absolute; left:0; right:auto; bottom:calc(100% + 8px); top:auto;
+    transform:none;
+    width:60px; background:var(--surface); border:1px solid var(--border);
+    padding:6px; z-index:60; box-shadow:0 8px 24px rgba(0,0,0,.5);
   }
-  .flower-preset, #flower-pause, #flower-reset{ flex:1; padding:8px 0; font-size:12px; width:auto; }
 
   /* ── Progress percentage ──
      Moved to the top-right corner (the menu button now occupies top-left),
@@ -1068,8 +930,6 @@ body:not(.focus-mode) #track{
   }
   #more-menu-textsize #zoom-zone{ gap:6px; }
   #more-menu-textsize .zoom-btn{ min-width:36px; min-height:32px; font-size:12px; }
-  #more-menu-font{ padding:8px 10px 4px; }
-  #font-select{ max-width:none; flex:1; margin-left:10px; }
 
   /* Reclaim the vertical room the old, taller bottom bar used to take —
      the reading area (and the Focus Sentence within it) grows to fill it. */
@@ -1085,7 +945,7 @@ body:not(.focus-mode) #track{
   .search-nav-btn{ min-width:44px; min-height:40px; }
 
   /* ── Focus-mode exit hint sits above the home indicator ── */
-  #focus-auto{ bottom:calc(14px + env(safe-area-inset-bottom)); }
+  #btn-focus-exit{ bottom:calc(14px + env(safe-area-inset-bottom)); }
 
   /* ── Bionic / dictionary word targets stay comfortably tappable ── */
   .snt .w{ padding:1px 0; }
@@ -1105,116 +965,9 @@ body:not(.focus-mode) #track{
 
 /* "More" menu / floating panels stay in normal desktop flow — nothing is
    collapsed above the phone breakpoint, so no tool goes missing. */
-@media (min-width:681px) and (min-height:501px), (min-width:681px) and (orientation:portrait){
+@media (min-width: 681px){
   #btn-more{ display:none; }
   #more-menu{ display:contents; }
-}
-
-/* ── Safe areas (notch / Dynamic Island / punch-hole / rounded corners) ─────────
-   Reading text is inset by the LARGER of the left/right safe-area insets on
-   BOTH sides, so it never slides under a cut-out and stays centred whichever
-   side the cut-out is on (or after rotating 90° / 270°). Requires
-   viewport-fit=cover, which this page already declares. */
-@media (max-width:680px), (orientation:landscape) and (max-height:500px){
-  .snt{
-    padding-left: calc(var(--snt-pad) + max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
-    padding-right:calc(var(--snt-pad) + max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
-  }
-  .snt[data-chunk-type="LISTNUM"], .snt[data-chunk-type="LISTBULLET"]{
-    padding-left:calc(2.2em + max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
-  }
-  .fl{ left:max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)); right:max(env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)); }
-  #search-wrap{
-    padding-left:calc(20px + env(safe-area-inset-left,0px));
-    padding-right:calc(20px + env(safe-area-inset-right,0px));
-  }
-  #img-lightbox-close{ top:calc(20px + env(safe-area-inset-top,0px)); right:calc(24px + env(safe-area-inset-right,0px)); }
-  #gest-canvas{ right:calc(24px + env(safe-area-inset-right,0px)); }
-  #gest-status{ right:calc(24px + env(safe-area-inset-right,0px)); }
-}
-
-/* ── Landscape phone: identical layout to portrait, fitted to a short screen ── */
-@media (orientation:landscape) and (max-height:500px){
-  /* ☰ menu: two columns so every tool fits without scrolling */
-  #more-menu{
-    display:grid; grid-template-columns:1fr 1fr; gap:2px;
-    min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
-  }
-  #more-menu-textsize, #more-menu-volume, #timer-flower{ grid-column:1 / -1; }
-  #more-menu .icon-btn{ min-height:32px; padding:3px 10px; }
-  #more-menu{ max-height:calc(100vh - 62px); }
-  #more-menu-textsize{ padding:3px 10px; }
-  #more-menu-volume{ padding:2px 10px; }
-  #timer-flower{ padding:2px 10px; }
-  #flower-presets, #flower-controls{ padding:3px 0 2px; }
-  .flower-preset, #flower-pause, #flower-reset{ padding:6px 0; }
-  #more-menu .more-menu-label{ white-space:nowrap; }
-  /* Menu is tall on a short screen — keep it above the dock, never behind it */
-  #topbar{ z-index:30; }
-  /* Bookmark list must fit above the lower-left cluster on a short screen */
-  #bm-list{ max-height:min(300px, 34vh); }
-
-  /* Even on phones that report no cut-out, keep a comfortable side gutter */
-  .snt{
-    padding-left: calc(var(--snt-pad) + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
-    padding-right:calc(var(--snt-pad) + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
-  }
-  .snt[data-chunk-type="LISTNUM"], .snt[data-chunk-type="LISTBULLET"]{
-    padding-left:calc(2.2em + max(20px, env(safe-area-inset-left,0px), env(safe-area-inset-right,0px)));
-  }
-
-}
-
-/* ── Phones: reading window + control dock ─────────────────────────────────
-   The screen is split into three fixed zones:
-       top bar   (☰ · title · %)
-       reading window  ← sentences live and scroll ONLY here
-       dock      (timer · bookmark · page − / + · sentence)  ← text never appears here
-   In Focus Mode the top bar and dock are hidden and the window grows to the
-   full screen exactly as before. */
-@media (max-width:680px), (orientation:landscape) and (max-height:500px){
-  :root{
-    --top-h:calc(72px + env(safe-area-inset-top,0px));
-    --dock-h:calc(52px + env(safe-area-inset-bottom,0px));
-  }
-  #reader{ align-items:flex-start; }
-  #track{ transition:height .3s ease, margin-top .3s ease; }
-  body:not(.focus-mode) #track{
-    margin-top:var(--top-h);
-    height:calc(100vh - var(--top-h) - var(--dock-h));
-  }
-  @supports (height:100dvh){
-    body:not(.focus-mode) #track{ height:calc(100dvh - var(--top-h) - var(--dock-h)); }
-  }
-  .focus-mode #track{ margin-top:28px; height:calc(100vh - 56px); }
-  @supports (height:100dvh){
-    .focus-mode #track{ height:calc(100dvh - 56px); }
-  }
-
-  /* Dock: one slim, solid row. Nothing else is allowed to draw underneath it. */
-  #bottombar{
-    position:absolute; left:0; right:0; bottom:0; height:var(--dock-h);
-    flex-direction:row; align-items:center; gap:0;
-    padding:0 calc(10px + env(safe-area-inset-right,0px)) env(safe-area-inset-bottom,0px) calc(10px + env(safe-area-inset-left,0px));
-    background:var(--bg); border-top:1px solid var(--border);
-  }
-  #status-cluster{
-    flex:1; width:auto; padding-left:0; order:0;
-    flex-direction:row; align-items:center; justify-content:space-between; gap:6px;
-  }
-  #left-panel{ flex-direction:row; align-items:center; gap:0; }
-  #btn-theme{ padding:6px; min-width:38px; min-height:38px; }
-  #ap-wrap{ display:flex; }
-  #btn-bookmark{ padding:6px; min-width:38px; min-height:38px; }
-  #pos-wrap{ flex-direction:row; align-items:center; gap:8px; opacity:.9; padding-top:0; min-width:0; }
-  #pos-page, #pos-sent{ height:36px; gap:3px; }
-  #pos-page-input{ width:34px; }
-  #pos-sent-input{ width:42px; }
-  #pos-page-total, #pos-sent-total{ font-size:12px; }
-}
-/* Very narrow phones: drop the tiny PG. / S. labels so the dock never overflows */
-@media (max-width:350px){
-  .pos-page-label, .pos-sent-label{ display:none; }
 }
 
 /* Respect reduced-motion preference across the whole app */
@@ -1339,36 +1092,6 @@ body:not(.focus-mode) #track{
             <span class="more-menu-label">Hand gesture</span>
           </button>
 
-          <!-- Timer — stopwatch icon (drawn in JS, see drawStopwatch) -->
-          <div id="timer-flower">
-            <button id="flower-btn" data-tip="set timer">
-              <svg id="flower-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
-            </button>
-            <span id="flower-label">Timer</span>
-            <div id="flower-presets">
-              <button class="flower-preset" data-mins="15">15m</button>
-              <button class="flower-preset" data-mins="30">30m</button>
-              <button class="flower-preset" data-mins="60">60m</button>
-            </div>
-            <div id="flower-controls">
-              <button id="flower-pause">pause</button>
-              <button id="flower-reset">reset</button>
-            </div>
-          </div>
-
-
-          <!-- Reading font — a short list of faces chosen for on-screen long-form reading -->
-          <div id="more-menu-font">
-            <span class="more-menu-label">Font</span>
-            <select id="font-select" title="Reading font">
-              <option value="lora">Lora</option>
-              <option value="georgia">Georgia</option>
-              <option value="literata">Literata</option>
-              <option value="merriweather">Merriweather</option>
-              <option value="atkinson">Atkinson Hyperlegible</option>
-            </select>
-          </div>
-
           <!-- Text size -->
           <div id="more-menu-textsize">
             <span class="more-menu-label">Text size</span>
@@ -1413,17 +1136,12 @@ body:not(.focus-mode) #track{
     </div>
 
     <!-- Focus mode exit hint -->
-    <div id="focus-auto">
-      <button id="fa-play" title="Auto read (play / pause)" aria-label="Auto read">▶</button>
-      <button id="fa-down" title="Slower" aria-label="Slower">−</button>
-      <span id="fa-wpm">200</span>
-      <button id="fa-up" title="Faster" aria-label="Faster">+</button>
-    </div>
+    <button id="btn-focus-exit">Exit focus</button>
 
     <!-- Bookmark toast -->
     <div id="bm-toast"></div>
-    <div id="swipe-hint">Swipe to read · double-tap to exit</div>
-    <div id="reader-open-hint">DOUBLE-TAP A SENTENCE TO FOCUS</div>
+    <div id="swipe-hint">↑ Swipe to read ↓</div>
+    <div id="reader-open-hint">DOUBLE TAP TO FOCUS</div>
 
     <!-- Search overlay — shown by Ctrl+F or search button -->
     <div id="search-wrap">
@@ -1435,6 +1153,7 @@ body:not(.focus-mode) #track{
     </div>
 
     <div id="track"><div class="fl"></div></div>
+    <div id="play-dot"></div>
     <div id="ring-wrap">
       <svg id="ring" width="54" height="54" viewBox="0 0 54 54">
         <circle id="ring-bg"   cx="27" cy="27" r="23"/>
@@ -1447,7 +1166,6 @@ body:not(.focus-mode) #track{
           x="27" y="36" text-anchor="middle" dominant-baseline="middle"
           font-family="'DM Mono',monospace" font-size="6.5" fill="#3d3829"
           letter-spacing="1">PAGE</text>
-        <circle id="play-dot" cx="27" cy="40.5" r="1.8"/>
       </svg>
     </div>
 
@@ -1474,30 +1192,30 @@ body:not(.focus-mode) #track{
            (bookmark dropdown, timer presets), only repositioned. -->
       <div id="status-cluster">
         <div id="left-panel">
-          <!-- Auto-scroll play / pause — takes the spot the timer used to have -->
-          <div id="ap-wrap">
-            <button id="btn-autoplay" title="Auto-scroll (play / pause)" aria-label="Auto-scroll">
-              <svg class="ap-play" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><polygon points="7,4 20,12 7,20"/></svg>
-              <svg class="ap-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+          <!-- Timer — stopwatch icon (drawn in JS, see drawStopwatch) -->
+          <div id="timer-flower">
+            <button id="flower-btn" data-tip="set timer">
+              <svg id="flower-svg" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg"></svg>
             </button>
-            <button id="ap-speed-toggle" title="Auto-scroll speed" aria-label="Auto-scroll speed" aria-expanded="false"><span class="ap-caret">▴</span><span id="ap-wpm">200</span></button>
-            <!-- Drop-up rocker slider: slide up = faster, down = slower -->
-            <div id="ap-pop" role="group" aria-label="Auto-scroll speed">
-              <span class="ap-pop-end">Fast</span>
-              <div id="ap-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="60" aria-valuemax="500" aria-valuenow="200" aria-label="Auto-scroll speed in words per minute">
-                <div id="ap-fill"></div><div id="ap-thumb"></div>
-              </div>
-              <span class="ap-pop-end">Slow</span>
-              <div id="ap-pop-val">200<small>wpm</small></div>
+            <span id="flower-label">timer</span>
+            <div id="flower-presets">
+              <button class="flower-preset" data-mins="15">15m</button>
+              <button class="flower-preset" data-mins="30">30m</button>
+              <button class="flower-preset" data-mins="60">60m</button>
+            </div>
+            <div id="flower-controls">
+              <button id="flower-pause">pause</button>
+              <button id="flower-reset">reset</button>
             </div>
           </div>
 
           <!-- Bookmark with dropdown panel -->
           <div style="position:relative">
-            <button id="btn-bookmark" title="Bookmarks">
+            <button id="btn-bookmark" title="Bookmarks · press V to toggle">
               <svg width="22" height="28" viewBox="0 0 16 20" fill="none">
                 <path id="bm-path" d="M2 2h12v16l-6-4-6 4V2z" stroke="#6b5a38" stroke-width="1.4" stroke-linejoin="round"/>
               </svg>
+              <span id="bm-key-hint">v</span>
             </button>
             <!-- Bookmark dropdown -->
             <div id="bm-panel">
@@ -1510,12 +1228,6 @@ body:not(.focus-mode) #track{
               </div>
             </div>
           </div>
-
-          <!-- Light / dark theme toggle -->
-          <button id="btn-theme" title="Switch to light mode" aria-label="Switch to light mode">
-            <svg class="icon-moon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>
-            <svg class="icon-sun" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
-          </button>
         </div>
 
         <!-- Position — both readouts are shown as small, secondary info.
@@ -1543,24 +1255,6 @@ body:not(.focus-mode) #track{
 
     <div id="dict-def"></div>
     <div id="dict-loading"></div>
-  </div>
-
-  <!-- Timer finished pop-up -->
-  <div id="timer-modal" role="dialog" aria-modal="true" aria-labelledby="tm-title">
-    <div id="tm-card">
-      <svg id="tm-face" width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#c8a96e" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-        <circle cx="32" cy="32" r="27"/>
-        <circle cx="23" cy="26" r="2.4" fill="#c8a96e" stroke="none"/>
-        <circle cx="41" cy="26" r="2.4" fill="#c8a96e" stroke="none"/>
-        <path d="M20 37 Q32 50 44 37"/>
-      </svg>
-      <div id="tm-title">Time’s up</div>
-      <div id="tm-msg">You’ve been reading for <b id="tm-mins">15</b> minutes.<br>Take a short break — rest your eyes and stretch a little.</div>
-      <div id="tm-btns">
-        <button id="tm-dismiss">Dismiss</button>
-        <button id="tm-restart">Restart timer</button>
-      </div>
-    </div>
   </div>
 
   <!-- Lightbox for inline page images -->
@@ -1752,6 +1446,61 @@ const EXTENDED_PUA = {
   '\uF018':'f',
 };
 
+// ─── Per-document learned ligature map ────────────────────────────────────
+// Every font assigns its ligature glyphs to ARBITRARY Private-Use-Area
+// codepoints — there's no way to hardcode every font in existence, so no
+// static table above will ever cover all of them. Left unresolved, an
+// unknown glyph used to be silently deleted at the end of cleanPDFText,
+// which is the worst possible failure: dropping "fl" from "floor" doesn't
+// produce garbage, it produces "oor" — a DIFFERENT, perfectly ordinary-
+// looking string, so the corruption is invisible until a reader notices.
+//
+// Fix, in two layers, both applied automatically for every PDF:
+//
+//  1. LEARN FROM THE WHOLE DOCUMENT FIRST. The same font glyph is reused
+//     for every occurrence of that ligature throughout the book. Some of
+//     those occurrences sit mid-word (e.g. "reflect", "define", "office")
+//     where a literal "f"/"s"/"c" still precedes the glyph in the raw
+//     text — exactly the context the old Step-4 heuristic already knew
+//     how to read correctly. learnPUALigatures() scans every page's raw
+//     text up front (before any cleaning happens) and remembers that
+//     resolution, then it gets applied to EVERY occurrence of that glyph,
+//     including the word-initial ones (like "floor") that have no such
+//     context of their own. This needs no per-font hardcoding and covers
+//     any font, because it's derived from that specific PDF's own text.
+//
+//  2. COMMON-WORD FALLBACK. Some fonts collapse a whole ligature (e.g.
+//     "fl") into one glyph with no literal letter ever surviving next to
+//     it anywhere in the document, so there's nothing to learn from context
+//     alone. For that narrow remainder, a short, curated list of the most
+//     common English words starting with "fi"/"fl" resolves the frequent,
+//     everyday cases (floor, find, first, flame, five, flag, …) without
+//     needing a full dictionary.
+//
+//  Anything that still can't be resolved after both layers is now LEFT
+//  IN PLACE rather than deleted — an odd character is obviously wrong and
+//  easy to spot and report; a silently substituted real word usually
+//  isn't. See learnPUALigatures() below, called once per PDF import
+//  before any page text is cleaned.
+let _learnedLigatures = {};
+
+// Last-resort common-word fallback — only used for a glyph that (a) isn't
+// in any static table above and (b) never once appeared with usable
+// letter-context anywhere in the document for learnPUALigatures() to
+// learn from. Keyed by the letters immediately AFTER the ligature glyph.
+const _FI_STEMS = new Set(['rst','nd','ve','re','sh','eld','lm','nal','ne',
+  'nger','gure','ber','nish','eldwork','xed','sherman','sh','t','le','x',
+  'refighter','rework','rst-class','ne-tune']);
+const _FL_STEMS = new Set(['oor','ow','ame','ag','ip','oat','ush','eet',
+  'ock','avor','avour','eece','esh','irt','uid','utter','ex','aw','edge',
+  'ank','ap','uent','uctuate','ight','ourish','ock','ora','avon','icker']);
+
+function resolveWordInitialLigature(pua, rest) {
+  if (_FI_STEMS.has(rest)) return 'fi';
+  if (_FL_STEMS.has(rest)) return 'fl';
+  return null;
+}
+
 function cleanPDFText(text) {
   // Step 1: Standard Unicode ligatures
   let out = text;
@@ -1766,6 +1515,13 @@ function cleanPDFText(text) {
   // Step 3: Extended PUA ranges
   for (const [from, to] of Object.entries(EXTENDED_PUA)) {
     out = out.split(from).join(to);
+  }
+
+  // Step 3.5: this document's own learned ligature map (see above) — a
+  // glyph resolved anywhere in this PDF via strong context gets applied
+  // everywhere it appears, including positions with no context of their own.
+  if (Object.keys(_learnedLigatures).length) {
+    out = out.replace(/[\uE000-\uF8FF]/g, ch => _learnedLigatures[ch] || ch);
   }
 
   // Step 4: Context-aware reconstruction for any remaining PUA chars
@@ -1784,11 +1540,52 @@ function cleanPDFText(text) {
     return pre + post;
   });
 
-  // Step 5: Remove any still-remaining PUA characters (unmappable)
-  out = out.replace(/[\uE000-\uF8FF]/g, '');
+  // Step 4.5: last-resort common-word fallback for a glyph that collapses
+  // a WHOLE ligature (both letters gone) and sits at the start of a word,
+  // so there was never a literal letter before it anywhere to learn from.
+  out = out.replace(/(^|[^A-Za-z])([\uE000-\uF8FF])([a-z]+)/g, (m, before, pua, rest) => {
+    const guess = resolveWordInitialLigature(pua, rest);
+    return guess ? before + guess + rest : m;
+  });
+
+  // Step 5: any character that's STILL unresolved is left in place rather
+  // than deleted. It will render oddly — that's a feature, not a bug: an
+  // odd glyph flags itself for you to notice and report; the old silent
+  // deletion turned "floor" into "oor" and gave no sign anything was wrong.
 
   // Step 6: Cleanup
   return out.replace(/  +/g, ' ').trim();
+}
+
+// ─── Learn this PDF's own PUA ligature glyphs before any cleaning ──────────
+// Scans every page's raw, untouched text (collected in Pass 1 of
+// extractPDFText, before groupSpansIntoLines ever calls cleanPDFText) for
+// any Private-Use-Area glyph not already covered by the static tables
+// above. Where that exact glyph appears anywhere in the document with a
+// literal 'f'/'s'/'c' right before it (the same context Step 4 already
+// knows how to read), its resolution is remembered in _learnedLigatures
+// and then applied to EVERY occurrence of that glyph in cleanPDFText —
+// including the word-initial spots (like "floor") that have no context of
+// their own to go on. Runs once per import; resets automatically each time.
+function learnPUALigatures(allPageSpans) {
+  _learnedLigatures = {};
+  const staticallyKnown = ch => (ch in LIGATURE_MAP) || (ch in PUA_MAP) || (ch in EXTENDED_PUA);
+  const re = /([A-Za-z])([\uE000-\uF8FF])([A-Za-z])/g;
+  for (const spans of allPageSpans) {
+    const rawFlat = spans.map(s => s.txt).join(' ');
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(rawFlat))) {
+      const pre = m[1], pua = m[2], post = m[3];
+      if (staticallyKnown(pua) || _learnedLigatures[pua]) continue;
+      let guess = null;
+      if (pre === 'f' && 'ilb'.includes(post)) guess = 'i';
+      else if (pre === 'f' && post === 'f')     guess = 'f';
+      else if (pre === 's' && post === 't')     guess = 't';
+      else if (pre === 'c' && post === 't')     guess = 't';
+      if (guess) _learnedLigatures[pua] = guess;
+    }
+  }
 }
 
 // Debug helper — call this from browser console to see what codepoints
@@ -2588,6 +2385,12 @@ async function extractPDFText(file) {
     setProgress(0.05 + 0.15 * (p / total));
   }
 
+  // Learn this PDF's own PUA ligature glyphs from wherever in the document
+  // they have usable letter context, BEFORE any per-line cleaning happens —
+  // see learnPUALigatures() and cleanPDFText() above for why this fixes
+  // ligature-dropping bugs (e.g. "floor" → "oor") generally, for any font.
+  learnPUALigatures(allPageSpans);
+
   // Font statistics — used by classifier to detect headings
   const fontStats = computeFontStats(allPageSpans);
   // Use body font size as the reference, not median, to be robust to footnotes
@@ -2917,7 +2720,7 @@ function toBionic(text, withWords = false) {
   // Only applies to Latin words; Chinese characters don't benefit.
   // When dictionary mode is also active, each bionic word is additionally
   // wrapped in .w so the dictionary can still target the exact word.
-  return text.replace(/([A-Za-z\u00C0-\u024F]+(?:['\u2019\u02BC][A-Za-z\u00C0-\u024F]+)*)/g, w => {
+  return text.replace(/([A-Za-z\u00C0-\u024F]+)/g, w => {
     if (w.length <= 1) return withWords ? `<span class="w">${w}</span>` : w;
     let inner;
     if (w.length <= 3) {
@@ -2931,9 +2734,7 @@ function toBionic(text, withWords = false) {
 }
 
 function toWordSpans(text) {
-  // A word = letters/digits, optionally joined by an apostrophe (straight ' or curly \u2019 / \u02BC)
-  // so "isn't" / "isn\u2019t" is ONE word. Hyphenated compounds stay separate words.
-  return text.replace(/([A-Za-z0-9\u00C0-\u024F]+(?:['\u2019\u02BC][A-Za-z\u00C0-\u024F]+)*)/g, '<span class="w">$1</span>');
+  return text.replace(/(\w[\w''-]*)/g, '<span class="w">$1</span>');
 }
 
 /* ── Audio — pre-baked buffers for zero-allocation ticks ─────────────────────
@@ -3039,17 +2840,6 @@ const ringFill    = document.getElementById('ring-fill');
 const playDot     = document.getElementById('play-dot');
 const wpmDisplay  = document.getElementById('wpm-display');
 const btnPlay     = document.getElementById('btn-play');
-const apBtn       = document.getElementById('btn-autoplay');   // dock auto-scroll button (phone)
-const apWpm       = document.getElementById('ap-wpm');
-const apWrap      = document.getElementById('ap-wrap');
-const apToggle    = document.getElementById('ap-speed-toggle');
-const apPop       = document.getElementById('ap-pop');
-const apTrack     = document.getElementById('ap-track');
-const apThumb     = document.getElementById('ap-thumb');
-const apFill      = document.getElementById('ap-fill');
-const apPopVal    = document.getElementById('ap-pop-val');
-const timerModalEl = document.getElementById('timer-modal');const faPlay      = document.getElementById('fa-play');        // Focus Mode mini controls
-const faWpm       = document.getElementById('fa-wpm');
 const btnBionic   = document.getElementById('btn-bionic');
 const btnDict     = document.getElementById('btn-dict');
 const bookTitle   = document.getElementById('book-title');
@@ -3072,9 +2862,7 @@ bookTitle.addEventListener('click', () => bookTitle.classList.toggle('expanded')
 function setWPM(val) {
   wpm = Math.max(WPM_MIN, Math.min(WPM_MAX, Math.round(val/WPM_STEP)*WPM_STEP));
   wpmDisplay.textContent = wpm;
-  apWpm.textContent = wpm; faWpm.textContent = wpm;
-  apUpdateSlider();
-  if (autoOn) scheduleAuto();   // Focus Mode timer restarts; normal-mode scrolling reads `wpm` live
+  if (autoOn) scheduleAuto();
 }
 
 /* ── Layout ───────────────────────────────────────────────────────────────── */
@@ -3107,14 +2895,6 @@ function getFocusHeight() {
 }
 
 function layout(animated) {
-  if (!focusMode) {                       // Normal Reading Mode: free-scroll layout
-    if (!animated) nodes.forEach(el => { el.style.transition = 'none'; });
-    physScrollApplyLayout();
-    if (!animated) requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (!scrollRAF) nodes.forEach(el => { el.style.transition = ''; });
-    }));
-    return;
-  }
   // Read all visible slot heights fresh — avoids stale cached values
   for (let s = 0; s < POOL_SIZE; s++) {
     const h = nodes[s].offsetHeight;
@@ -3204,7 +2984,7 @@ function layout(animated) {
 // Pool layout around `current`:
 //   slot offsets: -3, -2, -1, 0(focus), +1, +2, +3
 //   POOL_SIZE = 7 — enough to animate the visible stack (±2) plus buffer (±1)
-const POOL_SIZE = 17;   // ±8 sentences — comfortably more than one screenful
+const POOL_SIZE = 7;
 const POOL_HALF = Math.floor(POOL_SIZE / 2); // 3
 
 // Per-slot height cache — keeps measured offsetHeight for each pool slot.
@@ -3303,19 +3083,13 @@ function buildNodes() {
 }
 
 // Map a sentence index to its pool slot (circular, centred on current)
-// Focus Mode keeps its original mapping (slot ⇄ offset from `current`, content swaps in place).
-// Normal reading mode uses a true ring keyed by sentence index, so while scrolling only ONE node
-// is recycled per sentence crossing and every other node keeps its content, height and position.
 function sentToSlot(sentIdx) {
-  if (focusMode) return ((sentIdx - current + POOL_HALF) % POOL_SIZE + POOL_SIZE) % POOL_SIZE;
-  return ((sentIdx % POOL_SIZE) + POOL_SIZE) % POOL_SIZE;
+  return ((sentIdx - current + POOL_HALF) % POOL_SIZE + POOL_SIZE) % POOL_SIZE;
 }
 
 // Which sentence index should slot s show, given current position?
 function slotToSent(slot) {
-  if (focusMode) return current - POOL_HALF + slot;
-  const base = current - POOL_HALF;
-  return base + (((slot - base) % POOL_SIZE) + POOL_SIZE) % POOL_SIZE;
+  return current - POOL_HALF + slot;
 }
 
 // Fill all pool nodes with their correct sentences
@@ -3414,18 +3188,11 @@ function writeNode(el, sentIdx) {
   // Build display HTML from clean text (never the raw TYPE:... prefix)
   const html = getSentHTMLFrom(sentIdx, chunkText, isFocused);
 
-  // Only touch the DOM if content actually changed. IMPORTANT: comparing el.textContent to
-  // chunkText is NOT enough to detect a mode change on its own — reading .textContent off an
-  // element that holds bionic/dict markup (<b>, <span class="w">, …) strips those tags and
-  // returns the exact same plain text, so that comparison alone can never tell "still has
-  // bionic HTML" apart from "already plain". That let turning bionic reading off leave the old
-  // bold markup on screen. Track the mode explicitly alongside the text instead.
-  const mode = bionicOn ? 'bionic' : ((dictOn && isFocused) ? 'dict' : 'plain');
-  if (el._contentMode !== mode || el._contentKey !== chunkText) {
-    if (mode === 'plain') el.textContent = chunkText;
-    else el.innerHTML = html;
-    el._contentMode = mode;
-    el._contentKey  = chunkText;
+  // Only touch the DOM if content actually changed
+  if (bionicOn || (dictOn && isFocused)) {
+    if (el.innerHTML !== html) el.innerHTML = html;
+  } else {
+    if (el.textContent !== chunkText) el.textContent = chunkText;
   }
   el.classList.toggle('focused', isFocused);
 }
@@ -3609,26 +3376,9 @@ function sentenceDelay(idx) {
   }
   return Math.max(1000, Math.round((units / rate) * 60000) + 400);
 }
-/* Auto-read has two styles, chosen by mode:
-     • Focus Mode         → sentence by sentence (timer-driven), exactly as before
-     • Normal reading mode → smooth hands-free scroll at the WPM pace (driven by the scroll engine below) */
-function scheduleAuto() { clearTimeout(autoTimer); if(!autoOn || !focusMode) return; autoTimer=setTimeout(()=>navigate(1,'auto'),sentenceDelay(current)); }
-function syncPlayUI() {
-  btnPlay.classList.toggle('active', autoOn);
-  btnPlay.textContent = autoOn ? 'Ⅱ' : '▶';
-  btnPlay.setAttribute('aria-label', autoOn ? 'Pause' : 'Play');
-  playDot.classList.toggle('on', autoOn);
-  apBtn.classList.toggle('active', autoOn);
-  apWrap.classList.toggle('active', autoOn);
-  faPlay.classList.toggle('active', autoOn);
-  faPlay.textContent = autoOn ? 'Ⅱ' : '▶';
-}
-function startAuto() {
-  autoOn=true; syncPlayUI();
-  if (focusMode) scheduleAuto();
-  else { scrollVel = 0; physScrollStart(); }
-}
-function stopAuto()  { autoOn=false; clearTimeout(autoTimer); syncPlayUI(); }
+function scheduleAuto() { clearTimeout(autoTimer); if(!autoOn) return; autoTimer=setTimeout(()=>navigate(1,'auto'),sentenceDelay(current)); }
+function startAuto() { autoOn=true; btnPlay.classList.add('active'); btnPlay.textContent='Ⅱ'; btnPlay.setAttribute('aria-label','Pause'); playDot.classList.add('on'); scheduleAuto(); }
+function stopAuto()  { autoOn=false; clearTimeout(autoTimer); btnPlay.classList.remove('active'); btnPlay.textContent='▶'; btnPlay.setAttribute('aria-label','Play'); playDot.classList.remove('on'); }
 function toggleAuto(){ autoOn?stopAuto():startAuto(); }
 
 /* ── Navigate ─────────────────────────────────────────────────────────────── */
@@ -3660,7 +3410,6 @@ function navigate(dir, source) {
   playTick(source === 'auto' ? 'auto' : 'manual');
   const prev = current;
   current = next;
-  scrollOff = 0; scrollVel = 0;   // stepping by key / auto-play re-centres the sentence
   hideTooltip();
 
   // DOM write: recycle exactly ONE pool node with new content
@@ -3709,56 +3458,16 @@ function navigate(dir, source) {
 const dictCache={};
 let tooltipHideTimer=null;
 
-let _dictReqId = 0;        // bumped on every new lookup / hide — stale replies are ignored
-let _activeWordEl = null;  // the .w span currently highlighted
-let _tipRect = null;       // viewport rect of that word, used to (re)position the card
-
-// Place the card above the tapped word (below if there's no room), always fully on-screen.
-function _safeInsets() {
-  // Reads the live env(safe-area-inset-*) values (they change on rotation).
-  const probe = document.createElement('div');
-  probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
-    'padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)';
-  document.body.appendChild(probe);
-  const cs = getComputedStyle(probe);
-  const r = { t: parseFloat(cs.paddingTop) || 0, r: parseFloat(cs.paddingRight) || 0,
-              b: parseFloat(cs.paddingBottom) || 0, l: parseFloat(cs.paddingLeft) || 0 };
-  probe.remove();
-  return r;
-}
-function positionTooltip() {
-  if (!_tipRect) return;
-  const a = _tipRect, m = 8, si = _safeInsets();
-  // Measure at left:0 so the card isn't squeezed by the viewport edge.
-  tooltip.style.left = '0px'; tooltip.style.top = '0px'; tooltip.style.transform = 'none';
-  const tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
-  const vw = window.innerWidth, vh = window.innerHeight;
-  let left = (a.left + a.right) / 2 - tw / 2;
-  left = Math.max(m + si.l, Math.min(vw - tw - m - si.r, left));
-  let top = a.top - th - 10;
-  if (top < m + si.t) top = a.bottom + 10;
-  top = Math.max(m + si.t, Math.min(vh - th - m - si.b, top));
-  tooltip.style.left = left + 'px';
-  tooltip.style.top  = top  + 'px';
+function showTooltip(word, anchorEl) {
+  // Delegate to mouse-coord version using last known mouse position
+  showTooltipAt(word, _lastMouseX || anchorEl.getBoundingClientRect().left + 70, _lastMouseY || anchorEl.getBoundingClientRect().top);
 }
 function renderDefinition(r) {
   tooltipLoad.textContent = '';
-  const senses = r && (r.senses || (r.def ? [{ pos: r.pos, def: r.def }] : null));
-  if (!senses || !senses.length) { tooltipPos.textContent = ''; tooltipDef.textContent = 'no definition found'; positionTooltip(); return; }
-  const from = r.word && r.word !== tooltipWord.textContent ? ' \u00B7 from \u201C' + r.word + '\u201D' : '';
-  tooltipPos.textContent = (senses[0].pos || '') + from;
-  const cut = d => d.length > 200 ? d.slice(0, 200).replace(/\s+\S*$/, '') + '\u2026' : d;
-  let text = cut(senses[0].def);
-  if (senses[1]) text += '\n\n' + (senses[1].pos ? senses[1].pos + ' \u2014 ' : '') + cut(senses[1].def);
-  tooltipDef.textContent = text;
-  positionTooltip();
+  if (!r || !r.def) { tooltipPos.textContent = ''; tooltipDef.textContent = 'no definition found'; return; }
+  tooltipPos.textContent = r.pos || ''; tooltipDef.textContent = r.def;
 }
-function hideTooltip() {
-  tooltip.classList.remove('show');
-  if (_activeWordEl) { _activeWordEl.classList.remove('dict-active'); _activeWordEl = null; }
-  _tipRect = null;
-  _dictReqId++;
-}
+function hideTooltip() { tooltip.classList.remove('show'); }
 
 /* ── PDF extraction ───────────────────────────────────────────────────────── */
 function setStatus(msg){ loadStatus.style.display='block'; loadStatus.textContent=msg; }
@@ -4140,7 +3849,7 @@ function updateBmIcon() {
   bmPath.style.stroke = has ? 'var(--gold)' : '#6b5a38';
 }
 
-function openBmPanel() { closeApPop(); renderBmPanel(); bmPanel.classList.add('show'); }
+function openBmPanel() { renderBmPanel(); bmPanel.classList.add('show'); }
 function closeBmPanel(){ bmPanel.classList.remove('show'); }
 
 // Toggle panel on click
@@ -4169,9 +3878,6 @@ function jumpTo(idx) {
   if (idx < 0 || idx >= sentences.length) return;
   stopAuto();
   current = idx;
-  // Keep the continuous-scroll position in sync, otherwise a bookmark tap that lands
-  // while the scroll physics is still settling would be snapped back to the old spot.
-  scrollOff = 0; scrollVel = 0;
   // Full pool re-render since we may have jumped far (can't just recycle one slot)
   nodes.forEach(el => { el._sentIdx = -1; el._focused = undefined; });
   renderPool();
@@ -4180,9 +3886,7 @@ function jumpTo(idx) {
   if (currentBookId) saveProgress();
   if (!_layoutPending) {
     _layoutPending = true;
-    // Jumps never animate in normal reading mode (nodes are re-assigned to different sentences);
-    // Focus Mode keeps its original animated behaviour.
-    requestAnimationFrame(() => { _layoutPending = false; layout(focusMode); });
+    requestAnimationFrame(() => { _layoutPending = false; layout(true); });
   }
 }
 
@@ -4284,18 +3988,6 @@ function openBook(book) {
       } catch(e) {}
     }
   }
-  // Books with no real page data (plain .txt / .epub — every sentence maps to "page 1"):
-  // give them virtual pages of 25 sentences so PG. and the − / + buttons are useful.
-  // Session-only; never written back to storage.
-  {
-    const VP = 25;
-    const flat = !pageMap || pageMap.length === 0 || pageMap.every(v => v === 0);
-    if (flat && totalPages <= 1 && sentences.length > VP * 2) {
-      pageMap    = sentences.map((_, i) => Math.floor(i / VP));
-      totalPages = Math.ceil(sentences.length / VP);
-    }
-  }
-  scrollOff = 0; scrollVel = 0;
   bookmarks     = loadBookmarks(book.id);
   bookTitle.textContent = book.title;
   stopAuto();
@@ -4433,10 +4125,11 @@ function showToast(msg) {
 document.getElementById('btn-shelf').addEventListener('click', () => { window.location.href = 'bookshelf.html'; });
 let focusMode = false;
 const btnFocus     = document.getElementById('btn-focus');
+const btnFocusExit = document.getElementById('btn-focus-exit');
 
 /* First-time Focus Mode swipe hint — shown once, ever, per browser.
    Minimal and auto-dismissing; never re-shown once localStorage records it. */
-const SWIPE_HINT_KEY = 'focusreader_focus_exit_hint_seen';   // new key: the hint now also explains how to exit
+const SWIPE_HINT_KEY = 'focusreader_swipe_hint_seen';
 const swipeHintEl = document.getElementById('swipe-hint');
 const readerOpenHintEl = document.getElementById('reader-open-hint');
 let _swipeHintTimer = null;
@@ -4454,7 +4147,7 @@ function maybeShowSwipeHint() {
   try { localStorage.setItem(SWIPE_HINT_KEY, '1'); } catch(e) {}
   swipeHintEl.classList.add('show');
   clearTimeout(_swipeHintTimer);
-  _swipeHintTimer = setTimeout(() => swipeHintEl.classList.remove('show'), 3200);
+  _swipeHintTimer = setTimeout(() => swipeHintEl.classList.remove('show'), 2200);
 }
 
 function enterFocusMode() {
@@ -4462,91 +4155,16 @@ function enterFocusMode() {
   document.body.classList.add('focus-mode');
   btnFocus.classList.add('active');
   maybeShowSwipeHint();
-  psModeChanged();
-}
-// Double-tap on a sentence in normal reading mode: Focus Mode opens ON THAT SENTENCE.
-function enterFocusAt(idx) {
-  if (idx >= 0 && idx < sentences.length && idx !== current) {
-    hideTooltip();
-    current = idx; scrollOff = 0; scrollVel = 0;
-    _lastHUDpg = -1;
-    updateHUD();
-    if (currentBookId) saveProgress();
-  }
-  enterFocusMode();
-}
-// Which sentence is under (or nearest to) this screen point?
-function sentenceIdxAtPoint(x, y) {
-  const tr = trackEl.getBoundingClientRect();
-  let best = -1, bestD = Infinity;
-  for (const el of nodes) {
-    const idx = el._sentIdx;
-    if (idx == null || idx < 0 || idx >= sentences.length) continue;
-    const r = el.getBoundingClientRect();
-    if (r.bottom < tr.top || r.top > tr.bottom) continue;          // outside the reading window
-    const d = y < r.top ? r.top - y : (y > r.bottom ? y - r.bottom : 0);
-    if (d < bestD) { bestD = d; best = idx; }
-  }
-  return best;
 }
 function exitFocusMode() {
   focusMode = false;
   document.body.classList.remove('focus-mode');
   btnFocus.classList.remove('active');
   if (swipeHintEl) swipeHintEl.classList.remove('show');
-  psModeChanged();
 }
 
 btnFocus.addEventListener('click', () => focusMode ? exitFocusMode() : enterFocusMode());
-
-/* Auto-play / speed controls: dock button, ☰ menu speed row, Focus Mode mini bar */
-apBtn.addEventListener('click', e => { e.stopPropagation(); toggleAuto(); });
-
-/* Drop-up speed slider (dock): slide up = faster, down = slower. Steps of WPM_STEP. */
-function apUpdateSlider() {
-  const t = (wpm - WPM_MIN) / (WPM_MAX - WPM_MIN);              // 0 = slow … 1 = fast
-  const th = 18, trackH = apTrack.clientHeight || 150;
-  const y = t * (trackH - th);
-  apThumb.style.bottom = y + 'px';
-  apFill.style.height  = (y + th / 2) + 'px';
-  apPopVal.firstChild.nodeValue = wpm;
-  apTrack.setAttribute('aria-valuenow', wpm);
-}
-function apSetFromY(clientY) {
-  const r = apTrack.getBoundingClientRect(), th = 18;
-  let t = 1 - (clientY - r.top - th / 2) / (r.height - th);
-  t = Math.max(0, Math.min(1, t));
-  setWPM(WPM_MIN + t * (WPM_MAX - WPM_MIN));
-}
-function openApPop() {
-  moreMenu.classList.remove('open');
-  closeBmPanel();
-  apPop.classList.add('show'); apWrap.classList.add('open'); apToggle.setAttribute('aria-expanded', 'true');
-  apUpdateSlider();
-}
-function closeApPop() {
-  apPop.classList.remove('show'); apWrap.classList.remove('open'); apToggle.setAttribute('aria-expanded', 'false');
-}
-apToggle.addEventListener('click', e => { e.stopPropagation(); apPop.classList.contains('show') ? closeApPop() : openApPop(); });
-let _apDrag = false;
-apTrack.addEventListener('pointerdown', e => {
-  e.preventDefault(); e.stopPropagation();
-  _apDrag = true;
-  try { apTrack.setPointerCapture(e.pointerId); } catch(err) {}
-  apSetFromY(e.clientY);
-});
-apTrack.addEventListener('pointermove', e => { if (_apDrag) { e.preventDefault(); apSetFromY(e.clientY); } });
-const _apEnd = e => { _apDrag = false; try { apTrack.releasePointerCapture(e.pointerId); } catch(err) {} };
-apTrack.addEventListener('pointerup', _apEnd);
-apTrack.addEventListener('pointercancel', _apEnd);
-apTrack.addEventListener('keydown', e => {
-  if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); e.stopPropagation(); setWPM(wpm + WPM_STEP); }
-  if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); e.stopPropagation(); setWPM(wpm - WPM_STEP); }
-});
-document.addEventListener('click', e => { if (apPop.classList.contains('show') && !apWrap.contains(e.target)) closeApPop(); });
-faPlay.addEventListener('click', e => { e.stopPropagation(); toggleAuto(); });
-document.getElementById('fa-down').addEventListener('click', e => { e.stopPropagation(); setWPM(wpm - WPM_STEP); });
-document.getElementById('fa-up'  ).addEventListener('click', e => { e.stopPropagation(); setWPM(wpm + WPM_STEP); });
+btnFocusExit.addEventListener('click', exitFocusMode);
 
 /* ── "More" menu (mobile) — purely a visibility toggle around the exact
    same buttons/handlers defined elsewhere; no reading or Focus Mode logic
@@ -4555,7 +4173,6 @@ const btnMore  = document.getElementById('btn-more');
 const moreMenu = document.getElementById('more-menu');
 btnMore.addEventListener('click', e => {
   e.stopPropagation();
-  closeApPop();
   moreMenu.classList.toggle('open');
 });
 document.addEventListener('click', e => {
@@ -4671,32 +4288,6 @@ posPageInputEl.addEventListener('blur', () => {
   posPageInputEl.value = pg !== null ? pg : '';
 });
 
-/* ── Page stepping (used by the left / right swipe) ─────────────────────────────────────────────────────
-   Step one page at a time, landing on the FIRST sentence of the target page
-   (both directions). Pages that contain no sentences are skipped over. */
-function stepPage(delta) {
-  if (focusMode) return;
-  stopAuto();
-  const cur = sentenceToPage(current);
-  if (cur == null) return;
-  const maxPage = totalPages || (pageMap.length > 0 ? pageMap.reduce((m,x) => x > m ? x : m, 0) + 1 : 0);
-  if (!maxPage) return;
-  const dir = delta > 0 ? 1 : -1;
-  let t = cur + delta, idx = -1;
-  while (t >= 1 && t <= maxPage) {
-    if (pageMap.length > 0) {
-      idx = pageMap.findIndex(pg => pg === t - 1);
-    } else if (totalPages > 1 && sentences.length > 1) {
-      idx = Math.round(((t - 1) / (totalPages - 1)) * (sentences.length - 1));
-    }
-    if (idx >= 0) break;
-    t += dir;
-  }
-  if (idx < 0 || idx >= sentences.length) { playTick('limit'); return; }
-  _lastHUDpg = -1;
-  jumpTo(idx);
-}
-
 /* ── Zoom system ──────────────────────────────────────────────────────────────
    Scales sentence text via CSS font-size. 100% = base 26px.
    Range: 70%–200% in 10% steps.
@@ -4743,11 +4334,9 @@ document.getElementById('btn-zoom-out').addEventListener('click', () => setZoom(
 ──────────────────────────────────────────────────────────────────────────── */
 let _dictMoveTimer = null;
 let _lastMouseX = 0, _lastMouseY = 0;
-let _lastTouchTs = 0; // browsers fire synthetic mouse events after a tap — ignore those
 
 trackEl.addEventListener('mousemove', e => {
   if (!dictOn) return;
-  if (Date.now() - _lastTouchTs < 900) return;
   _lastMouseX = e.clientX;
   _lastMouseY = e.clientY;
   clearTimeout(_dictMoveTimer);
@@ -4760,7 +4349,7 @@ trackEl.addEventListener('mousemove', e => {
     const focusedNode = nodes[sentToSlot(current)];
     if (!focusedNode || !focusedNode.contains(sp)) return;
     clearTimeout(tooltipHideTimer);
-    showTooltipForEl(sp);
+    showTooltipAt(sp.textContent, _lastMouseX, _lastMouseY);
   }, 60);
 });
 
@@ -4769,54 +4358,20 @@ trackEl.addEventListener('mouseleave', () => {
   tooltipHideTimer = setTimeout(hideTooltip, 180);
 });
 
-// Touch: tap a word in the focused sentence to look it up. Tap anywhere else
-// (or swipe to another sentence) to dismiss. A tap only counts if the finger
-// barely moved — swipes are left alone. We deliberately do NOT stop the event
-// from propagating, so the reading-scroll's own touchend still runs and can
-// never be left "stuck" mid-drag.
-let _dictTouchX = 0, _dictTouchY = 0;
-trackEl.addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  _dictTouchX = t.clientX; _dictTouchY = t.clientY;
-  _lastTouchTs = Date.now();
-}, {passive:true});
-
-// Fingers are fat: if the tap isn't exactly on a word, pick the nearest word
-// in the focused sentence (within ~18px) instead of missing.
-function dictWordAtPoint(x, y) {
-  const focusedNode = nodes[sentToSlot(current)];
-  if (!focusedNode) return null;
-  const el = document.elementFromPoint(x, y);
-  const direct = el && el.closest && el.closest('.w');
-  if (direct && focusedNode.contains(direct)) return direct;
-  let best = null, bestD = 18;
-  focusedNode.querySelectorAll('.w').forEach(sp => {
-    for (const r of sp.getClientRects()) {
-      const dx = x < r.left ? r.left - x : (x > r.right  ? x - r.right  : 0);
-      const dy = y < r.top  ? r.top  - y : (y > r.bottom ? y - r.bottom : 0);
-      const d = Math.hypot(dx, dy);
-      if (d < bestD) { bestD = d; best = sp; }
-    }
-  });
-  return best;
-}
-
+// Touch equivalent — mousemove/hover never fires on touch devices, so
+// dictionary mode needs its own tap handler. Reuses the same lookup
+// (showTooltipAt) and dismissal (hideTooltip) already defined above.
 trackEl.addEventListener('touchend', e => {
   if (!dictOn) return;
-  _lastTouchTs = Date.now();
   const t = e.changedTouches[0];
-  if (Math.hypot(t.clientX - _dictTouchX, t.clientY - _dictTouchY) > 12) return; // a swipe, not a tap
-  // Second tap of a double-tap → that's the Focus Mode toggle (handled by the double-tap
-  // listener below). Drop any lookup card from the first tap and don't start a new one.
-  if ((Date.now() - _lastTapTime) < DOUBLE_TAP_MS &&
-      Math.hypot(t.clientX - _lastTapX, t.clientY - _lastTapY) < DOUBLE_TAP_PX) {
-    hideTooltip();
-    return;
-  }
-  const sp = dictWordAtPoint(t.clientX, t.clientY);
+  const el = document.elementFromPoint(t.clientX, t.clientY);
+  const sp = el && el.closest('.w');
   if (!sp) { hideTooltip(); return; }
-  if (e.cancelable) e.preventDefault(); // this tap was a lookup — no synthetic mouse/click follow-ups
-  showTooltipForEl(sp, true);
+  const focusedNode = nodes[sentToSlot(current)];
+  if (!focusedNode || !focusedNode.contains(sp)) return;
+  e.preventDefault(); // this tap was a dictionary lookup, not a page turn
+  e.stopPropagation();
+  showTooltipAt(sp.textContent, t.clientX, t.clientY);
 }, {passive:false});
 
 /* ── Double-tap to toggle Focus Mode ──────────────────────────────────────
@@ -4839,8 +4394,8 @@ trackEl.addEventListener('touchstart', e => {
 let _lastTapTime = 0, _lastTapX = 0, _lastTapY = 0;
 const DOUBLE_TAP_MS = 350, DOUBLE_TAP_PX = 40, TAP_MOVE_PX = 12;
 trackEl.addEventListener('touchend', e => {
+  if (dictOn) return; // dictionary tap handling above takes priority in that mode
   if (e.target.closest('.img-page-thumb')) return; // let the lightbox handle its own tap
-  if (dropdownOpen()) { _lastTapTime = 0; return; } // a tap while a dropdown is open just dismisses it
   const t = e.changedTouches[0];
   const movedThisTouch = Math.hypot(t.clientX - _trackTouchStartX, t.clientY - _trackTouchStartY);
   if (movedThisTouch > TAP_MOVE_PX) { _lastTapTime = 0; return; } // swipe/drag, not a tap
@@ -4852,8 +4407,7 @@ trackEl.addEventListener('touchend', e => {
   if (isDoubleTap) {
     e.preventDefault(); // belt-and-suspenders against the browser's own double-tap-zoom
     _lastTapTime = 0;
-    if (focusMode) exitFocusMode();
-    else enterFocusAt(sentenceIdxAtPoint(t.clientX, t.clientY));   // focus the sentence that was double-tapped
+    focusMode ? exitFocusMode() : enterFocusMode();
   } else {
     _lastTapTime = now; _lastTapX = t.clientX; _lastTapY = t.clientY;
   }
@@ -4891,7 +4445,7 @@ function fmClearTimers() {
 }
 
 trackEl.addEventListener('touchstart', e => {
-  if (!focusMode || dropdownOpen()) return;
+  if (!focusMode || dictOn) return;
   const t = e.touches[0];
   _fmActive  = true;
   _fmStartX  = t.clientX;
@@ -4902,7 +4456,7 @@ trackEl.addEventListener('touchstart', e => {
 }, {passive:true});
 
 trackEl.addEventListener('touchmove', e => {
-  if (!focusMode || !_fmActive || _fmStepped) return;
+  if (!focusMode || !_fmActive || dictOn || _fmStepped) return;
   const t  = e.touches[0];
   const dy = _fmStartY - t.clientY; // positive = finger moved up
   const dx = Math.abs(t.clientX - _fmStartX);
@@ -4938,13 +4492,13 @@ trackEl.addEventListener('touchcancel', () => {
 // Improved word extraction — strip all punctuation from both ends
 function cleanWord(raw) {
   return raw
-    .replace(/[\u2018\u2019\u02BC]/g, "'")   // curly → straight apostrophe
     .replace(/^[^a-zA-Z\u00C0-\u024F]+/, '')
     .replace(/[^a-zA-Z\u00C0-\u024F]+$/, '')
     .toLowerCase();
 }
 
 // Position tooltip using raw mouse coords — immune to zoom-induced layout shifts
+let _dictReqId = 0; // guards against a slow/stale lookup overwriting a newer one
 
 // Guarantees the returned promise SETTLES within `ms`, no matter what the
 // underlying fetch does — including environments where AbortController
@@ -4966,207 +4520,85 @@ function fetchWithTimeout(url, ms) {
     .finally(() => clearTimeout(timeoutId));
 }
 
-/* ── Dictionary lookup (v2) ───────────────────────────────────────────────────
-   Three free, CORS-enabled sources are queried IN PARALLEL and the first good
-   answer wins, so one slow or dead service can no longer break the feature:
-     1. dictionaryapi.dev   2. Wiktionary REST   3. Datamuse
-   If the exact word isn't found (e.g. "walked", "cities") a few simple stems
-   are tried too. Failures are never cached, so tapping the word again retries. */
-function _httpJson(url, ms) {
-  return fetchWithTimeout(url, ms).then(r => {
-    if (r.status === 404) { const e = new Error('not found'); e.notFound = true; throw e; }
-    if (!r.ok) throw new Error('http ' + r.status);
-    return r.json();
-  });
-}
-function _notFound() { const e = new Error('not found'); e.notFound = true; return e; }
-function _htmlToText(h) {
-  try { return (new DOMParser().parseFromString(String(h || ''), 'text/html').body.textContent || '').replace(/\s+/g, ' ').trim(); }
-  catch (e) { return String(h || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim(); }
-}
-/* Senses we never want as the headline definition. Wiktionary-based sources list
-   "Translingual" entries first for many short words (e.g. "to" → "ISO 639-1 code for
-   Tongan"). We drop symbol/letter/code-type senses and pick real meanings instead. */
-const _SKIP_POS = /^(symbol|letter|numeral|number|punctuation mark|prefix|suffix|infix|affix|circumfix|interfix|proverb|phrase|idiom|abbreviation|initialism|acronym|character|diacritical mark|han character|hanzi|kanji|contraction)$/i;
-const _JUNK_DEF = /\b(ISO[ -]?\d{3,}|language code|IETF|country code|currency code|chemical symbol|unit symbol|abbreviation (of|for)|initialism of|acronym of|misspelling of|misconstruction of|(obsolete|archaic|nonstandard|dated) (spelling|form) of|alternative (spelling|form|case form) of|eye dialect|Roman numeral)\b/i;
-
-// list = [{pos, def}, …] in source order → up to 2 senses (best first, then a different part of speech)
-function _pickSenses(list) {
-  const all = list.filter(x => x && x.def && String(x.def).trim());
-  let good = all.filter(x => !_SKIP_POS.test(String(x.pos || '').trim()) && !_JUNK_DEF.test(x.def));
-  if (!good.length) good = all;              // nothing better exists — show what we have
-  if (!good.length) return null;
-  const out = [good[0]];
-  const p0 = String(good[0].pos || '').toLowerCase();
-  const second = good.find(x => String(x.pos || '').toLowerCase() !== p0) || good[1];
-  if (second) out.push(second);
-  return out;
-}
-
-const DICT_SOURCES = [   // ORDER = PRIORITY (best quality first)
-  // 1. Free Dictionary API (Wiktionary-derived, well structured)
-  w => _httpJson('https://api.dictionaryapi.dev/api/v2/entries/en/' + encodeURIComponent(w), 7000).then(data => {
-    const list = [];
-    (Array.isArray(data) ? data : []).forEach(en => (en.meanings || []).forEach(m =>
-      (m.definitions || []).slice(0, 3).forEach(d => list.push({ pos: m.partOfSpeech || '', def: d.definition || '' }))));
-    const senses = _pickSenses(list);
-    if (!senses) throw _notFound();
-    return { senses };
-  }),
-  // 2. Wiktionary REST (definitions come back as HTML — flattened to plain text)
-  w => _httpJson('https://en.wiktionary.org/api/rest_v1/page/definition/' + encodeURIComponent(w), 7000).then(data => {
-    const list = [];
-    ((data && data.en) || []).forEach(en => (en.definitions || []).slice(0, 3).forEach(d =>
-      list.push({ pos: en.partOfSpeech || '', def: _htmlToText(d.definition) })));
-    const senses = _pickSenses(list);
-    if (!senses) throw _notFound();
-    return { senses };
-  }),
-  // 3. Datamuse / WordNet (last resort; definitions arrive as "n<TAB>text")
-  w => _httpJson('https://api.datamuse.com/words?sp=' + encodeURIComponent(w) + '&md=d&max=1', 7000).then(arr => {
-    const hit = Array.isArray(arr) && arr[0];
-    if (!hit || String(hit.word).toLowerCase() !== w || !hit.defs || !hit.defs.length) throw _notFound();
-    const POS = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb' };
-    const list = hit.defs.slice(0, 4).map(raw => {
-      raw = String(raw); const tab = raw.indexOf('\t');
-      return { pos: POS[tab > -1 ? raw.slice(0, tab) : ''] || '', def: (tab > -1 ? raw.slice(tab + 1) : raw).trim() };
-    });
-    const senses = _pickSenses(list);
-    if (!senses) throw _notFound();
-    return { senses };
-  }),
-];
-
-// Resolve with the highest-PRIORITY source that succeeds. All sources run in parallel;
-// if a lower-priority one answers first we wait at most `graceMs` for the better ones.
-function _bestSuccess(promises, graceMs) {
-  return new Promise((resolve, reject) => {
-    const n = promises.length, state = new Array(n).fill(0), val = new Array(n), errs = []; // 0 pending · 1 ok · 2 failed
-    let timer = null, done = false;
-    const finish = v => { if (done) return; done = true; clearTimeout(timer); resolve(v); };
-    const evaluate = () => {
-      if (done) return;
-      for (let i = 0; i < n; i++) {
-        if (state[i] === 1) return finish(val[i]);
-        if (state[i] === 0) {
-          if (!timer && state.some(x => x === 1)) {
-            timer = setTimeout(() => { const j = state.indexOf(1); if (j >= 0) finish(val[j]); }, graceMs);
-          }
-          return;
-        }
-      }
-      done = true; clearTimeout(timer); reject(errs);   // every source failed
-    };
-    promises.forEach((p, i) => p.then(v => { state[i] = 1; val[i] = v; evaluate(); },
-                                      e => { state[i] = 2; errs.push(e); evaluate(); }));
-  });
-}
-function _lookupExact(w) {
-  return _bestSuccess(DICT_SOURCES.map(fn => {
-    try { return fn(w); } catch (e) { return Promise.reject(e); }
-  }), 1200);
-}
-
-/* Contractions ("isn't", "she'll", "we've"…) are answered locally — instant, offline,
-   and always correct, instead of hoping an online dictionary has each one. */
-const _CONTR_IRREG = {
-  "can't": 'can not', "won't": 'will not', "shan't": 'shall not',
-  "ain't": 'am not / is not / are not / has not / have not (nonstandard)',
-  "let's": 'let us', "y'all": 'you all', "ma'am": 'madam', "o'clock": 'of the clock',
-};
-const _CONTR_SUFFIX = { "'ll": 'will', "'re": 'are', "'ve": 'have', "'m": 'am' };
-const _CONTR_S_BASES = new Set(['it','he','she','that','what','there','here','who','where','how','when','why','everyone','someone','nobody','everything','something','nothing']);
-function _contraction(w) {
-  const mk = exp => ({ word: w, senses: [{ pos: 'contraction', def: 'Contraction of \u201C' + exp + '\u201D.' }] });
-  const B = b => (b === 'i' ? 'I' : b);
-  if (_CONTR_IRREG[w]) return mk(_CONTR_IRREG[w]);
-  let m = w.match(/^([a-z]+)n't$/);                       // isn't, don't, couldn't …
-  if (m) return mk(B(m[1]) + ' not');
-  m = w.match(/^([a-z]+)'d$/);                            // I'd, she'd …
-  if (m) return mk(B(m[1]) + ' would / ' + B(m[1]) + ' had');
-  m = w.match(/^([a-z]+)'s$/);                            // it's, that's … (NOT possessives like dog's)
-  if (m && _CONTR_S_BASES.has(m[1])) return mk(m[1] + ' is / ' + m[1] + ' has');
-  for (const suf in _CONTR_SUFFIX) {                      // I'll, you're, we've, I'm
-    if (w.endsWith(suf)) {
-      const base = w.slice(0, -suf.length);
-      if (/^[a-z]+$/.test(base)) return mk(B(base) + ' ' + _CONTR_SUFFIX[suf]);
-    }
-  }
-  return null;
-}
-
-function _stemCandidates(w) {
-  const out = [];
-  const add = x => { if (x && x.length >= 3 && x !== w && !out.includes(x)) out.push(x); };
-  const undouble = x => /([b-df-hj-np-tv-z])\1$/.test(x) ? x.slice(0, -1) : x;
-  if (/'s$/.test(w)) add(w.slice(0, -2));
-  if (/ies$/.test(w)) add(w.slice(0, -3) + 'y');
-  if (/(ses|xes|zes|ches|shes)$/.test(w)) add(w.slice(0, -2));
-  if (/s$/.test(w) && !/ss$/.test(w)) add(w.slice(0, -1));
-  if (/ied$/.test(w)) add(w.slice(0, -3) + 'y');
-  if (/ed$/.test(w)) { add(undouble(w.slice(0, -2))); add(w.slice(0, -1)); add(w.slice(0, -2)); }
-  if (/ing$/.test(w)) { const b = w.slice(0, -3); add(undouble(b)); add(b + 'e'); add(b); }
-  if (/ly$/.test(w)) add(w.slice(0, -2));
-  return out.slice(0, 4);
-}
-async function lookupWord(w) {
-  const c = _contraction(w);
-  if (c) return c;
-  const cands = [w, ..._stemCandidates(w)];
-  let reachable = false;
-  for (const cand of cands) {
-    try {
-      const r = await _lookupExact(cand);
-      return { word: cand, senses: r.senses };
-    } catch (errs) {
-      // At least one service answered "no such word" → network is fine, keep trying stems.
-      if ((errs || []).some(e => e && e.notFound)) reachable = true;
-      else break; // nothing reachable at all — stems won't help
-    }
-  }
-  const e = new Error(reachable ? 'not found' : 'unavailable');
-  e.notFound = reachable;
-  throw e;
-}
-
-function showTooltipForEl(sp, force) {
-  const clean = cleanWord(sp.textContent);
+function showTooltipAt(word, mouseX, mouseY) {
+  const clean = cleanWord(word);
   if (!clean || clean.length < 2) return;
   clearTimeout(tooltipHideTimer);
-  // Hovering the same word repeatedly (desktop mousemove) must not restart the lookup.
-  if (!force && _activeWordEl === sp && tooltip.classList.contains('show')) return;
 
-  if (_activeWordEl && _activeWordEl !== sp) _activeWordEl.classList.remove('dict-active');
-  _activeWordEl = sp;
-  sp.classList.add('dict-active');
-
-  const rects = sp.getClientRects();
-  const r = rects.length ? rects[0] : sp.getBoundingClientRect();
-  _tipRect = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
-
+  // Position above cursor
+  const tx = Math.min(mouseX - 140, window.innerWidth - 296);
+  tooltip.style.left      = Math.max(8, tx) + 'px';
+  tooltip.style.top       = (mouseY - 4) + 'px';
+  tooltip.style.transform = 'translateY(-110%)';
   tooltipWord.textContent = clean;
   tooltipPos.textContent  = '';
   tooltipDef.textContent  = '';
-  tooltipLoad.textContent = 'looking up\u2026';
+  tooltipLoad.textContent = 'looking up…';
   tooltip.classList.add('show');
-  positionTooltip();
 
-  const reqId = ++_dictReqId;
   if (clean in dictCache) { renderDefinition(dictCache[clean]); return; }
 
-  lookupWord(clean).then(res => {
-    if (reqId !== _dictReqId) return;          // a newer lookup (or hide) owns the card now
-    dictCache[clean] = res;
-    renderDefinition(res);
-  }, err => {
+  const reqId = ++_dictReqId;
+
+  const primary = fetchWithTimeout(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(clean)}`, 9000)
+    .then(r => {
+      if (!r.ok) throw new Error('not found');
+      return r.json();
+    })
+    .then(data => {
+      if (!Array.isArray(data) || !data[0]) throw new Error('not found');
+      const m = data[0].meanings?.[0];
+      return { word: data[0].word, pos: m?.partOfSpeech||'', def: m?.definitions?.[0]?.definition||'' };
+    });
+
+  primary.catch(async err => {
     if (reqId !== _dictReqId) return;
-    if (err && err.notFound) { dictCache[clean] = null; renderDefinition(null); return; }
-    // Network trouble: don't cache, so tapping the word again retries.
-    tooltipLoad.textContent = '';
-    tooltipPos.textContent  = '';
-    tooltipDef.textContent  = 'dictionary unavailable \u2014 tap the word to retry';
-    positionTooltip();
+    try {
+      // Fallback for mobile networks / transient dictionaryapi.dev failures.
+      const r = await fetchWithTimeout(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(clean)}`, 5000);
+      if (!r.ok) throw new Error('fallback failed');
+      const data = await r.json();
+      const entry = data.en?.[0];
+      const def = entry?.definitions?.[0]?.definition;
+      const pos = entry?.partOfSpeech || '';
+      if (!def) throw new Error('no definition');
+      dictCache[clean] = { word: clean, pos, def };
+      if (reqId === _dictReqId) renderDefinition(dictCache[clean]);
+    } catch (fallbackErr) {
+      if (reqId !== _dictReqId) return;
+      const isNetworkError = err instanceof TypeError || err.name === 'AbortError' || /timed out/i.test(err.message || '') || fallbackErr instanceof TypeError || fallbackErr.name === 'AbortError' || /timed out/i.test(fallbackErr.message || '');
+      if (isNetworkError) {
+        tooltipLoad.textContent = '';
+        tooltipDef.textContent = 'dictionary unavailable';
+        tooltipPos.textContent = '';
+      } else {
+        dictCache[clean] = null;
+        renderDefinition(null);
+      }
+    }
   });
+
+  primary.then(result => {
+      if (reqId !== _dictReqId) return;
+      dictCache[clean] = result;
+      renderDefinition(result);
+    }).catch(() => {});
+
+/* old catch intentionally replaced */
+/*
+      if (reqId !== _dictReqId) return; // stale — a newer lookup now owns the tooltip
+      const isNetworkError = err instanceof TypeError || err.name === 'AbortError' || /timed out/.test(err.message || '');
+      if (isNetworkError) {
+        // Don't cache network failures — could be transient (file://, offline, timeout, etc.)
+        tooltipLoad.textContent = '';
+        tooltipDef.textContent = 'dictionary unavailable';
+        tooltipPos.textContent = '';
+      } else {
+        dictCache[clean] = null;
+        renderDefinition(null);
+      }
+    });
+*/
 }
 
 /* ── Volume controls ── */
@@ -5202,50 +4634,6 @@ btnMute.addEventListener('click', () => {
 // Set initial volume to match slider default (60 → 1.92)
 tickVolume = 0.60 * 3.2;
 updateMuteUI();
-
-/* ── Theme (light / dark) ─────────────────────────────────────────────────── */
-const THEME_KEY   = 'focusreader_theme';
-const btnTheme    = document.getElementById('btn-theme');
-const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-function loadTheme() { try { return localStorage.getItem(THEME_KEY) || 'dark'; } catch(e) { return 'dark'; } }
-function saveTheme(t) { try { localStorage.setItem(THEME_KEY, t); } catch(e) {} }
-function applyTheme(t) {
-  document.documentElement.setAttribute('data-theme', t);
-  if (themeColorMeta) themeColorMeta.setAttribute('content', t === 'light' ? '#ffffff' : '#0c0b09');
-  const label = t === 'light' ? 'Switch to dark mode' : 'Switch to light mode';
-  btnTheme.title = label; btnTheme.setAttribute('aria-label', label);
-}
-let currentTheme = loadTheme();
-applyTheme(currentTheme);
-btnTheme.addEventListener('click', () => {
-  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-  saveTheme(currentTheme);
-  applyTheme(currentTheme);
-});
-
-/* ── Reading font ─────────────────────────────────────────────────────────── */
-const FONT_KEY = 'focusreader_font';
-const FONT_STACKS = {
-  lora:         "'Lora',serif",
-  georgia:      "Georgia,'Iowan Old Style','Times New Roman',serif",
-  literata:     "'Literata',serif",
-  merriweather: "'Merriweather',serif",
-  atkinson:     "'Atkinson Hyperlegible',sans-serif",
-};
-const fontSelect = document.getElementById('font-select');
-function loadFont() { try { const f = localStorage.getItem(FONT_KEY); return FONT_STACKS[f] ? f : 'lora'; } catch(e) { return 'lora'; } }
-function saveFont(f) { try { localStorage.setItem(FONT_KEY, f); } catch(e) {} }
-function applyFont(f) {
-  document.documentElement.style.setProperty('--reading-font', FONT_STACKS[f] || FONT_STACKS.lora);
-  if (fontSelect) fontSelect.value = f;
-}
-let currentFont = loadFont();
-applyFont(currentFont);
-if (fontSelect) fontSelect.addEventListener('change', () => {
-  currentFont = FONT_STACKS[fontSelect.value] ? fontSelect.value : 'lora';
-  saveFont(currentFont);
-  applyFont(currentFont);
-});
 
 /* ── Search system ────────────────────────────────────────────────────────────
    Ctrl+F / Cmd+F or the ⌕ button opens a search bar.
@@ -5358,157 +4746,254 @@ document.getElementById('btn-search').addEventListener('click', () => {
   searchActive ? closeSearch() : openSearch();
 });
 
-/* ── Normal Reading Mode: seamless free scroll ─────────────────────────────
-   The reading window shows a continuous column of sentences — no rotation, no
-   blur, no snapping to the middle. Scrolling is pixel-exact (the text follows
-   your finger 1:1), keeps gliding after you let go, and simply stops wherever
-   it stops. Whichever sentence is crossing the centre line is `current`; every
-   time a new sentence crosses it, the tick sounds and the HUD / progress update.
+/* ── Normal Reading Mode: continuous physical scroll ──────────────────────
+   Focus Mode is completely untouched by any of this: its own navigate()/
+   layout() step system and its own dedicated single-step + hold gesture
+   handling (the trackEl listeners above) are unmodified, and every handler
+   below explicitly bails out when `focusMode` is true, handing the gesture
+   back to Focus Mode's own code.
 
-   Model: `scrollOff` = how many px the centre line sits below the CENTRE of the
-   current sentence. Sentence positions are derived from measured heights, so
-   sentences of any length never overlap. Focus Mode does not use any of this. */
-const PS_GAP         = 26;      // px between sentences (long-text feel)
-const PS_FRICTION    = 0.0021;  // velocity decay per ms — long, smooth glide for quick navigation
-const PS_STOP_V      = 0.02;    // px/ms — below this the glide ends
-const PS_MAX_V       = 6;       // px/ms cap on release velocity
-const PS_MAX_DT_MS   = 48;      // clamp one frame's dt (tab-switch stalls)
-const PS_MAX_STEP_PX = 220;     // largest single move processed at once (keeps the pool window valid)
-const PS_MIN_OPACITY = 0.6;     // sentences far from the centre never fade below this (no blur, no hiding)
-const PS_FADE_PX     = 240;     // distance over which a sentence eases down to PS_MIN_OPACITY
-const PS_TICK_MIN_MS = 24;      // at most one tick per this many ms, however fast you fling
+   For Normal Reading Mode only, dragging or wheeling the reading area no
+   longer jumps discretely from sentence to sentence. Instead we track a
+   continuous, fractional reading position (`scrollPos`) and re-derive every
+   pool node's position/scale/opacity each frame by interpolating the exact
+   same target values layout() already uses (VSTEPS, the measured neighbor
+   gaps) — so the dimming hierarchy, spacing, and typography are all
+   preserved exactly, just no longer stepped between fixed points.
 
-let scrollOff       = 0;     // px — centre line's offset below the centre of sentence `current`
-let scrollVel       = 0;     // px/ms (+ = reading forward)
+   Three phases, one continuous loop:
+     • Dragging  — position follows the finger/wheel input directly (1:1).
+     • Momentum  — after release, velocity decays by friction each frame,
+       like a real wheel spinning down. No steering, no re-acceleration.
+     • Settling  — once nearly stopped, a gentle exponential ease (not a
+       spring, no oscillation) brings it to rest exactly on the nearest
+       sentence — a soft settle, never an abrupt snap or a bounce.
+
+   `current`, the HUD, bookmarks, and progress-saving all stay perfectly in
+   sync throughout, via the exact same functions navigate() already used
+   (renderNodeTextFast/updateHUD/saveProgress) — just invoked as scrollPos
+   crosses each sentence boundary instead of on a discrete keypress. */
+const PS_MIN_GAP       = 48;              // identical to the constant layout() uses
+const PS_FRICTION      = 0.0038;          // velocity decay per ms (≈ halves every ~180ms)
+const PS_DRAG_UNIT_PX  = 170;             // px of finger travel ≈ one sentence-step
+const PS_WHEEL_UNIT_PX = 260;             // px-equivalent per wheel tick (wheel deltas run larger than touch drags)
+const PS_SETTLE_V_EPS  = 0.00025;         // |velocity| below which momentum ends and settling begins
+const PS_SETTLE_TAU_MS = 105;             // settle ease time-constant — gentle, not a snap
+const PS_SETTLE_DONE   = 0.0025;          // distance-to-integer below which settling is considered finished
+const PS_MAX_DT_MS     = 48;              // clamp a single frame's dt (guards against tab-switch stalls)
+
+// "Rotating wheel" visual treatment — adapted from the reference the user
+// supplied. Formulas are continuous functions of the (now fractional)
+// distance from focus, rather than the reference's discrete per-index
+// lookup, so they interpolate perfectly smoothly as scrollPos moves. Y
+// spacing still comes from this app's own measured sentence heights
+// (dy1prev/dy1next below) rather than the reference's fixed step, so real
+// book sentences of any length never overlap.
+//
+// PS_HIDE_DISTANCE is set so ONLY the immediate previous/next sentence is
+// ever visible (never a "second" neighbor beyond that): a slot at ±2 from
+// the live `current` always sits at distance >= 1.5 (since current itself
+// tracks scrollPos to within ±0.5), so 1.5 hides it at every moment,
+// while the immediate ±1 neighbor (distance always in [0.5, 1.5]) stays
+// visible throughout, exactly through the moment it becomes the new focus.
+const PS_HIDE_DISTANCE   = 1.5;
+const PS_ROTATION_STEP   = 18;    // deg of rotateX per sentence-step
+const PS_BLUR_PER_STEP   = 2;     // px of blur per sentence-step
+const PS_BLUR_MAX        = 8;     // px — matches the reference's cap
+const PS_FOCUS_SCALE     = 1;     // matches Focus Mode's un-scaled focus sentence exactly — same on-screen width in both modes
+const PS_MIN_SCALE       = 0.82;  // floor for distant neighbors
+const PS_SCALE_PER_STEP  = 0.06;
+const PS_OPACITY_CURVE   = 1.4;   // >1 = falls off faster near focus; reaches exactly 0 at the pool's hide boundary — no floor, no pop
+
+let scrollPos      = 0;     // continuous reading position — equals `current` at rest
+let scrollVel      = 0;     // sentence-units per ms
 let scrollRAF       = null;
 let scrollDragging  = false;
-let _psLastT        = 0;
-let _psLastTick     = 0;
-let _psSamples      = [];    // recent {t,y} touch samples for release velocity
+let _psLastT         = 0;
+let _psSamples       = [];  // recent {t,y} touch samples, for release-velocity calc
 
-// While ANY dropdown (☰ menu, timer options, bookmark list) is open, the reading text must not
-// scroll or swipe — it prevents accidental moves while you're using the menu.
-function dropdownOpen() {
-  return moreMenu.classList.contains('open') || bmPanel.classList.contains('show') ||
-         apPop.classList.contains('show') || timerModalEl.classList.contains('show');
-}
-
-// Hands-free scroll speed (px/ms) at the current position: cover the distance to the next
-// sentence in exactly the time that sentence takes to read at the chosen WPM.
-function psAutoSpeed() {
-  const last = sentences.length - 1;
-  let i = scrollOff >= 0 ? current : current - 1;     // the sentence we're currently "reading through"
-  if (i < 0) i = 0;
-  if (i >= last) return 0;
-  const dist = psH(i) / 2 + PS_GAP + psH(i + 1) / 2;
-  return dist / sentenceDelay(i);
-}
-
-// Live height of sentence idx (its pool node must currently hold it), else a sane estimate.
-function psH(idx) {
-  if (idx < 0 || idx >= sentences.length) return 0;
-  const el = nodes[sentToSlot(idx)];
-  if (el && el._sentIdx === idx) { const h = el.offsetHeight; if (h > 0) return h; }
-  return 80;
-}
-
-// Move `current` while the centre line has crossed the middle of the gap to a neighbour.
-function psReanchor() {
-  const last = sentences.length - 1;
-  let changed = false, guard = 0;
-  while (guard++ < 60) {
-    const hc = psH(current);
-    if (scrollOff > 0 && current < last) {
-      if (scrollOff > hc / 2 + PS_GAP / 2) {
-        scrollOff -= hc / 2 + PS_GAP + psH(current + 1) / 2;
-        current++; changed = true; continue;
-      }
-    } else if (scrollOff < 0 && current > 0) {
-      if (scrollOff < -(hc / 2 + PS_GAP / 2)) {
-        scrollOff += psH(current - 1) / 2 + PS_GAP + hc / 2;
-        current--; changed = true; continue;
-      }
-    }
-    break;
-  }
-  // Hard stop at the very start / end of the book (no bounce).
-  if (current === 0    && scrollOff < 0) { scrollOff = 0; scrollVel = 0; }
-  if (current === last && scrollOff > 0) { scrollOff = 0; scrollVel = 0; }
-  return changed;
-}
-
-// A sentence just crossed the centre line: refresh nodes/HUD/progress and tick.
-function psCommit(prev) {
+function physScrollSyncCurrent() {
+  const rounded = Math.max(0, Math.min(sentences.length - 1, Math.round(scrollPos)));
+  if (rounded === current) return false;
+  const prevCur = current;
+  current = rounded;
   hideTooltip();
-  renderNodeTextFast(prev, current);   // ring mapping → only the one recycled node is rewritten
+
+  // Keep the scroll path cheap on mobile Safari: do not force a synchronous
+  // layout read (offsetHeight) in the touchmove / wheel handler. The physics
+  // frame below measures the recycled nodes after the browser has had a
+  // chance to lay out the new text.
+  renderNodeTextFast(prevCur, current);
+
+  // A physical sentence crossing is the normal-mode "tick". The AudioContext
+  // is already primed by the user's touchstart, so this remains reliable on
+  // iOS Safari while momentum continues after finger release.
+  playTick('manual');
+
   updateHUD();
   if (currentBookId) saveProgress();
-  const now = performance.now();
-  if (now - _psLastTick >= PS_TICK_MIN_MS) { _psLastTick = now; playTick(autoOn && !scrollDragging ? 'auto' : 'manual'); }
+  return true;
 }
 
-// Scroll by dPx (+ = forward). Processed in bounded steps so a huge fling or wheel
-// delta can never outrun the pool window.
-function physScrollAdvance(dPx) {
-  let guard = 0;
-  while (Math.abs(dPx) > 0.001 && guard++ < 80) {
-    const step = Math.max(-PS_MAX_STEP_PX, Math.min(PS_MAX_STEP_PX, dPx));
-    dPx -= step;
-    scrollOff += step;
-    const prev = current;
-    if (psReanchor()) psCommit(prev);
-  }
+// Continuous counterpart to layout() — the rotating-wheel look (rotateX,
+// blur, scale, opacity) is a direct, continuous adaptation of the
+// reference the user supplied; Y spacing still uses this app's measured
+// neighbor heights (not the reference's fixed step) so real sentences of
+// any length keep their existing no-overlap guarantee.
+//
+// Symmetric, pair-based gap: the distance between two adjacent sentences is
+// computed the SAME way regardless of which one is currently `current` —
+// this is what keeps the gap perfectly continuous across a crossing instead
+// of silently recalibrating the instant `current` flips to the neighbor.
+// (An earlier version computed the gap from current's own perspective —
+// its own height unscaled, the neighbor's height scaled down — which is
+// asymmetric: the exact same pair of sentences produced a measurably
+// DIFFERENT gap depending on which one was "current." That mismatch showed
+// up as a small but real position jump at every single sentence crossing
+// whenever the two sentences' heights differed, which is virtually always
+// with real prose. This symmetric formula can never disagree with itself.)
+function pairGap(hA, hB) {
+  return Math.ceil(hA / 2) + PS_MIN_GAP + Math.ceil(hB / 2);
 }
 
-// Position every sentence in the window relative to the centre line.
 function physScrollApplyLayout() {
-  const n = sentences.length;
-  if (focusMode || !n || !nodes.length) return;
-  const HALF = POOL_HALF, hs = new Array(POOL_SIZE), y = new Array(POOL_SIZE);
-  for (let k = -HALF; k <= HALF; k++) hs[k + HALF] = psH(current + k);
-  y[HALF] = -scrollOff;
-  for (let k = 1; k <= HALF; k++)
-    y[HALF + k] = y[HALF + k - 1] + hs[HALF + k - 1] / 2 + PS_GAP + hs[HALF + k] / 2;
-  for (let k = -1; k >= -HALF; k--)
-    y[HALF + k] = y[HALF + k + 1] - hs[HALF + k] / 2 - PS_GAP - hs[HALF + k + 1] / 2;
+  /*
+     IMPORTANT: the visual geometry is driven by scrollPos, not by `current`.
 
-  for (let k = -HALF; k <= HALF; k++) {
-    const idx = current + k;
-    if (idx < 0 || idx >= n) continue;
-    const el = nodes[sentToSlot(idx)];
-    if (!el) continue;
-    const yy   = y[HALF + k];
-    const dist = Math.max(0, Math.abs(yy) - hs[HALF + k] / 2);          // px from centre line to the sentence
-    const op   = 1 - (1 - PS_MIN_OPACITY) * Math.min(1, dist / PS_FADE_PX);
-    el.style.transform = `translateY(calc(-50% + ${yy.toFixed(1)}px))`;
-    el.style.opacity   = op.toFixed(3);
-    el.style.zIndex    = k === 0 ? '5' : '1';
-    if (el.style.filter) el.style.filter = '';
-    if (el.classList.contains('neighbour')) el.classList.remove('neighbour');
+     The old version recalculated dy1prev/dy1next from `current`. Since
+     `current` changes at the half-sentence boundary while the finger is
+     still moving, the exact same pair of sentences could suddenly get a
+     different vertical gap at that instant. That produced the small jump /
+     glitch that was especially noticeable on a continuous finger drag.
+
+     We now interpolate BETWEEN two complete integer layouts. At every
+     fractional scroll position, each sentence therefore has one continuous
+     geometric position. Crossing from sentence N to N+1 cannot change the
+     coordinate system underneath the finger.
+  */
+  const maxIndex = sentences.length - 1;
+  const anchor = Math.max(0, Math.min(maxIndex, Math.floor(scrollPos)));
+  const frac = Math.max(0, Math.min(1, scrollPos - anchor));
+  const nextAnchor = Math.min(maxIndex, anchor + 1);
+
+  // Height lookup. Pool nodes are already recycled around `current`, so use
+  // their measured heights where available and the cached fallback otherwise.
+  function sentenceHeight(idx) {
+    if (idx < 0 || idx > maxIndex) return 80;
+    const slot = sentToSlot(idx);
+    return _slotH[slot] || (idx === current ? _cachedFocusH : 80);
+  }
+
+  // Build the centre position of a sentence relative to an integer anchor.
+  // Adjacent sentence centres are separated by their actual half-heights plus
+  // the same minimum gap used by the normal layout.
+  function centreAt(idx, focusIdx) {
+    if (idx === focusIdx) return 0;
+
+    let y = 0;
+    if (idx > focusIdx) {
+      for (let i = focusIdx; i < idx; i++) {
+        y += pairGap(sentenceHeight(i), sentenceHeight(i + 1));
+      }
+    } else {
+      for (let i = focusIdx; i > idx; i--) {
+        y -= pairGap(sentenceHeight(i - 1), sentenceHeight(i));
+      }
+    }
+    return y;
+  }
+
+  for (let s = 0; s < POOL_SIZE; s++) {
+    const el = nodes[s];
+    const sentIdx = slotToSent(s);
+    if (sentIdx < 0 || sentIdx > maxIndex) continue;
+
+    // Interpolate the actual sentence centre between the two neighbouring
+    // integer layouts. This is the key to a truly continuous transition.
+    const y0 = centreAt(sentIdx, anchor);
+    const y1 = centreAt(sentIdx, nextAnchor);
+    const yPx = y0 + (y1 - y0) * frac;
+
+    const contOff = sentIdx - scrollPos;
+    const distance = Math.abs(contOff);
+
+    if (distance >= PS_HIDE_DISTANCE) {
+      // Only touch a hidden node once. Rewriting seven hidden nodes every
+      // frame is surprisingly expensive on iOS Safari even though they are
+      // visually invisible.
+      if (!el._psHidden) {
+        el.style.transition = 'none';
+        el.style.contain = 'none';
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(-50%) scale(0.7)';
+        el.style.filter = '';
+        el.classList.toggle('neighbour', true);
+        el._psHidden = true;
+      }
+      continue;
+    }
+    el._psHidden = false;
+
+    const angle  = contOff * PS_ROTATION_STEP;
+    const scale  = Math.max(PS_MIN_SCALE, PS_FOCUS_SCALE - distance * PS_SCALE_PER_STEP);
+    const opacity = Math.pow(
+      Math.max(0, 1 - distance / PS_HIDE_DISTANCE),
+      PS_OPACITY_CURVE
+    );
+    const blurPx = Math.min(distance * PS_BLUR_PER_STEP, PS_BLUR_MAX);
+    const tx = `translateY(calc(-50% + ${yPx.toFixed(2)}px)) rotateX(${angle.toFixed(2)}deg) scale(${scale.toFixed(4)})`;
+    const zi = String(Math.max(1, Math.round(100 - distance)));
+
+    // No CSS transition during a finger drag or momentum frame. The
+    // interpolated position itself is the animation, so every frame follows
+    // the finger with no catch-up/easing lag.
+    el.style.transition = 'none';
+    el.style.contain = 'none';
+    el.style.transform = tx;
+    el.style.opacity = String(opacity);
+    el.style.filter = blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : '';
+    el.style.zIndex = zi;
+    el.classList.toggle('neighbour', sentIdx !== current);
   }
 }
 
 function physScrollLoop(ts) {
-  if (focusMode) { physScrollStop(); return; }
+  if (focusMode) { physScrollStop(); return; } // safety net — Focus Mode owns things now
   if (!_psLastT) _psLastT = ts;
   const dt = Math.min(PS_MAX_DT_MS, ts - _psLastT);
   _psLastT = ts;
 
-  if (!scrollDragging) {
-    if (autoOn) {
-      scrollVel = 0;
-      if (current >= sentences.length - 1 && scrollOff >= 0) stopAuto();      // reached the end of the book
-      else physScrollAdvance(psAutoSpeed() * dt);                              // steady reading-pace scroll
-    } else if (Math.abs(scrollVel) > PS_STOP_V) {
-      scrollVel *= Math.exp(-PS_FRICTION * dt);       // pure friction glide — no snapping
-      physScrollAdvance(scrollVel * dt);
-    } else {
-      scrollVel = 0;
+  if (scrollDragging) {
+    // Position is already being driven live by the input handlers below;
+    // this frame just keeps the visuals current between input events.
+    physScrollApplyLayout();
+    scrollRAF = requestAnimationFrame(physScrollLoop);
+    return;
+  }
+
+  const maxPos = sentences.length - 1;
+  if (Math.abs(scrollVel) > PS_SETTLE_V_EPS) {
+    // Momentum — pure friction, no steering, no re-acceleration.
+    scrollVel *= Math.exp(-PS_FRICTION * dt);
+    scrollPos += scrollVel * dt;
+    if (scrollPos <= 0)      { scrollPos = 0;      scrollVel = 0; } // hard stop at the edges — no bounce
+    if (scrollPos >= maxPos) { scrollPos = maxPos;  scrollVel = 0; }
+  } else {
+    // Settling — a gentle exponential ease onto the nearest sentence.
+    const target = Math.max(0, Math.min(maxPos, Math.round(scrollPos)));
+    const dist   = target - scrollPos;
+    const rate   = 1 - Math.exp(-dt / PS_SETTLE_TAU_MS);
+    scrollPos += dist * rate;
+    if (Math.abs(target - scrollPos) < PS_SETTLE_DONE) {
+      scrollPos = target;
+      physScrollSyncCurrent();
       physScrollApplyLayout();
       physScrollStop();
       return;
     }
   }
+
+  physScrollSyncCurrent();
   physScrollApplyLayout();
   scrollRAF = requestAnimationFrame(physScrollLoop);
 }
@@ -5516,7 +5001,12 @@ function physScrollLoop(ts) {
 function physScrollStart() {
   if (scrollRAF) return;
   _psLastT = 0;
-  // No CSS transition while physics drives the transform — the text must follow the finger instantly.
+  // Force every node's transition off *before* the first physics-driven
+  // transform of this gesture, with a forced reflow in between. Without
+  // this, the very first transform write can still ride the outgoing CSS
+  // class transition (.2s) for one frame — the sentence briefly "catches
+  // up" under an eased curve instead of moving with the finger instantly,
+  // which reads as a disconnected stutter right at the start of a swipe.
   nodes.forEach(el => { el.style.transition = 'none'; });
   void trackEl.offsetHeight;
   scrollRAF = requestAnimationFrame(physScrollLoop);
@@ -5525,57 +5015,13 @@ function physScrollStop() {
   if (scrollRAF) cancelAnimationFrame(scrollRAF);
   scrollRAF = null;
   _psLastT = 0;
-  // Hand control back to the CSS transitions for every other path (keys, bookmarks, zoom, …).
-  nodes.forEach(el => { el.style.transition = ''; });
-}
-
-// Entering / leaving Focus Mode: stop any glide, re-map the pool for that mode, re-lay-out instantly.
-function psModeChanged() {
-  closeApPop();
-  scrollDragging = false; scrollVel = 0; scrollOff = 0;
-  physScrollStop();
-  if (!nodes.length) return;
-  renderNodeText();
-  _cachedFocusIdx = -1; _cachedFocusLen = -1;
-  layout(false);
-  // Settle pass (mirrors openBook()/navigate()): the instant layout() above measures
-  // heights synchronously right after the text write, which is usually exact — but if a
-  // web font is still swapping in (FOUT/FOIT) or an image is still decoding, that measurement
-  // can be briefly stale, which used to show as a wrongly-spaced/overlapping neighbour right
-  // after switching into Focus Mode. Re-measure and re-lay-out once more after paint, and keep
-  // watching the focused node for any further height change (this watch was previously only
-  // wired up in openBook()/navigate(), never here — the gap that let this go stale).
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    if (!nodes.length) return;
-    for (let s = 0; s < POOL_SIZE; s++) {
-      const h = nodes[s].offsetHeight;
-      if (h > 0) _slotH[s] = h;
-    }
-    const focusSlot = sentToSlot(current);
-    const focusEl = nodes[focusSlot];
-    if (focusEl) {
-      const h = focusEl.offsetHeight;
-      if (h > 0) { _cachedFocusH = h; _cachedFocusIdx = current; _cachedFocusLen = (sentences[current] || '').length; _slotH[focusSlot] = h; }
-      observeFocusNode(focusEl);
-    }
-    layout(false);
-  }));
-  if (autoOn) {                       // keep reading hands-free in the new mode's style
-    clearTimeout(autoTimer);
-    if (focusMode) scheduleAuto(); else physScrollStart();
-  }
-}
-// Belt-and-suspenders for the same font-swap race: if a web font finishes loading (FOUT/FOIT)
-// while Focus Mode is already open, re-measure once so a neighbour can never end up mis-spaced
-// against stale (pre-swap) text metrics.
-if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
-  document.fonts.ready.then(() => {
-    if (focusMode && nodes.length) {
-      for (let s = 0; s < POOL_SIZE; s++) { const h = nodes[s].offsetHeight; if (h > 0) _slotH[s] = h; }
-      _cachedFocusIdx = -1; _cachedFocusLen = -1;
-      layout(true);
-    }
-  }).catch(() => {});
+  // Hand control back to the CSS class transition for every other code
+  // path (keyboard nav, zoom, bionic/dict toggle, search, bookmarks —
+  // all still fully intact and untouched by this feature), clear the blur
+  // filter, and restore the `.neighbour` class's own contain:layout (its
+  // original optimization for Focus Mode's 2D system) — none of these are
+  // ever set by Focus Mode or a discrete jump themselves.
+  nodes.forEach(el => { el.style.transition = ''; el.style.filter = ''; el.style.contain = ''; el._psHidden = false; });
 }
 
 // Any touch/click that starts on real UI chrome (buttons, menus, the
@@ -5588,12 +5034,26 @@ function isReaderChromeTarget(t) {
   ));
 }
 
+// If Focus Mode is entered while a normal-mode scroll is still coasting or
+// settling, stop it immediately and drop scrollPos back in sync with
+// `current` so Focus Mode starts from a clean, exact position — it never
+// inherits any in-between state from this feature.
+(function watchFocusModeForPhysScroll() {
+  new MutationObserver(() => {
+    if (document.body.classList.contains('focus-mode') && (scrollRAF || scrollDragging)) {
+      scrollDragging = false;
+      physScrollStop();
+      scrollPos = current;
+      scrollVel = 0;
+    }
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+})();
+
 let _wheelIdleTimer = null;
 window.addEventListener('wheel', e=>{
   if (!readerEl.classList.contains('visible')) return;
   // Let the bookmark panel (and any other scrollable overlay) scroll naturally
   if (e.target.closest('#bm-panel')) return;
-  if (dropdownOpen()) return;          // menus own the gestures while open
 
   if (focusMode) {
     // Focus Mode's original wheel behavior — completely unchanged.
@@ -5602,19 +5062,22 @@ window.addEventListener('wheel', e=>{
     return;
   }
 
-  // Normal Reading Mode — pixel-exact free scroll.
+  // Normal Reading Mode — continuous physical scroll.
   e.preventDefault();
   stopAuto();
-  const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? trackEl.clientHeight : 1);
-  scrollDragging = true; scrollVel = 0;
-  physScrollAdvance(dy);
+  if (!scrollRAF) scrollPos = current; // resync if nothing of ours is currently in flight
+  scrollDragging = true; // wheel deltas drive position directly, same as a live finger drag
+  scrollVel = 0;
+  scrollPos = Math.max(0, Math.min(sentences.length - 1, scrollPos + e.deltaY / PS_WHEEL_UNIT_PX));
+  physScrollSyncCurrent();
+  physScrollApplyLayout();
   physScrollStart();
+
   clearTimeout(_wheelIdleTimer);
-  _wheelIdleTimer = setTimeout(() => { scrollDragging = false; }, 120);
+  _wheelIdleTimer = setTimeout(() => { scrollDragging = false; }, 140); // let the wheel go quiet → settle takes over
 },{passive:false});
 
 let touchY0=0, touchX0=0, touchT0=0, touchTarget=null;
-let _psBlocked = false;   // true when this touch began while a dropdown was open
 let _normalHorizontalSwipe = false;
 let _normalSwipeHandled = false;
 const NORMAL_PAGE_SWIPE_PX = 55;
@@ -5628,23 +5091,21 @@ window.addEventListener('touchstart',e=>{
   _normalHorizontalSwipe = false;
   _normalSwipeHandled = false;
 
-  _psBlocked = false;
   if (!readerEl.classList.contains('visible') || focusMode) return;
-  // While any dropdown is open (☰ menu, timer options, bookmark list) the text ignores
-  // scrolling and swiping entirely, so nothing moves by accident while you use the menu.
-  _psBlocked = dropdownOpen();
-  if (_psBlocked) return;
   if (isReaderChromeTarget(touchTarget)) return; // let buttons/menus/inputs behave exactly as before
+  if (!scrollRAF) scrollPos = current; // resync if nothing of ours is currently in flight
   scrollDragging = true;
-  scrollVel = 0;                       // a touch stops any glide in progress
+  scrollVel = 0;
   _psSamples = [{ t: performance.now(), y: touchY0 }];
   // iOS Safari requires audio to be created/resumed from a user gesture.
+  // Prime it here so sentence-crossing ticks remain audible during the
+  // subsequent touchmove and momentum frames.
   try { getAudio(); } catch(e) {}
   physScrollStart();
 },{passive:true});
 
 window.addEventListener('touchmove', e=>{
-  if (focusMode || _psBlocked || !readerEl.classList.contains('visible')) return;
+  if (focusMode || !readerEl.classList.contains('visible')) return;
   const t = e.touches[0];
   // Compare the full gesture displacement against its original touch point.
   const totalDx = t.clientX - touchX0;
@@ -5654,52 +5115,68 @@ window.addEventListener('touchmove', e=>{
     _normalSwipeHandled = true;
     scrollDragging = false;
     scrollVel = 0;
+    if (scrollRAF) physScrollStop();
     stopAuto();
   }
   if (_normalHorizontalSwipe) return;
   if (!scrollDragging) return;
   stopAuto(); // only stop auto-play once real dragging is confirmed — a bare tap never touches it
-  const y    = t.clientY;
+  const y   = t.clientY;
+  const now = performance.now();
   const last = _psSamples[_psSamples.length - 1];
-  physScrollAdvance(last.y - y);       // finger up (+) = read forward, 1:1 with the finger
-  _psSamples.push({ t: performance.now(), y });
+  const dy = last.y - y; // positive = finger moved up
+  scrollPos = Math.max(0, Math.min(sentences.length - 1, scrollPos + dy / PS_DRAG_UNIT_PX));
+  _psSamples.push({ t: now, y });
   if (_psSamples.length > 6) _psSamples.shift();
+  physScrollSyncCurrent();
+  physScrollApplyLayout();
 },{passive:true});
 
 window.addEventListener('touchend',e=>{
   if (!readerEl.classList.contains('visible')) return;
-  if (_psBlocked) return;
+  if (touchTarget && touchTarget.closest('#bm-panel')) return;
   if (!focusMode && _normalHorizontalSwipe) {
     const t = e.changedTouches[0];
     const dx = t.clientX - touchX0;
     const dy = t.clientY - touchY0;
     if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy)) {
       stopAuto();
-      if (dx > 0) stepPage(-1);   // swipe RIGHT → previous page
-      else        stepPage(1);    // swipe LEFT  → next page
+      if (dx < 0) {
+        jumpToPageRelative(-1); // left = previous page
+      } else {
+        jumpToPageRelative(1);  // right = next page
+      }
     }
     _normalHorizontalSwipe = false;
     _normalSwipeHandled = false;
     return;
   }
   // Focus Mode has its own dedicated single-step + swipe-and-hold gesture
-  // handling, scoped to #track (see the trackEl touch listeners above).
+  // handling, scoped to #track (see the trackEl touchstart/touchmove/touchend
+  // listeners above) — completely untouched and unaffected by any of this.
   if (focusMode) return;
   if (!scrollDragging) return; // drag never engaged (e.g. it started on UI chrome)
   scrollDragging = false;
 
   // Release velocity from the last ~100ms of samples only, so a slow
-  // finger lift at the end of a longer drag doesn't inherit earlier speed.
+  // finger lift at the end of a longer drag doesn't inherit speed from
+  // earlier in the gesture.
   const now = performance.now();
   const recent = _psSamples.filter(s => now - s.t <= 100);
   let vel = 0;
   if (recent.length >= 2) {
     const first = recent[0], last = recent[recent.length - 1];
     const dtMs = last.t - first.t;
-    if (dtMs > 0) vel = (first.y - last.y) / dtMs;        // px/ms, + = forward
+    if (dtMs > 0) vel = ((first.y - last.y) / dtMs) / PS_DRAG_UNIT_PX; // sentence-units per ms
   }
-  scrollVel = Math.max(-PS_MAX_V, Math.min(PS_MAX_V, vel));
-  physScrollStart();   // glide (or, for a plain tap, stop immediately)
+  scrollVel = vel;
+  physScrollStart();
+  // NOTE: a single tap here is intentionally a no-op (no movement, no
+  // velocity — settling has nothing to do). Focus Mode toggles only via
+  // the dedicated Focus Mode button (#btn-focus), the F key, or a genuine
+  // double-tap on the reading surface (handled separately, and more
+  // precisely, in the trackEl touch listeners above) — never from an
+  // ordinary tap or swipe passing through this global handler.
 });
 
 window.addEventListener('touchcancel', () => {
@@ -6423,7 +5900,6 @@ ${inputJson}`;
 const flowerDiv  = document.getElementById('timer-flower');
 const flowerBtn  = document.getElementById('flower-btn');
 const flowerSvg  = document.getElementById('flower-svg');
-const flowerLabel = document.getElementById('flower-label');
 const presets    = document.getElementById('flower-presets');
 const controls   = document.getElementById('flower-controls');
 const btnPause   = document.getElementById('flower-pause');
@@ -6441,8 +5917,6 @@ let remaining = 0;
 let running   = false;
 let iv        = null;
 let menuOpen  = false;
-let endAt     = 0;      // wall-clock ms when the countdown hits zero (keeps time right even if the tab is throttled)
-let lastMins  = 15;     // last chosen duration, used by "Restart timer"
 let controlsOpen = false; // whether the pause/reset dropdown is showing while a timer is active
 
 // ── Hourglass SVG drawing ─────────────────────────────────────────────────────
@@ -6618,50 +6092,27 @@ function stopDrawLoop() {
   if (_drawLoop) { cancelAnimationFrame(_drawLoop); _drawLoop = null; }
 }
 function updateTip() {
-  if (!totalSecs) { flowerBtn.dataset.tip = 'set timer'; flowerLabel.textContent = 'Timer'; return; }
+  if (!totalSecs) { flowerBtn.dataset.tip = 'set timer'; return; }
   const m = Math.floor(remaining / 60);
   const s = remaining % 60;
   const paused = (!running && remaining < totalSecs) ? ' (paused)' : '';
   flowerBtn.dataset.tip = `${m}:${String(s).padStart(2,'0')} left${paused}`;
-  flowerLabel.textContent = `${m}:${String(s).padStart(2,'0')} left${paused}`;
 }
 
 // ── Tick ──────────────────────────────────────────────────────────────────────
 function tick() {
-  if (!running) return;
-  remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
-  if (remaining <= 0) { finishTimer(); return; }
+  if (remaining <= 0) {
+    clearInterval(iv); running = false; remaining = 0;
+    stopDrawLoop(); stopDrip();
+    drawStopwatch(1);
+    flowerBtn.dataset.tip = 'done \u2746';
+    flowerBtn.style.opacity = '1';
+    return;
+  }
+  remaining--;
   updateTip();
   // drawStopwatch is called by the rAF loop; no need to call here
 }
-function finishTimer() {
-  clearInterval(iv); running = false; remaining = 0;
-  stopDrawLoop(); stopDrip();
-  drawStopwatch(1);
-  flowerBtn.dataset.tip = 'done \u2746';
-  flowerLabel.textContent = 'Time\u2019s up';
-  flowerBtn.style.opacity = '1';
-  showTimesUp();
-}
-
-// ── "Time's up" pop-up ────────────────────────────────────────────────────────
-const timerModal = document.getElementById('timer-modal');
-function showTimesUp() {
-  try { stopAuto(); } catch(e) {}                                   // ALL auto-play stops (normal scroll + Focus Mode)
-  document.getElementById('more-menu').classList.remove('open');
-  try { closeApPop(); } catch(e) {}
-  document.getElementById('tm-mins').textContent = lastMins;
-  timerModal.classList.add('show');
-  document.getElementById('tm-dismiss').focus({preventScroll:true});
-}
-function hideTimesUp() { timerModal.classList.remove('show'); }
-document.getElementById('tm-dismiss').addEventListener('click', () => { hideTimesUp(); btnReset.click(); });   // back to an idle timer
-document.getElementById('tm-restart').addEventListener('click', () => { hideTimesUp(); startTimer(lastMins); });
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && timerModal.classList.contains('show')) { e.stopPropagation(); hideTimesUp(); btnReset.click(); }
-}, true);
-// If the phone slept / the tab was in the background, check the clock the moment we're back.
-document.addEventListener('visibilitychange', () => { if (!document.hidden && running) tick(); });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 function startTimer(mins) {
@@ -6669,8 +6120,6 @@ function startTimer(mins) {
   stopDrawLoop(); stopDrip();
   totalSecs = mins * 60;
   remaining = totalSecs;
-  lastMins  = mins;
-  endAt     = Date.now() + totalSecs * 1000;
   running   = true;
   document.querySelectorAll('.flower-preset').forEach(b => {
     b.classList.toggle('active', parseInt(b.dataset.mins) === mins);
@@ -6685,7 +6134,6 @@ function startTimer(mins) {
   iv = setInterval(tick, 1000);
   startDrawLoop();
   startDrip();
-  document.getElementById('more-menu').classList.remove('open');   // timer is set — close the dropdown
 }
 
 // ── Interactions ──────────────────────────────────────────────────────────────
@@ -6712,14 +6160,12 @@ document.querySelectorAll('.flower-preset').forEach(btn => {
 
 btnPause.addEventListener('click', () => {
   if (running) {
-    remaining = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
     clearInterval(iv); running = false;
     stopDrawLoop(); stopDrip();
     btnPause.textContent = 'resume'; updateTip();
     drawStopwatch(1 - remaining / totalSecs); // freeze frame
   } else if (remaining > 0) {
     running = true;
-    endAt = Date.now() + remaining * 1000;
     iv = setInterval(tick, 1000);
     startDrawLoop(); startDrip();
     btnPause.textContent = 'pause';
@@ -6736,11 +6182,9 @@ btnReset.addEventListener('click', () => {
   controlsOpen = false;
   document.querySelectorAll('.flower-preset').forEach(b => b.classList.remove('active'));
   flowerBtn.dataset.tip = 'set timer';
-  flowerLabel.textContent = 'Timer';
   flowerBtn.style.opacity = '';
   drawStopwatch(0);
 });
-flowerLabel.addEventListener('click', () => flowerBtn.click());
 
 // Initial state
 drawStopwatch(0);
