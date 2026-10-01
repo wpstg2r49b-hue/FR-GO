@@ -1752,6 +1752,61 @@ const EXTENDED_PUA = {
   '\uF018':'f',
 };
 
+// ─── Per-document learned ligature map ────────────────────────────────────
+// Every font assigns its ligature glyphs to ARBITRARY Private-Use-Area
+// codepoints — there's no way to hardcode every font in existence, so no
+// static table above will ever cover all of them. Left unresolved, an
+// unknown glyph used to be silently deleted at the end of cleanPDFText,
+// which is the worst possible failure: dropping "fl" from "floor" doesn't
+// produce garbage, it produces "oor" — a DIFFERENT, perfectly ordinary-
+// looking string, so the corruption is invisible until a reader notices.
+//
+// Fix, in two layers, both applied automatically for every PDF:
+//
+//  1. LEARN FROM THE WHOLE DOCUMENT FIRST. The same font glyph is reused
+//     for every occurrence of that ligature throughout the book. Some of
+//     those occurrences sit mid-word (e.g. "reflect", "define", "office")
+//     where a literal "f"/"s"/"c" still precedes the glyph in the raw
+//     text — exactly the context the old Step-4 heuristic already knew
+//     how to read correctly. learnPUALigatures() scans every page's raw
+//     text up front (before any cleaning happens) and remembers that
+//     resolution, then it gets applied to EVERY occurrence of that glyph,
+//     including the word-initial ones (like "floor") that have no such
+//     context of their own. This needs no per-font hardcoding and covers
+//     any font, because it's derived from that specific PDF's own text.
+//
+//  2. COMMON-WORD FALLBACK. Some fonts collapse a whole ligature (e.g.
+//     "fl") into one glyph with no literal letter ever surviving next to
+//     it anywhere in the document, so there's nothing to learn from context
+//     alone. For that narrow remainder, a short, curated list of the most
+//     common English words starting with "fi"/"fl" resolves the frequent,
+//     everyday cases (floor, find, first, flame, five, flag, …) without
+//     needing a full dictionary.
+//
+//  Anything that still can't be resolved after both layers is now LEFT
+//  IN PLACE rather than deleted — an odd character is obviously wrong and
+//  easy to spot and report; a silently substituted real word usually
+//  isn't. See learnPUALigatures() below, called once per PDF import
+//  before any page text is cleaned.
+let _learnedLigatures = {};
+
+// Last-resort common-word fallback — only used for a glyph that (a) isn't
+// in any static table above and (b) never once appeared with usable
+// letter-context anywhere in the document for learnPUALigatures() to
+// learn from. Keyed by the letters immediately AFTER the ligature glyph.
+const _FI_STEMS = new Set(['rst','nd','ve','re','sh','eld','lm','nal','ne',
+  'nger','gure','ber','nish','eldwork','xed','sherman','sh','t','le','x',
+  'refighter','rework','rst-class','ne-tune']);
+const _FL_STEMS = new Set(['oor','ow','ame','ag','ip','oat','ush','eet',
+  'ock','avor','avour','eece','esh','irt','uid','utter','ex','aw','edge',
+  'ank','ap','uent','uctuate','ight','ourish','ock','ora','avon','icker']);
+
+function resolveWordInitialLigature(pua, rest) {
+  if (_FI_STEMS.has(rest)) return 'fi';
+  if (_FL_STEMS.has(rest)) return 'fl';
+  return null;
+}
+
 function cleanPDFText(text) {
   // Step 1: Standard Unicode ligatures
   let out = text;
@@ -1766,6 +1821,13 @@ function cleanPDFText(text) {
   // Step 3: Extended PUA ranges
   for (const [from, to] of Object.entries(EXTENDED_PUA)) {
     out = out.split(from).join(to);
+  }
+
+  // Step 3.5: this document's own learned ligature map (see above) — a
+  // glyph resolved anywhere in this PDF via strong context gets applied
+  // everywhere it appears, including positions with no context of their own.
+  if (Object.keys(_learnedLigatures).length) {
+    out = out.replace(/[\uE000-\uF8FF]/g, ch => _learnedLigatures[ch] || ch);
   }
 
   // Step 4: Context-aware reconstruction for any remaining PUA chars
@@ -1784,11 +1846,52 @@ function cleanPDFText(text) {
     return pre + post;
   });
 
-  // Step 5: Remove any still-remaining PUA characters (unmappable)
-  out = out.replace(/[\uE000-\uF8FF]/g, '');
+  // Step 4.5: last-resort common-word fallback for a glyph that collapses
+  // a WHOLE ligature (both letters gone) and sits at the start of a word,
+  // so there was never a literal letter before it anywhere to learn from.
+  out = out.replace(/(^|[^A-Za-z])([\uE000-\uF8FF])([a-z]+)/g, (m, before, pua, rest) => {
+    const guess = resolveWordInitialLigature(pua, rest);
+    return guess ? before + guess + rest : m;
+  });
+
+  // Step 5: any character that's STILL unresolved is left in place rather
+  // than deleted. It will render oddly — that's a feature, not a bug: an
+  // odd glyph flags itself for you to notice and report; the old silent
+  // deletion turned "floor" into "oor" and gave no sign anything was wrong.
 
   // Step 6: Cleanup
   return out.replace(/  +/g, ' ').trim();
+}
+
+// ─── Learn this PDF's own PUA ligature glyphs before any cleaning ──────────
+// Scans every page's raw, untouched text (collected in Pass 1 of
+// extractPDFText, before groupSpansIntoLines ever calls cleanPDFText) for
+// any Private-Use-Area glyph not already covered by the static tables
+// above. Where that exact glyph appears anywhere in the document with a
+// literal 'f'/'s'/'c' right before it (the same context Step 4 already
+// knows how to read), its resolution is remembered in _learnedLigatures
+// and then applied to EVERY occurrence of that glyph in cleanPDFText —
+// including the word-initial spots (like "floor") that have no context of
+// their own to go on. Runs once per import; resets automatically each time.
+function learnPUALigatures(allPageSpans) {
+  _learnedLigatures = {};
+  const staticallyKnown = ch => (ch in LIGATURE_MAP) || (ch in PUA_MAP) || (ch in EXTENDED_PUA);
+  const re = /([A-Za-z])([\uE000-\uF8FF])([A-Za-z])/g;
+  for (const spans of allPageSpans) {
+    const rawFlat = spans.map(s => s.txt).join(' ');
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(rawFlat))) {
+      const pre = m[1], pua = m[2], post = m[3];
+      if (staticallyKnown(pua) || _learnedLigatures[pua]) continue;
+      let guess = null;
+      if (pre === 'f' && 'ilb'.includes(post)) guess = 'i';
+      else if (pre === 'f' && post === 'f')     guess = 'f';
+      else if (pre === 's' && post === 't')     guess = 't';
+      else if (pre === 'c' && post === 't')     guess = 't';
+      if (guess) _learnedLigatures[pua] = guess;
+    }
+  }
 }
 
 // Debug helper — call this from browser console to see what codepoints
@@ -2587,6 +2690,12 @@ async function extractPDFText(file) {
     allPageSpans.push(spans);
     setProgress(0.05 + 0.15 * (p / total));
   }
+
+  // Learn this PDF's own PUA ligature glyphs from wherever in the document
+  // they have usable letter context, BEFORE any per-line cleaning happens —
+  // see learnPUALigatures() and cleanPDFText() above for why this fixes
+  // ligature-dropping bugs (e.g. "floor" → "oor") generally, for any font.
+  learnPUALigatures(allPageSpans);
 
   // Font statistics — used by classifier to detect headings
   const fontStats = computeFontStats(allPageSpans);

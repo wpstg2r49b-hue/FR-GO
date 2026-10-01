@@ -705,13 +705,78 @@ function cleanPDFText(text) {
   for(const [k,v] of Object.entries(_LIG)) out=out.split(k).join(v);
   out = out.replace(/[\uF000-\uF0FF]/g, ch => _PUA_ASCII[ch] || _PUA_EXT[ch] || ch);
   for(const [k,v] of Object.entries(_PUA_EXT)) out=out.split(k).join(v);
+
+  // Learned-per-document ligature map (see learnPUALigatures below) — a
+  // glyph resolved anywhere in this PDF via strong letter context gets
+  // applied everywhere it appears, including word-initial positions
+  // ("floor") that have no context of their own.
+  if (Object.keys(_learnedLigatures).length) {
+    out = out.replace(/[\uE000-\uF8FF]/g, ch => _learnedLigatures[ch] || ch);
+  }
+
   out = out.replace(/([a-zA-Z])([\uE000-\uF8FF]+)([a-zA-Z])/g, (_,pre,_pua,post)=>{
     if(pre==='f'&&'ilb'.includes(post)) return pre+'i'+post;
     if(pre==='s'&&post==='t') return 'st';
     if(pre==='c'&&post==='t') return 'ct';
     return pre+post;
   });
-  return out.replace(/[\uE000-\uF8FF]/g,'').replace(/  +/g,' ').trim();
+
+  // Last-resort common-word fallback for a glyph that collapses a WHOLE
+  // ligature (no literal letter survives next to it anywhere) and sits at
+  // the start of a word, e.g. the □oor → floor case.
+  out = out.replace(/(^|[^A-Za-z])([\uE000-\uF8FF])([a-z]+)/g, (m, before, pua, rest) => {
+    const guess = resolveWordInitialLigature(pua, rest);
+    return guess ? before + guess + rest : m;
+  });
+
+  // Anything still unresolved is left in place rather than deleted — an
+  // odd glyph is obviously wrong and reportable; a silently-dropped
+  // ligature ("floor" → "oor") produced a different, ordinary-looking,
+  // silently WRONG word instead.
+  return out.replace(/  +/g,' ').trim();
+}
+
+// ─── Per-document learned ligature map ────────────────────────────────────
+// Same fix as index.html: fonts assign ligature glyphs to arbitrary PUA
+// codepoints, so no static table can cover every font. learnPUALigatures()
+// scans every page's raw text up front (before any cleaning) for a glyph
+// that also appears somewhere with a literal f/s/c right before it — the
+// same context the existing heuristic above already reads correctly — and
+// remembers that resolution so it applies everywhere that glyph occurs,
+// including spots (like the start of a word) with no context of their own.
+let _learnedLigatures = {};
+
+const _FI_STEMS = new Set(['rst','nd','ve','re','sh','eld','lm','nal','ne',
+  'nger','gure','ber','nish','eldwork','xed','sherman','sh','t','le','x',
+  'refighter','rework','rst-class','ne-tune']);
+const _FL_STEMS = new Set(['oor','ow','ame','ag','ip','oat','ush','eet',
+  'ock','avor','avour','eece','esh','irt','uid','utter','ex','aw','edge',
+  'ank','ap','uent','uctuate','ight','ourish','ora','avon','icker']);
+
+function resolveWordInitialLigature(pua, rest) {
+  if (_FI_STEMS.has(rest)) return 'fi';
+  if (_FL_STEMS.has(rest)) return 'fl';
+  return null;
+}
+
+function learnPUALigatures(allPageSpans) {
+  _learnedLigatures = {};
+  const staticallyKnown = ch => (ch in _LIG) || (ch in _PUA_ASCII) || (ch in _PUA_EXT);
+  const re = /([A-Za-z])([\uE000-\uF8FF])([A-Za-z])/g;
+  for (const spans of allPageSpans) {
+    const rawFlat = spans.map(s => s.txt).join(' ');
+    let m;
+    re.lastIndex = 0;
+    while ((m = re.exec(rawFlat))) {
+      const pre = m[1], pua = m[2], post = m[3];
+      if (staticallyKnown(pua) || _learnedLigatures[pua]) continue;
+      let guess = null;
+      if (pre === 'f' && 'ilb'.includes(post)) guess = 'i';
+      else if (pre === 's' && post === 't')     guess = 't';
+      else if (pre === 'c' && post === 't')     guess = 't';
+      if (guess) _learnedLigatures[pua] = guess;
+    }
+  }
 }
 
 /* ── Sentence splitting — abbreviation-aware ─────────────────────────────── */
@@ -1512,6 +1577,10 @@ async function extractPDFText(file, preloadedBuffer) {
     allPageSpans.push(spans);
     setProg(0.05 + 0.15 * (p / total));
   }
+
+  // Learn this PDF's own PUA ligature glyphs before any per-line cleaning
+  // happens — see learnPUALigatures()/cleanPDFText() above.
+  learnPUALigatures(allPageSpans);
 
   // Font statistics — used by classifier to detect headings
   const fontStats = computeFontStats(allPageSpans);
