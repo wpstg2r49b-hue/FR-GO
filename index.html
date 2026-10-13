@@ -1484,7 +1484,7 @@ body:not(.focus-mode) #track{
             <!-- Drop-up rocker slider: slide up = faster, down = slower -->
             <div id="ap-pop" role="group" aria-label="Auto-scroll speed">
               <span class="ap-pop-end">Fast</span>
-              <div id="ap-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="60" aria-valuemax="500" aria-valuenow="200" aria-label="Auto-scroll speed in words per minute">
+              <div id="ap-track" role="slider" tabindex="0" aria-orientation="vertical" aria-valuemin="60" aria-valuemax="700" aria-valuenow="200" aria-label="Auto-scroll speed in words per minute">
                 <div id="ap-fill"></div><div id="ap-thumb"></div>
               </div>
               <span class="ap-pop-end">Slow</span>
@@ -1752,61 +1752,6 @@ const EXTENDED_PUA = {
   '\uF018':'f',
 };
 
-// ─── Per-document learned ligature map ────────────────────────────────────
-// Every font assigns its ligature glyphs to ARBITRARY Private-Use-Area
-// codepoints — there's no way to hardcode every font in existence, so no
-// static table above will ever cover all of them. Left unresolved, an
-// unknown glyph used to be silently deleted at the end of cleanPDFText,
-// which is the worst possible failure: dropping "fl" from "floor" doesn't
-// produce garbage, it produces "oor" — a DIFFERENT, perfectly ordinary-
-// looking string, so the corruption is invisible until a reader notices.
-//
-// Fix, in two layers, both applied automatically for every PDF:
-//
-//  1. LEARN FROM THE WHOLE DOCUMENT FIRST. The same font glyph is reused
-//     for every occurrence of that ligature throughout the book. Some of
-//     those occurrences sit mid-word (e.g. "reflect", "define", "office")
-//     where a literal "f"/"s"/"c" still precedes the glyph in the raw
-//     text — exactly the context the old Step-4 heuristic already knew
-//     how to read correctly. learnPUALigatures() scans every page's raw
-//     text up front (before any cleaning happens) and remembers that
-//     resolution, then it gets applied to EVERY occurrence of that glyph,
-//     including the word-initial ones (like "floor") that have no such
-//     context of their own. This needs no per-font hardcoding and covers
-//     any font, because it's derived from that specific PDF's own text.
-//
-//  2. COMMON-WORD FALLBACK. Some fonts collapse a whole ligature (e.g.
-//     "fl") into one glyph with no literal letter ever surviving next to
-//     it anywhere in the document, so there's nothing to learn from context
-//     alone. For that narrow remainder, a short, curated list of the most
-//     common English words starting with "fi"/"fl" resolves the frequent,
-//     everyday cases (floor, find, first, flame, five, flag, …) without
-//     needing a full dictionary.
-//
-//  Anything that still can't be resolved after both layers is now LEFT
-//  IN PLACE rather than deleted — an odd character is obviously wrong and
-//  easy to spot and report; a silently substituted real word usually
-//  isn't. See learnPUALigatures() below, called once per PDF import
-//  before any page text is cleaned.
-let _learnedLigatures = {};
-
-// Last-resort common-word fallback — only used for a glyph that (a) isn't
-// in any static table above and (b) never once appeared with usable
-// letter-context anywhere in the document for learnPUALigatures() to
-// learn from. Keyed by the letters immediately AFTER the ligature glyph.
-const _FI_STEMS = new Set(['rst','nd','ve','re','sh','eld','lm','nal','ne',
-  'nger','gure','ber','nish','eldwork','xed','sherman','sh','t','le','x',
-  'refighter','rework','rst-class','ne-tune']);
-const _FL_STEMS = new Set(['oor','ow','ame','ag','ip','oat','ush','eet',
-  'ock','avor','avour','eece','esh','irt','uid','utter','ex','aw','edge',
-  'ank','ap','uent','uctuate','ight','ourish','ock','ora','avon','icker']);
-
-function resolveWordInitialLigature(pua, rest) {
-  if (_FI_STEMS.has(rest)) return 'fi';
-  if (_FL_STEMS.has(rest)) return 'fl';
-  return null;
-}
-
 function cleanPDFText(text) {
   // Step 1: Standard Unicode ligatures
   let out = text;
@@ -1821,13 +1766,6 @@ function cleanPDFText(text) {
   // Step 3: Extended PUA ranges
   for (const [from, to] of Object.entries(EXTENDED_PUA)) {
     out = out.split(from).join(to);
-  }
-
-  // Step 3.5: this document's own learned ligature map (see above) — a
-  // glyph resolved anywhere in this PDF via strong context gets applied
-  // everywhere it appears, including positions with no context of their own.
-  if (Object.keys(_learnedLigatures).length) {
-    out = out.replace(/[\uE000-\uF8FF]/g, ch => _learnedLigatures[ch] || ch);
   }
 
   // Step 4: Context-aware reconstruction for any remaining PUA chars
@@ -1846,52 +1784,11 @@ function cleanPDFText(text) {
     return pre + post;
   });
 
-  // Step 4.5: last-resort common-word fallback for a glyph that collapses
-  // a WHOLE ligature (both letters gone) and sits at the start of a word,
-  // so there was never a literal letter before it anywhere to learn from.
-  out = out.replace(/(^|[^A-Za-z])([\uE000-\uF8FF])([a-z]+)/g, (m, before, pua, rest) => {
-    const guess = resolveWordInitialLigature(pua, rest);
-    return guess ? before + guess + rest : m;
-  });
-
-  // Step 5: any character that's STILL unresolved is left in place rather
-  // than deleted. It will render oddly — that's a feature, not a bug: an
-  // odd glyph flags itself for you to notice and report; the old silent
-  // deletion turned "floor" into "oor" and gave no sign anything was wrong.
+  // Step 5: Remove any still-remaining PUA characters (unmappable)
+  out = out.replace(/[\uE000-\uF8FF]/g, '');
 
   // Step 6: Cleanup
   return out.replace(/  +/g, ' ').trim();
-}
-
-// ─── Learn this PDF's own PUA ligature glyphs before any cleaning ──────────
-// Scans every page's raw, untouched text (collected in Pass 1 of
-// extractPDFText, before groupSpansIntoLines ever calls cleanPDFText) for
-// any Private-Use-Area glyph not already covered by the static tables
-// above. Where that exact glyph appears anywhere in the document with a
-// literal 'f'/'s'/'c' right before it (the same context Step 4 already
-// knows how to read), its resolution is remembered in _learnedLigatures
-// and then applied to EVERY occurrence of that glyph in cleanPDFText —
-// including the word-initial spots (like "floor") that have no context of
-// their own to go on. Runs once per import; resets automatically each time.
-function learnPUALigatures(allPageSpans) {
-  _learnedLigatures = {};
-  const staticallyKnown = ch => (ch in LIGATURE_MAP) || (ch in PUA_MAP) || (ch in EXTENDED_PUA);
-  const re = /([A-Za-z])([\uE000-\uF8FF])([A-Za-z])/g;
-  for (const spans of allPageSpans) {
-    const rawFlat = spans.map(s => s.txt).join(' ');
-    let m;
-    re.lastIndex = 0;
-    while ((m = re.exec(rawFlat))) {
-      const pre = m[1], pua = m[2], post = m[3];
-      if (staticallyKnown(pua) || _learnedLigatures[pua]) continue;
-      let guess = null;
-      if (pre === 'f' && 'ilb'.includes(post)) guess = 'i';
-      else if (pre === 'f' && post === 'f')     guess = 'f';
-      else if (pre === 's' && post === 't')     guess = 't';
-      else if (pre === 'c' && post === 't')     guess = 't';
-      if (guess) _learnedLigatures[pua] = guess;
-    }
-  }
 }
 
 // Debug helper — call this from browser console to see what codepoints
@@ -2691,12 +2588,6 @@ async function extractPDFText(file) {
     setProgress(0.05 + 0.15 * (p / total));
   }
 
-  // Learn this PDF's own PUA ligature glyphs from wherever in the document
-  // they have usable letter context, BEFORE any per-line cleaning happens —
-  // see learnPUALigatures() and cleanPDFText() above for why this fixes
-  // ligature-dropping bugs (e.g. "floor" → "oor") generally, for any font.
-  learnPUALigatures(allPageSpans);
-
   // Font statistics — used by classifier to detect headings
   const fontStats = computeFontStats(allPageSpans);
   // Use body font size as the reference, not median, to be robust to footnotes
@@ -3169,7 +3060,7 @@ const tooltipDef  = document.getElementById('dict-def');
 const tooltipLoad = document.getElementById('dict-loading');
 const appEl       = document.getElementById('app');
 const RING_CIRC   = 144.51;
-const WPM_STEP=10, WPM_MIN=60, WPM_MAX=500;
+const WPM_STEP=10, WPM_MIN=60, WPM_MAX=700;
 const GAP_PX=113;
 
 // Additive: on mobile the title truncates with an ellipsis (no hover to
@@ -3718,6 +3609,21 @@ function sentenceDelay(idx) {
   }
   return Math.max(1000, Math.round((units / rate) * 60000) + 400);
 }
+// Pure reading time for normal-mode auto-scroll: follows the WPM slider exactly (no 1s floor /
+// +400ms padding, which would cap the real speed far below 700 WPM on short sentences).
+function sentenceReadMs(idx) {
+  const text = (sentences[idx] || '').trim();
+  if (/^\x01?IMG:\d+/.test(text)) return 2500;
+  let units, rate;
+  if (isChineseBook) {
+    units = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uff00-\uffef]/g) || []).length || text.length;
+    rate  = wpm * 2;
+  } else {
+    units = text.split(/\s+/).length;
+    rate  = wpm;
+  }
+  return Math.max(120, Math.round((units / rate) * 60000));
+}
 /* Auto-read has two styles, chosen by mode:
      • Focus Mode         → sentence by sentence (timer-driven), exactly as before
      • Normal reading mode → smooth hands-free scroll at the WPM pace (driven by the scroll engine below) */
@@ -3737,7 +3643,21 @@ function startAuto() {
   if (focusMode) scheduleAuto();
   else { scrollVel = 0; physScrollStart(); }
 }
-function stopAuto()  { autoOn=false; clearTimeout(autoTimer); syncPlayUI(); }
+const AUTO_RESUME_MS = 3000;           // normal mode: auto-play resumes this long after a swipe
+let autoHold = false, _autoResumeTimer = null;
+function clearAutoHold() { clearTimeout(_autoResumeTimer); _autoResumeTimer = null; autoHold = false; }
+// Swipe / scroll while auto-play is on: freeze it, then pick it back up after AUTO_RESUME_MS.
+// Auto-play stays "on" (pause icon stays lit) — only stopAuto() (pause button etc.) ends it.
+function suspendAuto() {
+  if (!autoOn || focusMode) return;
+  autoHold = true;
+  clearTimeout(_autoResumeTimer);
+  _autoResumeTimer = setTimeout(() => {
+    _autoResumeTimer = null; autoHold = false;
+    if (autoOn && !focusMode && !scrollDragging) { scrollVel = 0; physScrollStart(); }
+  }, AUTO_RESUME_MS);
+}
+function stopAuto()  { autoOn=false; clearTimeout(autoTimer); clearAutoHold(); syncPlayUI(); }
 function toggleAuto(){ autoOn?stopAuto():startAuto(); }
 
 /* ── Navigate ─────────────────────────────────────────────────────────────── */
@@ -5510,7 +5430,7 @@ function psAutoSpeed() {
   if (i < 0) i = 0;
   if (i >= last) return 0;
   const dist = psH(i) / 2 + PS_GAP + psH(i + 1) / 2;
-  return dist / sentenceDelay(i);
+  return dist / sentenceReadMs(i);
 }
 
 // Live height of sentence idx (its pool node must currently hold it), else a sane estimate.
@@ -5604,7 +5524,7 @@ function physScrollLoop(ts) {
   _psLastT = ts;
 
   if (!scrollDragging) {
-    if (autoOn) {
+    if (autoOn && !autoHold) {
       scrollVel = 0;
       if (current >= sentences.length - 1 && scrollOff >= 0) stopAuto();      // reached the end of the book
       else physScrollAdvance(psAutoSpeed() * dt);                              // steady reading-pace scroll
@@ -5642,6 +5562,7 @@ function physScrollStop() {
 function psModeChanged() {
   closeApPop();
   scrollDragging = false; scrollVel = 0; scrollOff = 0;
+  clearAutoHold();
   physScrollStop();
   if (!nodes.length) return;
   renderNodeText();
@@ -5713,7 +5634,7 @@ window.addEventListener('wheel', e=>{
 
   // Normal Reading Mode — pixel-exact free scroll.
   e.preventDefault();
-  stopAuto();
+  suspendAuto();
   const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? trackEl.clientHeight : 1);
   scrollDragging = true; scrollVel = 0;
   physScrollAdvance(dy);
@@ -5724,6 +5645,7 @@ window.addEventListener('wheel', e=>{
 
 let touchY0=0, touchX0=0, touchT0=0, touchTarget=null;
 let _psBlocked = false;   // true when this touch began while a dropdown was open
+let _psDragMoved = false; // this touch actually dragged (not a bare tap)
 let _normalHorizontalSwipe = false;
 let _normalSwipeHandled = false;
 const NORMAL_PAGE_SWIPE_PX = 55;
@@ -5736,6 +5658,7 @@ window.addEventListener('touchstart',e=>{
   touchTarget=e.target;
   _normalHorizontalSwipe = false;
   _normalSwipeHandled = false;
+  _psDragMoved = false;
 
   _psBlocked = false;
   if (!readerEl.classList.contains('visible') || focusMode) return;
@@ -5763,11 +5686,11 @@ window.addEventListener('touchmove', e=>{
     _normalSwipeHandled = true;
     scrollDragging = false;
     scrollVel = 0;
-    stopAuto();
+    suspendAuto();
   }
   if (_normalHorizontalSwipe) return;
   if (!scrollDragging) return;
-  stopAuto(); // only stop auto-play once real dragging is confirmed — a bare tap never touches it
+  suspendAuto(); _psDragMoved = true; // only once real dragging is confirmed — a bare tap never touches auto-play
   const y    = t.clientY;
   const last = _psSamples[_psSamples.length - 1];
   physScrollAdvance(last.y - y);       // finger up (+) = read forward, 1:1 with the finger
@@ -5783,10 +5706,11 @@ window.addEventListener('touchend',e=>{
     const dx = t.clientX - touchX0;
     const dy = t.clientY - touchY0;
     if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy)) {
-      stopAuto();
+      const wasAuto = autoOn;     // page jump stops auto-play internally; restore it, then hold 3s
       if (dx > 0) stepPage(-1);   // swipe RIGHT → previous page
       else        stepPage(1);    // swipe LEFT  → next page
-    }
+      if (wasAuto) { autoOn = true; syncPlayUI(); suspendAuto(); }
+    } else if (autoOn) suspendAuto();
     _normalHorizontalSwipe = false;
     _normalSwipeHandled = false;
     return;
@@ -5808,6 +5732,7 @@ window.addEventListener('touchend',e=>{
     if (dtMs > 0) vel = (first.y - last.y) / dtMs;        // px/ms, + = forward
   }
   scrollVel = Math.max(-PS_MAX_V, Math.min(PS_MAX_V, vel));
+  if (_psDragMoved && autoOn) suspendAuto();   // restart the 3s countdown from the moment the finger lifts
   physScrollStart();   // glide (or, for a plain tap, stop immediately)
 });
 
