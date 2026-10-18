@@ -426,7 +426,7 @@ body:not(.focus-mode) #track{
 .bm-item:hover{background:var(--gold-faint)}
 .bm-item-text{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
 .bm-item-page{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--gold);letter-spacing:.06em}
-.bm-item-preview{font-family:'Lora',serif;font-size:13px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bm-item-preview{font-family:'Lora',serif;font-size:13px;font-weight:500;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bm-item-del{
   background:none;border:none;cursor:pointer;
   color:var(--text-dim);font-size:18px;line-height:1;
@@ -1544,10 +1544,10 @@ body:not(.focus-mode) #track{
               </div>
               <div id="bm-colors">
                 <span id="bm-colors-label">highlight</span>
-                <button class="bm-swatch" data-color="blue"   title="Blue"   aria-label="Blue"   style="--sw:#5a96ff"></button>
-                <button class="bm-swatch" data-color="green"  title="Green"  aria-label="Green"  style="--sw:#50c878"></button>
-                <button class="bm-swatch" data-color="red"    title="Red"    aria-label="Red"    style="--sw:#eb5a50"></button>
                 <button class="bm-swatch" data-color="yellow" title="Yellow" aria-label="Yellow" style="--sw:#f0c846"></button>
+                <button class="bm-swatch" data-color="red"    title="Red"    aria-label="Red"    style="--sw:#eb5a50"></button>
+                <button class="bm-swatch" data-color="green"  title="Green"  aria-label="Green"  style="--sw:#50c878"></button>
+                <button class="bm-swatch" data-color="blue"   title="Blue"   aria-label="Blue"   style="--sw:#5a96ff"></button>
                 <button class="bm-swatch" data-color="purple" title="Purple" aria-label="Purple" style="--sw:#aa6ee6"></button>
               </div>
               <div id="bm-list">
@@ -4153,7 +4153,7 @@ const btnBmAdd = document.getElementById('btn-bm-add');
 
 let bookmarks = []; // [{idx, ts, color}] for current book
 
-const BM_COLORS = ['blue','green','red','yellow','purple'];
+const BM_COLORS = ['yellow','red','green','blue','purple'];
 const BM_HEX    = { blue:'#5a96ff', green:'#50c878', red:'#eb5a50', yellow:'#f0c846', purple:'#aa6ee6' };
 const BM_COLOR_KEY = 'focusreader_bm_color';
 let bmColor = (() => { try { const c = localStorage.getItem(BM_COLOR_KEY); return BM_COLORS.includes(c) ? c : 'yellow'; } catch(e) { return 'yellow'; } })();
@@ -4182,12 +4182,23 @@ function refreshBmHighlights() {
   nodes.forEach(el => applyBmHighlight(el, el._sentIdx));
 }
 function syncSwatches() {
-  document.querySelectorAll('.bm-swatch').forEach(b => b.classList.toggle('selected', b.dataset.color === bmColor));
+  // If the sentence you're on is bookmarked, the row shows (and edits) THAT bookmark's colour;
+  // otherwise it shows the colour the next new bookmark will get.
+  const cur = bookmarks.find(b => b.idx === current);
+  const sel = cur ? (BM_COLORS.includes(cur.color) ? cur.color : 'yellow') : bmColor;
+  document.querySelectorAll('.bm-swatch').forEach(b => b.classList.toggle('selected', b.dataset.color === sel));
 }
 document.querySelectorAll('.bm-swatch').forEach(b => b.addEventListener('click', e => {
   e.stopPropagation();
   bmColor = b.dataset.color;
   try { localStorage.setItem(BM_COLOR_KEY, bmColor); } catch(err) {}
+  const cur = bookmarks.find(x => x.idx === current);      // already bookmarked? recolour it right away
+  if (cur) {
+    cur.color = bmColor;
+    saveBookmarks(currentBookId, bookmarks);
+    renderBmPanel();
+    updateBmIcon();
+  }
   syncSwatches();
 }));
 syncSwatches();
@@ -4204,6 +4215,7 @@ function saveBookmarks(bookId, arr) {
 }
 
 function renderBmPanel() {
+  syncSwatches();
   bmList.innerHTML = '';
   if (bookmarks.length === 0) {
     bmList.appendChild(bmEmpty);
