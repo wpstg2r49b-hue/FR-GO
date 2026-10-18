@@ -435,6 +435,43 @@ body:not(.focus-mode) #track{
 .bm-item-del:hover{opacity:1;color:#c0503a}
 #bm-empty{padding:18px;font-family:'DM Mono',monospace;font-size:13px;color:var(--text-dim);text-align:center;letter-spacing:.1em}
 
+/* ── Bookmark highlight colours ── */
+#bm-colors{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;
+  border-bottom:1px solid var(--border);
+}
+#bm-colors-label{
+  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
+  letter-spacing:.12em;color:var(--text-dim);text-transform:uppercase;margin-right:auto;
+}
+.bm-swatch{
+  width:22px;height:22px;border-radius:50%;cursor:pointer;padding:0;
+  border:2px solid transparent;background:var(--sw);
+  box-shadow:0 0 0 1px var(--border);transition:transform .15s,box-shadow .15s;
+  -webkit-tap-highlight-color:transparent;
+}
+.bm-swatch:hover{transform:scale(1.12)}
+.bm-swatch.selected{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--sw)}
+.bm-item-dot{
+  width:14px;height:14px;border-radius:50%;flex-shrink:0;cursor:pointer;padding:0;
+  border:none;background:var(--sw);box-shadow:0 0 0 1px var(--border);
+}
+.bm-item-dot:hover{transform:scale(1.2)}
+@media (max-width:680px){
+  .bm-swatch{width:28px;height:28px}
+  .bm-item-dot{width:20px;height:20px}
+}
+/* The bookmarked sentence itself, wherever it appears (normal reading + Focus Mode) */
+.snt[data-bm]{
+  background:var(--bmc-bg);border-radius:6px;
+  box-shadow:inset 3px 0 0 var(--bmc-bar),inset -3px 0 0 var(--bmc-bar);
+}
+.snt[data-bm="blue"]  {--bmc-bg:rgba(90,150,255,.20); --bmc-bar:rgba(90,150,255,.9)}
+.snt[data-bm="green"] {--bmc-bg:rgba(80,200,120,.20); --bmc-bar:rgba(80,200,120,.9)}
+.snt[data-bm="red"]   {--bmc-bg:rgba(235,90,80,.20);  --bmc-bar:rgba(235,90,80,.9)}
+.snt[data-bm="yellow"]{--bmc-bg:rgba(240,200,70,.22); --bmc-bar:rgba(240,200,70,.95)}
+.snt[data-bm="purple"]{--bmc-bg:rgba(170,110,230,.22);--bmc-bar:rgba(170,110,230,.95)}
+
 /* Volume control */
 #vol-wrap{display:flex;flex-direction:column;align-items:center;gap:10px}
 #btn-mute{
@@ -1504,6 +1541,14 @@ body:not(.focus-mode) #track{
               <div id="bm-panel-header">
                 <span>bookmarks</span>
                 <button id="btn-bm-add">+ add here</button>
+              </div>
+              <div id="bm-colors">
+                <span id="bm-colors-label">highlight</span>
+                <button class="bm-swatch" data-color="blue"   title="Blue"   aria-label="Blue"   style="--sw:#5a96ff"></button>
+                <button class="bm-swatch" data-color="green"  title="Green"  aria-label="Green"  style="--sw:#50c878"></button>
+                <button class="bm-swatch" data-color="red"    title="Red"    aria-label="Red"    style="--sw:#eb5a50"></button>
+                <button class="bm-swatch" data-color="yellow" title="Yellow" aria-label="Yellow" style="--sw:#f0c846"></button>
+                <button class="bm-swatch" data-color="purple" title="Purple" aria-label="Purple" style="--sw:#aa6ee6"></button>
               </div>
               <div id="bm-list">
                 <div id="bm-empty">no bookmarks yet</div>
@@ -3328,6 +3373,7 @@ function renderPool() {
 
 // Write a single sentence into a pool node — skips if already showing it
 function writeNode(el, sentIdx) {
+  applyBmHighlight(el, sentIdx);
   const isFocused = sentIdx === current;
   // Skip rewrite if content and focus state are unchanged
   if (el._sentIdx === sentIdx && el._focused === isFocused) return;
@@ -3643,7 +3689,7 @@ function startAuto() {
   if (focusMode) scheduleAuto();
   else { scrollVel = 0; physScrollStart(); }
 }
-const AUTO_RESUME_MS = 3000;           // normal mode: auto-play resumes this long after a swipe
+const AUTO_RESUME_MS = 200;            // normal mode: auto-play resumes this long (ms) after a swipe
 let autoHold = false, _autoResumeTimer = null;
 function clearAutoHold() { clearTimeout(_autoResumeTimer); _autoResumeTimer = null; autoHold = false; }
 // Swipe / scroll while auto-play is on: freeze it, then pick it back up after AUTO_RESUME_MS.
@@ -4105,7 +4151,46 @@ const bmList   = document.getElementById('bm-list');
 const bmEmpty  = document.getElementById('bm-empty');
 const btnBmAdd = document.getElementById('btn-bm-add');
 
-let bookmarks = []; // [{idx, ts}] for current book
+let bookmarks = []; // [{idx, ts, color}] for current book
+
+const BM_COLORS = ['blue','green','red','yellow','purple'];
+const BM_HEX    = { blue:'#5a96ff', green:'#50c878', red:'#eb5a50', yellow:'#f0c846', purple:'#aa6ee6' };
+const BM_COLOR_KEY = 'focusreader_bm_color';
+let bmColor = (() => { try { const c = localStorage.getItem(BM_COLOR_KEY); return BM_COLORS.includes(c) ? c : 'yellow'; } catch(e) { return 'yellow'; } })();
+let bmColorMap = new Map();   // sentence index → colour name
+
+// Chunks are stored as "TYPE:text" (e.g. "PROSE:Hello.") — the prefix is an internal
+// label for the parser, never meant to be shown. Strip it for any user-facing text.
+function sentPlain(raw) {
+  if (!raw) return '';
+  const im = raw.match(/^\x01?IMG:(\d+)/);
+  if (im) return 'figure · page ' + im[1];
+  const m = raw.match(/^(?:HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
+  return m ? m[1] : raw;
+}
+function rebuildBmMap() {
+  bmColorMap = new Map();
+  bookmarks.forEach(b => bmColorMap.set(b.idx, BM_COLORS.includes(b.color) ? b.color : 'yellow'));
+}
+function applyBmHighlight(el, idx) {
+  const c = bmColorMap.get(idx);
+  if (c) { if (el.dataset.bm !== c) el.dataset.bm = c; }
+  else if (el.dataset.bm) delete el.dataset.bm;
+}
+function refreshBmHighlights() {
+  rebuildBmMap();
+  nodes.forEach(el => applyBmHighlight(el, el._sentIdx));
+}
+function syncSwatches() {
+  document.querySelectorAll('.bm-swatch').forEach(b => b.classList.toggle('selected', b.dataset.color === bmColor));
+}
+document.querySelectorAll('.bm-swatch').forEach(b => b.addEventListener('click', e => {
+  e.stopPropagation();
+  bmColor = b.dataset.color;
+  try { localStorage.setItem(BM_COLOR_KEY, bmColor); } catch(err) {}
+  syncSwatches();
+}));
+syncSwatches();
 
 function bmStorageKey(bookId) { return 'focusreader_bm2_' + bookId; }
 
@@ -4130,16 +4215,27 @@ function renderBmPanel() {
   const sorted = [...bookmarks].sort((a,b) => a.idx - b.idx);
   sorted.forEach(bm => {
     const pg      = sentenceToPage(bm.idx);
-    const preview = sentences[bm.idx] ? sentences[bm.idx].slice(0, 48) + (sentences[bm.idx].length > 48 ? '…' : '') : '';
+    const plain   = sentPlain(sentences[bm.idx]);
+    const preview = plain.slice(0, 48) + (plain.length > 48 ? '…' : '');
     const item    = document.createElement('div');
     item.className = 'bm-item';
+    const bmCol = BM_COLORS.includes(bm.color) ? bm.color : 'yellow';
     item.innerHTML = `
+      <button class="bm-item-dot" title="Change highlight colour" style="--sw:${BM_HEX[bmCol]}"></button>
       <div class="bm-item-text">
         <span class="bm-item-page">${pg ? `p.${pg}` : `#${bm.idx+1}`} &nbsp;·&nbsp; sent.${bm.idx+1}</span>
         <span class="bm-item-preview">${escHtml(preview)}</span>
       </div>
       <button class="bm-item-del" title="Delete bookmark">×</button>
     `;
+    // Tap the dot to cycle this bookmark's highlight colour
+    item.querySelector('.bm-item-dot').addEventListener('click', (e) => {
+      e.stopPropagation();
+      bm.color = BM_COLORS[(BM_COLORS.indexOf(bmCol) + 1) % BM_COLORS.length];
+      saveBookmarks(currentBookId, bookmarks);
+      renderBmPanel();
+      updateBmIcon();
+    });
     // Jump to bookmark
     item.querySelector('.bm-item-text').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -4163,6 +4259,7 @@ function escHtml(s) {
 }
 
 function updateBmIcon() {
+  refreshBmHighlights();
   const has = bookmarks.length > 0;
   bmBtn.classList.toggle('has-bookmarks', has);
   bmPath.style.fill   = has ? 'var(--gold)' : 'none';
@@ -4183,7 +4280,7 @@ btnBmAdd.addEventListener('click', (e) => {
   e.stopPropagation();
   // Don't add duplicate
   if (bookmarks.some(b => b.idx === current)) return;
-  bookmarks.push({ idx: current, ts: Date.now() });
+  bookmarks.push({ idx: current, ts: Date.now(), color: bmColor });
   saveBookmarks(currentBookId, bookmarks);
   renderBmPanel();
   updateBmIcon();
@@ -4326,6 +4423,7 @@ function openBook(book) {
   }
   scrollOff = 0; scrollVel = 0;
   bookmarks     = loadBookmarks(book.id);
+  rebuildBmMap();
   bookTitle.textContent = book.title;
   stopAuto();
   buildSentCache(); // precompute tokenization (avoids re-tokenizing per navigate)
@@ -5318,7 +5416,7 @@ function runSearch() {
 
   searchMatches = [];
   sentences.forEach((s, i) => {
-    if (s.toLowerCase().includes(q)) searchMatches.push(i);
+    if (sentPlain(s).toLowerCase().includes(q)) searchMatches.push(i);   // search the visible text only, never the internal label
   });
 
   if (searchMatches.length === 0) {
@@ -5349,10 +5447,19 @@ function applySearchJump() {
 
 function highlightSearchNode(idx) {
   const q = searchInput.value.trim();
-  if (!q || !nodes[idx]) return;
-  const raw = sentences[idx];
-  const re  = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
-  nodes[idx].innerHTML = raw.replace(re, m => `<mark class="search-hit current-hit">${m}</mark>`);
+  const el = nodes[sentToSlot(idx)];                 // pool node that currently shows this sentence
+  if (!q || !el || el._sentIdx !== idx) return;
+  const plain = sentPlain(sentences[idx]);           // visible text only — no TYPE: label
+  const re    = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+  let out = '', last = 0, m;
+  while ((m = re.exec(plain)) !== null) {
+    if (m[0] === '') { re.lastIndex++; continue; }
+    out += escHtml(plain.slice(last, m.index)) + '<mark class="search-hit current-hit">' + escHtml(m[0]) + '</mark>';
+    last = m.index + m[0].length;
+  }
+  out += escHtml(plain.slice(last));
+  el.innerHTML = out;
+  el._contentKey = null;                             // force a clean rewrite when the highlight is cleared
 }
 
 // Wire up search controls
@@ -5875,7 +5982,7 @@ window.addEventListener('keydown',e=>{
           showToast('bookmark removed');
         } else {
           // Add new bookmark
-          bookmarks.push({ idx: current, ts: Date.now() });
+          bookmarks.push({ idx: current, ts: Date.now(), color: bmColor });
           saveBookmarks(currentBookId, bookmarks);
           updateBmIcon();
           showToast('bookmark added');
