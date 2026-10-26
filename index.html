@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0c0b09"/>
 <title>Focus Reader</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&family=Literata:ital,wght@0,400;0,500;0,600;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&family=Literata:ital,wght@0,400;0,500;0,600;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Baskervville:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:#0c0b09; --surface:#111009; --border:#242018;
@@ -281,6 +281,19 @@ body:not(.focus-mode) #track{
 .snt.neighbour{contain:layout style} /* applied via JS on non-focused nodes */
 .snt.zh{font-family:'Noto Serif SC',var(--reading-font,'Lora'),serif;line-height:1.9;font-size:24px}
 .snt b{font-weight:700;font-style:inherit}
+/* ── Focus Mode: book-page layout ──────────────────────────────────────────────
+   Lines are justified edge to edge between narrow side margins, with hyphenation so
+   word gaps stay even. The last line of each sentence is centred, so a short sentence
+   (or the tail of a long one) still sits neatly in the middle of the page. */
+.focus-mode #track{ --snt-pad:16px !important; }
+.focus-mode .snt{
+  text-align:justify; text-align-last:center; text-justify:inter-word;
+  -webkit-hyphens:auto; hyphens:auto; overflow-wrap:break-word;
+}
+.focus-mode .snt[data-chunk-type="HEADING"],
+.focus-mode .snt[data-chunk-type="ALLCAPS"]{ text-align:center; -webkit-hyphens:manual; hyphens:manual; }
+.focus-mode .snt[data-chunk-type="LISTNUM"],
+.focus-mode .snt[data-chunk-type="LISTBULLET"]{ text-align:justify; text-align-last:left; }
 /* Bionic reading — fixation anchor + faded tail */
 .snt .bio-fix{
   font-weight:800;font-style:inherit;
@@ -1403,6 +1416,8 @@ body:not(.focus-mode) #track{
               <option value="literata">Literata</option>
               <option value="merriweather">Merriweather</option>
               <option value="atkinson">Atkinson Hyperlegible</option>
+              <option value="baskerville">Baskerville</option>
+              <option value="librebaskerville">Libre Baskerville</option>
             </select>
           </div>
 
@@ -5438,6 +5453,8 @@ const FONT_STACKS = {
   literata:     "'Literata',serif",
   merriweather: "'Merriweather',serif",
   atkinson:     "'Atkinson Hyperlegible',sans-serif",
+  baskerville:  "Baskerville,'Baskervville','Baskerville Old Face','Times New Roman',serif",
+  librebaskerville: "'Libre Baskerville',Baskerville,serif",
 };
 const fontSelect = document.getElementById('font-select');
 function loadFont() { try { const f = localStorage.getItem(FONT_KEY); return FONT_STACKS[f] ? f : 'lora'; } catch(e) { return 'lora'; } }
