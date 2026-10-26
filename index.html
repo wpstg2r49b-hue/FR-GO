@@ -12,7 +12,7 @@
   --bg:#0c0b09; --surface:#111009; --border:#242018;
   --gold:#c8a96e; --gold-dim:#6b5a38; --gold-faint:#1e1a12;
   --text:#e2d9c5; --text-mid:#8a7d65; --text-dim:#3d3829;
-  --reading-font:'Lora',serif;
+  --reading-font:Baskerville,'Baskervville','Baskerville Old Face','Times New Roman',serif;
   color-scheme: dark;
 }
 /* ── Light mode ── black text, white background, same gold accent throughout.
@@ -281,19 +281,19 @@ body:not(.focus-mode) #track{
 .snt.neighbour{contain:layout style} /* applied via JS on non-focused nodes */
 .snt.zh{font-family:'Noto Serif SC',var(--reading-font,'Lora'),serif;line-height:1.9;font-size:24px}
 .snt b{font-weight:700;font-style:inherit}
-/* ── Focus Mode: book-page layout ──────────────────────────────────────────────
+/* ── Book-page layout (Focus Mode AND normal reading mode — identical) ─────────
    Lines are justified edge to edge between narrow side margins, with hyphenation so
    word gaps stay even. The last line of each sentence is centred, so a short sentence
    (or the tail of a long one) still sits neatly in the middle of the page. */
-.focus-mode #track{ --snt-pad:16px !important; }
-.focus-mode .snt{
+#track{ --snt-pad:16px !important; }
+.snt{
   text-align:justify; text-align-last:center; text-justify:inter-word;
   -webkit-hyphens:auto; hyphens:auto; overflow-wrap:break-word;
 }
-.focus-mode .snt[data-chunk-type="HEADING"],
-.focus-mode .snt[data-chunk-type="ALLCAPS"]{ text-align:center; -webkit-hyphens:manual; hyphens:manual; }
-.focus-mode .snt[data-chunk-type="LISTNUM"],
-.focus-mode .snt[data-chunk-type="LISTBULLET"]{ text-align:justify; text-align-last:left; }
+.snt[data-chunk-type="HEADING"],
+.snt[data-chunk-type="ALLCAPS"]{ text-align:center; -webkit-hyphens:manual; hyphens:manual; }
+.snt[data-chunk-type="LISTNUM"],
+.snt[data-chunk-type="LISTBULLET"]{ text-align:justify; text-align-last:left; }
 /* Bionic reading — fixation anchor + faded tail */
 .snt .bio-fix{
   font-weight:800;font-style:inherit;
@@ -572,7 +572,7 @@ body:not(.focus-mode) #track{
 }
 .snt[data-chunk-type="LISTNUM"],
 .snt[data-chunk-type="LISTBULLET"]{
-  font-family:'Lora',serif;
+  font-family:var(--reading-font,'Lora'),serif;
   font-size:calc(var(--focus-font-size,26px) * 0.9);
   text-align:left;padding-left:2.2em;text-indent:-2.2em;
   color:var(--text);
@@ -1229,12 +1229,14 @@ body:not(.focus-mode) #track{
   }
   #reader{ align-items:flex-start; }
   #track{ transition:height .3s ease, margin-top .3s ease; }
+  /* Equal space above and below → the reading line is at the exact screen centre, the same
+     place Focus Mode puts it, so switching modes never moves or resizes the text. */
   body:not(.focus-mode) #track{
     margin-top:var(--top-h);
-    height:calc(100vh - var(--top-h) - var(--dock-h));
+    height:calc(100vh - 2 * var(--top-h));
   }
   @supports (height:100dvh){
-    body:not(.focus-mode) #track{ height:calc(100dvh - var(--top-h) - var(--dock-h)); }
+    body:not(.focus-mode) #track{ height:calc(100dvh - 2 * var(--top-h)); }
   }
   .focus-mode #track{ margin-top:28px; height:calc(100vh - 56px); }
   @supports (height:100dvh){
@@ -1411,13 +1413,13 @@ body:not(.focus-mode) #track{
           <div id="more-menu-font">
             <span class="more-menu-label">Font</span>
             <select id="font-select" title="Reading font">
+              <option value="baskerville">Baskerville</option>
+              <option value="librebaskerville">Libre Baskerville</option>
               <option value="lora">Lora</option>
               <option value="georgia">Georgia</option>
               <option value="literata">Literata</option>
               <option value="merriweather">Merriweather</option>
               <option value="atkinson">Atkinson Hyperlegible</option>
-              <option value="baskerville">Baskerville</option>
-              <option value="librebaskerville">Libre Baskerville</option>
             </select>
           </div>
 
@@ -3330,8 +3332,10 @@ let _focusObserver = null;
 function observeFocusNode(el) {
   if (_focusObserver) _focusObserver.disconnect();
   if (!el || !window.ResizeObserver) return;
+  let _roPending = false;
   _focusObserver = new ResizeObserver(() => {
-    const h = el.offsetHeight;
+    const fe = nodes[sentToSlot(current)] || el;
+    const h = fe.offsetHeight;
     if (h > 0) {
       _cachedFocusH   = h;
       _cachedFocusIdx = current;
@@ -3346,9 +3350,15 @@ function observeFocusNode(el) {
     // over the current frame, animated by the CSS transition, then get
     // overwritten again on the very next physics frame — a visible glitch
     // mid-scroll. Only run it when physics isn't the one currently driving.
-    if (!scrollRAF) layout(true);
+    // Any sentence can reflow after it was measured (hyphenation dictionary or web font arriving,
+    // text-size change) — re-measure and re-space ALL of them so neighbours never overlap.
+    if (!scrollRAF && !_roPending) {
+      _roPending = true;
+      requestAnimationFrame(() => { _roPending = false; if (!scrollRAF && nodes.length) layout(true); });
+    }
   });
   _focusObserver.observe(el);
+  nodes.forEach(n => { if (n !== el) _focusObserver.observe(n); });
 }
 
 // Precomputed render caches — built once at openBook, invalidated on mode change
@@ -4929,17 +4939,22 @@ let zoomPct = 100;
 const zoomPctEl = document.getElementById('zoom-pct');
 
 function applyZoom() {
-  const px = (BASE_FONT_PX * zoomPct / 100).toFixed(1) + 'px';
-  // Padding shrinks as zoom grows so text has more horizontal room at large sizes
-  // At 100% → 24px, at 200% → 0px, clamped to min 0px
-  const pad = Math.max(0, Math.round(24 - (zoomPct - 100) * 0.24)) + 'px';
-  // Scale track width proportionally so chars-per-line stays roughly constant.
-  // Base width 900px × zoom ratio, capped at 98vw so it never bleeds off screen.
-  const trackW = Math.round(900 * zoomPct / 100);
-  trackEl.style.width    = trackW + 'px';
-  trackEl.style.maxWidth = '98vw';
-  trackEl.style.setProperty('--focus-font-size', px);
-  trackEl.style.setProperty('--snt-pad', pad);
+  // Start from the untouched stylesheet defaults every time, so 100% is ALWAYS exactly the
+  // size / width the page first loaded with (phones default to 20px, tablets 22px, desktop 26px).
+  trackEl.style.removeProperty('--focus-font-size');
+  trackEl.style.removeProperty('width');
+  trackEl.style.removeProperty('max-width');
+  if (zoomPct !== 100) {
+    const base = parseFloat(getComputedStyle(trackEl).getPropertyValue('--focus-font-size')) || BASE_FONT_PX;
+    const defW = trackEl.offsetWidth, parentW = readerEl.clientWidth;
+    trackEl.style.setProperty('--focus-font-size', (base * zoomPct / 100).toFixed(1) + 'px');
+    // Wide (desktop) column: scale its width with the text so characters-per-line stays steady.
+    // Phones already use the full screen width, so the width is left alone there.
+    if (defW > 0 && defW < parentW * 0.97) {
+      trackEl.style.width    = Math.round(defW * zoomPct / 100) + 'px';
+      trackEl.style.maxWidth = '98vw';
+    }
+  }
   zoomPctEl.textContent = zoomPct + '%';
   _psPxPerUnit = 0;
   _cachedFocusIdx = -1; _cachedFocusLen = -1;
@@ -4948,6 +4963,13 @@ function applyZoom() {
     requestAnimationFrame(() => { _layoutPending = false; layout(true); });
   }
 }
+// Rotating the phone / resizing the window changes the stylesheet defaults — re-derive the zoomed size.
+let _zoomResizeT = null;
+window.addEventListener('resize', () => {
+  if (zoomPct === 100) return;
+  clearTimeout(_zoomResizeT);
+  _zoomResizeT = setTimeout(applyZoom, 150);
+});
 
 function setZoom(pct) {
   zoomPct = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, Math.round(pct / ZOOM_STEP) * ZOOM_STEP));
@@ -5457,17 +5479,17 @@ const FONT_STACKS = {
   librebaskerville: "'Libre Baskerville',Baskerville,serif",
 };
 const fontSelect = document.getElementById('font-select');
-function loadFont() { try { const f = localStorage.getItem(FONT_KEY); return FONT_STACKS[f] ? f : 'lora'; } catch(e) { return 'lora'; } }
+function loadFont() { try { const f = localStorage.getItem(FONT_KEY); return FONT_STACKS[f] ? f : 'baskerville'; } catch(e) { return 'baskerville'; } }
 function saveFont(f) { try { localStorage.setItem(FONT_KEY, f); } catch(e) {} }
 function applyFont(f) {
-  document.documentElement.style.setProperty('--reading-font', FONT_STACKS[f] || FONT_STACKS.lora);
+  document.documentElement.style.setProperty('--reading-font', FONT_STACKS[f] || FONT_STACKS.baskerville);
   if (fontSelect) fontSelect.value = f;
   _psPxPerUnit = 0;
 }
 let currentFont = loadFont();
 applyFont(currentFont);
 if (fontSelect) fontSelect.addEventListener('change', () => {
-  currentFont = FONT_STACKS[fontSelect.value] ? fontSelect.value : 'lora';
+  currentFont = FONT_STACKS[fontSelect.value] ? fontSelect.value : 'baskerville';
   saveFont(currentFont);
   applyFont(currentFont);
 });
@@ -5826,6 +5848,13 @@ function psModeChanged() {
 // Belt-and-suspenders for the same font-swap race: if a web font finishes loading (FOUT/FOIT)
 // while Focus Mode is already open, re-measure once so a neighbour can never end up mis-spaced
 // against stale (pre-swap) text metrics.
+if (typeof document !== 'undefined' && document.fonts && document.fonts.addEventListener) {
+  document.fonts.addEventListener('loadingdone', () => {      // a web font just arrived → text reflowed
+    if (!nodes.length) return;
+    _cachedFocusIdx = -1; _cachedFocusLen = -1;
+    requestAnimationFrame(() => layout(true));
+  });
+}
 if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
   document.fonts.ready.then(() => {
     if (focusMode && nodes.length) {
