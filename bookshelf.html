@@ -571,7 +571,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;min-height:
         <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
       </svg>
     </button>
-    <a href="index.html" class="btn">← reader</a>
+    <a href="index.html" class="btn" id="btn-resume" title="Continue reading where you left off">← reader</a>
   </div>
 </div>
 
@@ -584,7 +584,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;min-height:
       <path d="M20 5v8h6" stroke="#c8a96e" stroke-width="1.2"/>
       <rect x="16" y="11" width="20" height="28" rx="2" stroke="#c8a96e" stroke-width="1.2" stroke-dasharray="3 3"/>
     </svg>
-    <div id="empty-msg">your bookshelf is empty<br>use the + card to add a pdf or txt</div>
+    <div id="empty-msg">your bookshelf is empty<br>use the + card to add a pdf, epub or txt</div>
   </div>
 
   <div id="grid"></div>
@@ -611,7 +611,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;min-height:
     <button id="deck-add-button" type="button" aria-label="Add a new book">+ add a new book</button>
   </div>
 </div>
-<input type="file" id="deck-add-input" accept=".pdf,.txt" style="display:none">
+<input type="file" id="deck-add-input" accept=".pdf,.epub,.txt" style="display:none">
 
 <div id="upload-overlay">
   <div id="upload-msg">processing…</div>
@@ -630,6 +630,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;min-height:
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 'use strict';
 if (typeof pdfjsLib !== 'undefined')
@@ -1851,6 +1852,93 @@ function saveFigImg(id, pageNum, dataUrl) {
   try { localStorage.setItem(`focusreader_figimg_${id}_${pageNum}`, dataUrl); } catch(e) {}
 }
 
+
+/* ── EPUB import (same approach as the reader page) ──────────────────────────
+   An EPUB is a ZIP of HTML chapters. Unzip → read chapter order from the OPF →
+   flatten each chapter to plain paragraphs. Also pulls out the cover image. */
+function htmlToText(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  ['script','style','head','nav','aside'].forEach(tag => doc.querySelectorAll(tag).forEach(el => el.remove()));
+  function nodeToText(node) {
+    if (node.nodeType === 3) return node.textContent;
+    if (node.nodeType !== 1) return '';
+    const tag = node.tagName.toLowerCase();
+    if (/^h[1-6]$/.test(tag)) {
+      const text = node.textContent.trim();
+      return text ? '\n\n' + text.toUpperCase() + '\n\n' : '';
+    }
+    if (['p','div','section','article','blockquote','li','tr','br'].includes(tag)) {
+      const inner = [...node.childNodes].map(nodeToText).join('').trim();
+      return inner ? '\n\n' + inner + '\n\n' : '\n\n';
+    }
+    return [...node.childNodes].map(nodeToText).join('');
+  }
+  return nodeToText(doc.body || doc.documentElement)
+    .replace(/\n{3,}/g, '\n\n').replace(/[ \t]+/g, ' ').trim();
+}
+function zipPath(baseDir, href) {
+  const clean = (href || '').split('#')[0];
+  try { return decodeURIComponent(new URL(clean, 'http://x/' + baseDir).pathname.slice(1)); }
+  catch (e) { return baseDir + clean; }
+}
+function blobToCover(blob) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => {
+      try {
+        const sc = Math.min(300 / img.width, 450 / img.height);
+        const c = document.createElement('canvas');
+        c.width = Math.max(1, Math.floor(img.width * sc)); c.height = Math.max(1, Math.floor(img.height * sc));
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL('image/jpeg', 0.75));
+      } catch (e) { resolve(null); }
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+async function extractEpub(file) {
+  setMsg('unpacking epub…'); setProg(0.05);
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const containerXml = await zip.file('META-INF/container.xml')?.async('text');
+  if (!containerXml) throw new Error('Invalid EPUB: no container.xml');
+  const opfPath = containerXml.match(/full-path="([^"]+\.opf)"/i)?.[1];
+  if (!opfPath) throw new Error('Invalid EPUB: no OPF path');
+  const opfText = await zip.file(opfPath)?.async('text');
+  if (!opfText) throw new Error('Invalid EPUB: OPF not found');
+  const opfDir = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : '';
+  const opfDoc = new DOMParser().parseFromString(opfText, 'application/xml');
+
+  const manifest = {};
+  opfDoc.querySelectorAll('manifest > item').forEach(it => { manifest[it.getAttribute('id')] = it.getAttribute('href'); });
+  const spine = [...opfDoc.querySelectorAll('spine > itemref')].map(r => manifest[r.getAttribute('idref')]).filter(Boolean);
+
+  const parts = [];
+  for (let i = 0; i < spine.length; i++) {
+    setMsg(`reading chapter ${i + 1}/${spine.length}…`);
+    setProg(0.1 + 0.8 * ((i + 1) / spine.length));
+    const f = zip.file(zipPath(opfDir, spine[i]));
+    if (f) parts.push(htmlToText(await f.async('text')));
+  }
+
+  let cover = null;
+  try {
+    setMsg('extracting cover…');
+    let item = opfDoc.querySelector('manifest > item[properties~="cover-image"]');
+    if (!item) {
+      const cid = opfDoc.querySelector('meta[name="cover"]')?.getAttribute('content');
+      if (cid) item = [...opfDoc.querySelectorAll('manifest > item')].find(it => it.getAttribute('id') === cid);
+    }
+    const mt = item && (item.getAttribute('media-type') || '');
+    if (item && /^image\//.test(mt)) {
+      const f = zip.file(zipPath(opfDir, item.getAttribute('href')));
+      if (f) cover = await blobToCover(new Blob([await f.async('arraybuffer')], { type: mt }));
+    }
+  } catch (e) {}
+  return { text: parts.join('\n\n'), cover };
+}
+
 async function processFile(file, preloadedBuffer, importMode) {
   if (!file) return;
   uploadBar.style.width = '0';
@@ -1866,6 +1954,12 @@ async function processFile(file, preloadedBuffer, importMode) {
       raw = await extractPDFText(file, preloadedBuffer);
       setMsg('extracting cover…');
       coverDataUrl = await extractCover(file);
+    } else if (file.name.toLowerCase().endsWith('.epub')) {
+      if (typeof JSZip === 'undefined') {
+        setMsg('EPUB reader failed to load.'); setTimeout(() => uploadOverlay.classList.remove('show'), 2500); return;
+      }
+      const ep = await extractEpub(file);
+      raw = ep.text; coverDataUrl = ep.cover; setProg(1);
     } else {
       raw = await file.text(); setProg(1);
     }
@@ -2077,9 +2171,9 @@ function makeAddCard() {
   const div = document.createElement('div');
   div.className = 'add-card';
   div.innerHTML = `
-    <input type="file" accept=".pdf,.txt">
+    <input type="file" accept=".pdf,.epub,.txt">
     <div class="add-plus">+</div>
-    <div class="add-label">add a book<br>.pdf · .txt<br>english &amp; chinese</div>
+    <div class="add-label">add a book<br>.pdf · .epub · .txt<br>english &amp; chinese</div>
   `;
   const addInput = div.querySelector('input');
   addInput.addEventListener('change', e => {
@@ -2143,6 +2237,17 @@ confirmOverlay.addEventListener('click', e => {
   if (e.target === confirmOverlay) { confirmOverlay.classList.remove('show'); _pendingId = null; }
 });
 
+/* ── "← reader": jump straight back to the book (and sentence) you were last reading ── */
+document.getElementById('btn-resume').addEventListener('click', e => {
+  const shelf = loadShelf();
+  let id = null;
+  try { id = localStorage.getItem('focusreader_last_book'); } catch(err) {}
+  if (!id || !shelf.some(b => b.id === id)) id = shelf.length ? shelf[shelf.length - 1].id : null; // fallback: newest book
+  if (!id) return;                                   // empty shelf → plain link to the reader's import screen
+  e.preventDefault();
+  window.location.href = 'index.html?book=' + encodeURIComponent(id);   // reader restores the saved sentence
+});
+
 /* ── Init ─────────────────────────────────────────────────────────────────── */
 renderGrid();
 
@@ -2164,7 +2269,7 @@ pageDropOverlay.innerHTML = `
     <path d="M22 6v24M12 20l10-10 10 10" stroke="#c8a96e" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="M8 34h28" stroke="#c8a96e" stroke-width="1.5" stroke-linecap="round"/>
   </svg>
-  <div style="font-family:'DM Mono',monospace;font-size:13px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase">drop pdf or txt to add</div>
+  <div style="font-family:'DM Mono',monospace;font-size:13px;letter-spacing:.18em;color:var(--gold);text-transform:uppercase">drop pdf, epub or txt to add</div>
 `;
 document.body.appendChild(pageDropOverlay);
 
@@ -2544,7 +2649,7 @@ ${inputJson}`;
       card.innerHTML = `
         <div class="deck-card-cover">
           <div class="deck-add-plus">+</div>
-          <div class="deck-add-label">add a book<br>.pdf · .txt</div>
+          <div class="deck-add-label">add a book<br>.pdf · .epub · .txt</div>
         </div>`;
       return card;
     }
