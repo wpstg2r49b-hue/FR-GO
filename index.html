@@ -296,19 +296,15 @@ body:not(.focus-mode) #track{
 .snt[data-chunk-type="LISTBULLET"]{ text-align:justify; text-align-last:left; }
 /* Bionic reading — fixation anchor + faded tail */
 .snt .bio-fix{
-  font-weight:800;font-style:inherit;
-  font-size:1.08em;
+  font-weight:600;font-style:inherit;
   color:var(--text);
-  letter-spacing:.01em;
 }
 .snt .bio-tail{
-  font-weight:400;
-  font-size:.93em;
-  color:var(--text-mid);
-  opacity:.72;
+  font-weight:inherit;
+  opacity:.82;
 }
 .snt .w{display:inline;border-bottom:1px solid transparent;transition:border-color .15s,color .15s;cursor:default}
-.dict-on .snt.focused .w:hover{color:var(--gold);border-bottom-color:var(--gold-dim)}
+.dict-on .snt .w:hover{color:var(--gold);border-bottom-color:var(--gold-dim)}
 .snt .w{-webkit-tap-highlight-color:transparent}
 .snt .w.dict-active,
 .snt .w.dict-active .bio-fix,
@@ -1404,7 +1400,7 @@ body:not(.focus-mode) #track{
             </div>
             <div id="flower-controls">
               <button id="flower-pause">pause</button>
-              <button id="flower-reset">reset</button>
+              <button id="flower-reset">stop</button>
             </div>
           </div>
 
@@ -3036,9 +3032,9 @@ function toBionic(text, withWords = false) {
     if (w.length <= 1) return withWords ? `<span class="w">${w}</span>` : w;
     let inner;
     if (w.length <= 3) {
-      inner = `<b class="bio-fix">${w}</b>`;
+      inner = `<b class="bio-fix">${w[0]}</b><span class="bio-tail">${w.slice(1)}</span>`;
     } else {
-      const c = Math.max(1, Math.ceil(w.length * 0.45));
+      const c = Math.max(1, Math.round(w.length * 0.3));
       inner = `<b class="bio-fix">${w.slice(0,c)}</b><span class="bio-tail">${w.slice(c)}</span>`;
     }
     return withWords ? `<span class="w">${inner}</span>` : inner;
@@ -3365,6 +3361,10 @@ function observeFocusNode(el) {
 // sentCache[i] = { plain, bionic, wordspan } — avoids re-tokenizing on navigate
 let sentCache = null; // null = cache invalid, array = ready
 
+// Dictionary taps need every word wrapped: in normal reading mode ALL on-screen sentences
+// are tappable; in Focus Mode only the focused sentence is.
+function dictWraps(isFocused) { return dictOn && (isFocused || !focusMode); }
+
 function buildSentCache() {
   sentCache = sentences.map(raw => {
     const isImg = /^IMG:\d+$/.test(raw);
@@ -3397,14 +3397,14 @@ function getSentHTMLFrom(i, cleanText, isFocused) {
   if (!sentCache || !sentCache[i]) return cleanText;
   const c = sentCache[i];
   if (bionicOn) {
-    const wantWords = dictOn && isFocused;
+    const wantWords = dictWraps(isFocused);
     if (!c.bionic || c.bionicDict !== wantWords) {
       c.bionic = toBionic(cleanText, wantWords);
       c.bionicDict = wantWords;
     }
     return c.bionic;
   }
-  if (dictOn && isFocused) {
+  if (dictWraps(isFocused)) {
     if (!c.wordspan) c.wordspan = toWordSpans(cleanText);
     return c.wordspan;
   }
@@ -3544,7 +3544,7 @@ function writeNode(el, sentIdx) {
   // returns the exact same plain text, so that comparison alone can never tell "still has
   // bionic HTML" apart from "already plain". That let turning bionic reading off leave the old
   // bold markup on screen. Track the mode explicitly alongside the text instead.
-  const mode = bionicOn ? 'bionic' : ((dictOn && isFocused) ? 'dict' : 'plain');
+  const mode = bionicOn ? 'bionic' : (dictWraps(isFocused) ? 'dict' : 'plain');
   if (el._contentMode !== mode || el._contentKey !== chunkText) {
     if (mode === 'plain') el.textContent = chunkText;
     else el.innerHTML = html;
@@ -3762,17 +3762,35 @@ function startAuto() {
   if (focusMode) scheduleAuto();
   else { scrollVel = 0; physScrollStart(); }
 }
+/* Dictionary: pressing a word pauses auto-play; it resumes only when the definition card closes. */
+var _dictAutoPaused = false;
+function dictPauseAuto() {
+  if (!autoOn || _dictAutoPaused) return;
+  _dictAutoPaused = true;
+  clearTimeout(_autoResumeTimer); _autoResumeTimer = null;
+  autoHold = true;                    // normal mode: freeze the scroll
+  clearTimeout(autoTimer);            // Focus Mode: cancel the next-sentence timer
+  scrollVel = 0;
+}
+function dictResumeAuto() {
+  if (!_dictAutoPaused) return;
+  _dictAutoPaused = false; autoHold = false;
+  if (!autoOn) return;
+  if (focusMode) scheduleAuto(); else { scrollVel = 0; physScrollStart(); }
+}
 const AUTO_RESUME_MS = 200;            // normal mode: auto-play resumes this long (ms) after a swipe
 let autoHold = false, _autoResumeTimer = null;
 function clearAutoHold() { clearTimeout(_autoResumeTimer); _autoResumeTimer = null; autoHold = false; }
 // Swipe / scroll while auto-play is on: freeze it, then pick it back up after AUTO_RESUME_MS.
 // Auto-play stays "on" (pause icon stays lit) — only stopAuto() (pause button etc.) ends it.
 function suspendAuto() {
-  if (!autoOn || focusMode) return;
+  if (!autoOn || focusMode || _dictAutoPaused) return;
   autoHold = true;
   clearTimeout(_autoResumeTimer);
   _autoResumeTimer = setTimeout(() => {
-    _autoResumeTimer = null; autoHold = false;
+    _autoResumeTimer = null;
+    if (_dictAutoPaused) return;
+    autoHold = false;
     if (autoOn && !focusMode && !scrollDragging) { scrollVel = 0; physScrollStart(); }
   }, AUTO_RESUME_MS);
 }
@@ -3793,7 +3811,7 @@ function wakeLockOff() {
   if (lock) { try { lock.release(); } catch (e) {} }
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && autoOn) wakeLockOn(); });
-function stopAuto()  { autoOn=false; clearTimeout(autoTimer); clearAutoHold(); wakeLockOff(); syncPlayUI(); }
+function stopAuto()  { autoOn=false; _dictAutoPaused=false; clearTimeout(autoTimer); clearAutoHold(); wakeLockOff(); syncPlayUI(); }
 function toggleAuto(){ autoOn?stopAuto():startAuto(); }
 
 /* ── Navigate ─────────────────────────────────────────────────────────────── */
@@ -3923,6 +3941,7 @@ function hideTooltip() {
   if (_activeWordEl) { _activeWordEl.classList.remove('dict-active'); _activeWordEl = null; }
   _tipRect = null;
   _dictReqId++;
+  dictResumeAuto();               // definition closed → auto-play carries on
 }
 
 /* ── PDF extraction ───────────────────────────────────────────────────────── */
@@ -5001,8 +5020,8 @@ trackEl.addEventListener('mousemove', e => {
     const sp = el.closest('.w');
     if (!sp) { tooltipHideTimer = setTimeout(hideTooltip, 180); return; }
     // Only trigger if inside the currently focused node
-    const focusedNode = nodes[sentToSlot(current)];
-    if (!focusedNode || !focusedNode.contains(sp)) return;
+    const scope = focusMode ? [nodes[sentToSlot(current)]] : nodes;
+    if (!scope.some(n => n && n.contains(sp))) return;
     clearTimeout(tooltipHideTimer);
     showTooltipForEl(sp);
   }, 60);
@@ -5011,6 +5030,11 @@ trackEl.addEventListener('mousemove', e => {
 trackEl.addEventListener('mouseleave', () => {
   clearTimeout(_dictMoveTimer);
   tooltipHideTimer = setTimeout(hideTooltip, 180);
+});
+trackEl.addEventListener('click', e => {
+  if (!dictOn || Date.now() - _lastTouchTs < 900) return;      // touch taps are handled by touchend
+  const sp = dictWordAtPoint(e.clientX, e.clientY);
+  if (sp) showTooltipForEl(sp, true); else hideTooltip();
 });
 
 // Touch: tap a word in the focused sentence to look it up. Tap anywhere else
@@ -5028,20 +5052,20 @@ trackEl.addEventListener('touchstart', e => {
 // Fingers are fat: if the tap isn't exactly on a word, pick the nearest word
 // in the focused sentence (within ~18px) instead of missing.
 function dictWordAtPoint(x, y) {
-  const focusedNode = nodes[sentToSlot(current)];
-  if (!focusedNode) return null;
+  const scope = (focusMode ? [nodes[sentToSlot(current)]] : nodes).filter(Boolean);
+  if (!scope.length) return null;
   const el = document.elementFromPoint(x, y);
   const direct = el && el.closest && el.closest('.w');
-  if (direct && focusedNode.contains(direct)) return direct;
+  if (direct && scope.some(n => n.contains(direct))) return direct;
   let best = null, bestD = 18;
-  focusedNode.querySelectorAll('.w').forEach(sp => {
+  scope.forEach(node => node.querySelectorAll('.w').forEach(sp => {
     for (const r of sp.getClientRects()) {
       const dx = x < r.left ? r.left - x : (x > r.right  ? x - r.right  : 0);
       const dy = y < r.top  ? r.top  - y : (y > r.bottom ? y - r.bottom : 0);
       const d = Math.hypot(dx, dy);
       if (d < bestD) { bestD = d; best = sp; }
     }
-  });
+  }));
   return best;
 }
 
@@ -5049,7 +5073,7 @@ trackEl.addEventListener('touchend', e => {
   if (!dictOn) return;
   _lastTouchTs = Date.now();
   const t = e.changedTouches[0];
-  if (Math.hypot(t.clientX - _dictTouchX, t.clientY - _dictTouchY) > 12) return; // a swipe, not a tap
+  if (Math.hypot(t.clientX - _dictTouchX, t.clientY - _dictTouchY) > 12) { hideTooltip(); return; } // a swipe, not a tap — close any open definition
   // Second tap of a double-tap → that's the Focus Mode toggle (handled by the double-tap
   // listener below). Drop any lookup card from the first tap and don't start a new one.
   if ((Date.now() - _lastTapTime) < DOUBLE_TAP_MS &&
@@ -5377,6 +5401,7 @@ function showTooltipForEl(sp, force) {
   const clean = cleanWord(sp.textContent);
   if (!clean || clean.length < 2) return;
   clearTimeout(tooltipHideTimer);
+  if (force) dictPauseAuto();     // pressed a word: hold auto-play while the definition is on screen
   // Hovering the same word repeatedly (desktop mousemove) must not restart the lookup.
   if (!force && _activeWordEl === sp && tooltip.classList.contains('show')) return;
 
