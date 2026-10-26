@@ -3655,20 +3655,30 @@ function deleteSentences(id) {
 // Debounced progress save — writes at most once per 2 seconds while reading.
 // Previously this called loadShelf() + JSON.parse on EVERY sentence tap.
 let _saveTimer = null;
+function writeProgressNow() {
+  try {
+    const shelf = loadShelf();
+    const idx   = shelf.findIndex(b => b.id === currentBookId);
+    if (idx !== -1) {
+      shelf[idx].progress = current;
+      shelf[idx].total    = sentences.length;
+      localStorage.setItem('focusreader_shelf', JSON.stringify(shelf));
+    }
+  } catch(e) {}
+}
 function saveProgress() {
   clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(() => {
-    try {
-      const shelf = loadShelf();
-      const idx   = shelf.findIndex(b => b.id === currentBookId);
-      if (idx !== -1) {
-        shelf[idx].progress = current;
-        shelf[idx].total    = sentences.length;
-        localStorage.setItem('focusreader_shelf', JSON.stringify(shelf));
-      }
-    } catch(e) {}
-  }, 2000);
+  _saveTimer = setTimeout(() => { _saveTimer = null; writeProgressNow(); }, 2000);
 }
+// Write any pending position immediately — so leaving the page (to the shelf, closing the
+// tab, switching apps) never loses the last couple of seconds of reading.
+function flushProgress() {
+  if (!_saveTimer) return;
+  clearTimeout(_saveTimer); _saveTimer = null;
+  writeProgressNow();
+}
+window.addEventListener('pagehide', flushProgress);
+document.addEventListener('visibilitychange', () => { if (document.hidden) flushProgress(); });
 
 function saveBookToShelf(name, sentencesArr, zh, pm, tp) {
   const id    = 'book_' + Date.now();
@@ -3708,21 +3718,6 @@ function sentenceDelay(idx) {
   }
   return Math.max(1000, Math.round((units / rate) * 60000) + 400);
 }
-// Pure reading time for normal-mode auto-scroll: follows the WPM slider exactly (no 1s floor /
-// +400ms padding, which would cap the real speed far below 700 WPM on short sentences).
-function sentenceReadMs(idx) {
-  const text = (sentences[idx] || '').trim();
-  if (/^\x01?IMG:\d+/.test(text)) return 2500;
-  let units, rate;
-  if (isChineseBook) {
-    units = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uff00-\uffef]/g) || []).length || text.length;
-    rate  = wpm * 2;
-  } else {
-    units = text.split(/\s+/).length;
-    rate  = wpm;
-  }
-  return Math.max(120, Math.round((units / rate) * 60000));
-}
 /* Auto-read has two styles, chosen by mode:
      • Focus Mode         → sentence by sentence (timer-driven), exactly as before
      • Normal reading mode → smooth hands-free scroll at the WPM pace (driven by the scroll engine below) */
@@ -3738,7 +3733,7 @@ function syncPlayUI() {
   faPlay.textContent = autoOn ? 'Ⅱ' : '▶';
 }
 function startAuto() {
-  autoOn=true; syncPlayUI();
+  autoOn=true; syncPlayUI(); wakeLockOn();
   if (focusMode) scheduleAuto();
   else { scrollVel = 0; physScrollStart(); }
 }
@@ -3756,7 +3751,24 @@ function suspendAuto() {
     if (autoOn && !focusMode && !scrollDragging) { scrollVel = 0; physScrollStart(); }
   }, AUTO_RESUME_MS);
 }
-function stopAuto()  { autoOn=false; clearTimeout(autoTimer); clearAutoHold(); syncPlayUI(); }
+/* Keep the screen awake while auto-play is on (Screen Wake Lock API). Released the moment
+   auto-play stops; re-requested if the browser drops it when you switch away and come back. */
+var _wakeLock = null;
+async function wakeLockOn() {
+  try {
+    if (!('wakeLock' in navigator) || _wakeLock) return;
+    const lock = await navigator.wakeLock.request('screen');
+    _wakeLock = lock;
+    lock.addEventListener('release', () => { if (_wakeLock === lock) _wakeLock = null; });
+    if (!autoOn) wakeLockOff();            // auto-play was stopped while the request was pending
+  } catch (e) { _wakeLock = null; }        // unsupported / not allowed — auto-play still works, screen may dim
+}
+function wakeLockOff() {
+  const lock = _wakeLock; _wakeLock = null;
+  if (lock) { try { lock.release(); } catch (e) {} }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && autoOn) wakeLockOn(); });
+function stopAuto()  { autoOn=false; clearTimeout(autoTimer); clearAutoHold(); wakeLockOff(); syncPlayUI(); }
 function toggleAuto(){ autoOn?stopAuto():startAuto(); }
 
 /* ── Navigate ─────────────────────────────────────────────────────────────── */
@@ -4440,6 +4452,7 @@ function openBook(book) {
   sentences = ensureSingleSentences(book.sentences, book.lang === 'zh');
   current       = book.progress || 0;
   currentBookId = book.id;
+  try { if (book.id) localStorage.setItem('focusreader_last_book', book.id); } catch(e) {}   // lets the shelf's ← reader button resume here
   isChineseBook = book.lang === 'zh';
   pageMap       = (book.id ? loadPageMap(book.id) : book.pageMap) || [];
   totalPages    = book.totalPages || 0;
@@ -4489,6 +4502,7 @@ function openBook(book) {
   scrollOff = 0; scrollVel = 0;
   bookmarks     = loadBookmarks(book.id);
   rebuildBmMap();
+  _psPxPerUnit = 0;
   bookTitle.textContent = book.title;
   stopAuto();
   buildSentCache(); // precompute tokenization (avoids re-tokenizing per navigate)
@@ -4912,6 +4926,7 @@ function applyZoom() {
   trackEl.style.setProperty('--focus-font-size', px);
   trackEl.style.setProperty('--snt-pad', pad);
   zoomPctEl.textContent = zoomPct + '%';
+  _psPxPerUnit = 0;
   _cachedFocusIdx = -1; _cachedFocusLen = -1;
   if (!_layoutPending) {
     _layoutPending = true;
@@ -5430,6 +5445,7 @@ function saveFont(f) { try { localStorage.setItem(FONT_KEY, f); } catch(e) {} }
 function applyFont(f) {
   document.documentElement.style.setProperty('--reading-font', FONT_STACKS[f] || FONT_STACKS.lora);
   if (fontSelect) fontSelect.value = f;
+  _psPxPerUnit = 0;
 }
 let currentFont = loadFont();
 applyFont(currentFont);
@@ -5594,16 +5610,39 @@ function dropdownOpen() {
          apPop.classList.contains('show') || timerModalEl.classList.contains('show');
 }
 
-// Hands-free scroll speed (px/ms) at the current position: cover the distance to the next
-// sentence in exactly the time that sentence takes to read at the chosen WPM.
-function psAutoSpeed() {
-  const last = sentences.length - 1;
-  let i = scrollOff >= 0 ? current : current - 1;     // the sentence we're currently "reading through"
-  if (i < 0) i = 0;
-  if (i >= last) return 0;
-  const dist = psH(i) / 2 + PS_GAP + psH(i + 1) / 2;
-  return dist / sentenceReadMs(i);
+// Hands-free scroll speed (px/ms). ONE steady speed for the whole book: pixels-per-word is
+// measured from the text actually on screen (smoothed, so a single long or short sentence
+// can't change it), then speed = pixels-per-word × WPM. The text flows at a constant pace
+// regardless of sentence length; WPM stays accurate on average.
+var _psPxPerUnit = 0, _psMeasureTick = 0;
+function psMeasurePxPerUnit() {
+  let px = 0, units = 0;
+  for (const el of nodes) {
+    const idx = el._sentIdx;
+    if (idx == null || idx < 0 || idx >= sentences.length) continue;
+    const raw = sentences[idx];
+    if (/^\x01?IMG:\d+/.test(raw)) continue;                       // figures don't count as words
+    const h = el.offsetHeight; if (h <= 0) continue;
+    const t = raw.replace(/^(?:HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):/, '').trim();
+    const u = isChineseBook
+      ? ((t.match(/[\u4e00-\u9fff\u3400-\u4dbf\uff00-\uffef]/g) || []).length || t.length)
+      : t.split(/\s+/).length;
+    px += h + PS_GAP; units += u;
+  }
+  return units ? px / units : 0;
 }
+function psAutoSpeed() {
+  if (current >= sentences.length - 1 && scrollOff >= 0) return 0;
+  if (!_psPxPerUnit || ++_psMeasureTick >= 30) {                    // refresh ~every half second
+    _psMeasureTick = 0;
+    const m = psMeasurePxPerUnit();
+    if (m > 0) _psPxPerUnit = _psPxPerUnit ? _psPxPerUnit * 0.95 + m * 0.05 : m;   // slow smoothing
+  }
+  if (!_psPxPerUnit) return 0;
+  const rate = isChineseBook ? wpm * 2 : wpm;                      // Chinese: slider counts ×2 characters/min
+  return _psPxPerUnit * rate / 60000;
+}
+window.addEventListener('resize', () => { _psPxPerUnit = 0; });
 
 // Live height of sentence idx (its pool node must currently hold it), else a sane estimate.
 function psH(idx) {
