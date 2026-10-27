@@ -191,6 +191,42 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
 #focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
 #fa-wpm{min-width:28px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
+/* Focus Mode only: Opacity button (bottom-left) + drop-up slider. The auto-read controls sit bottom-centre,
+   so the two never touch. */
+#focus-opacity{
+  position:absolute;
+  left:calc(16px + env(safe-area-inset-left,0px));
+  bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  z-index:50;opacity:0;pointer-events:none;transition:opacity .3s;
+  font-family:'DM Mono',monospace;font-weight:700;
+}
+.focus-mode #focus-opacity{opacity:.5;pointer-events:all}
+.focus-mode #focus-opacity:hover,.focus-mode #focus-opacity.open{opacity:1}
+#fo-btn{
+  height:22px;padding:0 9px;cursor:pointer;
+  font:inherit;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text-mid);background:none;border:1px solid var(--border);
+  -webkit-tap-highlight-color:transparent;
+}
+#fo-btn:hover,#focus-opacity.open #fo-btn{color:var(--gold);border-color:var(--gold-dim)}
+#fo-pop{
+  display:none;position:absolute;left:0;bottom:calc(100% + 8px);width:200px;
+  padding:12px 14px;flex-direction:column;gap:8px;
+  background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
+}
+#focus-opacity.open #fo-pop{display:flex}
+#fo-cap{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim)}
+.fo-row{display:flex;align-items:center;gap:10px}
+#nb-op-val{font-size:11px;color:var(--text-mid);min-width:34px;text-align:right;flex-shrink:0}
+#nb-op-slider{
+  -webkit-appearance:none;appearance:none;flex:1;min-width:0;height:24px;margin:0;
+  background:transparent;cursor:pointer;
+}
+#nb-op-slider::-webkit-slider-runnable-track{height:3px;background:var(--gold-dim);border-radius:2px}
+#nb-op-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:var(--gold);border:none;margin-top:-6.5px;cursor:pointer}
+#nb-op-slider::-moz-range-track{height:3px;background:var(--gold-dim);border-radius:2px}
+#nb-op-slider::-moz-range-progress{height:3px;background:var(--gold);border-radius:2px}
+#nb-op-slider::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--gold);border:none;cursor:pointer}
 /* Focus button in top-right */
 #btn-focus{position:relative}
 
@@ -785,34 +821,33 @@ body:not(.focus-mode) #track{
 }
 #font-select:hover{color:var(--gold);border-color:var(--gold-dim)}
 #font-select:focus{outline:none;border-color:var(--gold-dim)}
-#more-menu-volume, #more-menu-nbop{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
-#nb-op-val{ font-family:'DM Mono',monospace; font-size:11px; font-weight:700; color:var(--text-mid); min-width:34px; text-align:right; flex-shrink:0; }
+#more-menu-volume{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
 
 /* Volume slider — horizontal, transparent track (not the browser's default
    white bar) with a visible thumb so it clearly reads as draggable.
    Removing -webkit-appearance/appearance strips ALL native styling, so the
    track and thumb are rebuilt explicitly below for both engines. */
-#more-menu #vol-slider, #more-menu #nb-op-slider{
+#more-menu #vol-slider{
   -webkit-appearance:none; appearance:none;
   writing-mode:horizontal-tb; direction:ltr;
   width:auto; height:20px; flex:1; min-width:60px; margin:0;
   background:transparent; cursor:pointer;
 }
-#more-menu #vol-slider::-webkit-slider-runnable-track, #more-menu #nb-op-slider::-webkit-slider-runnable-track{
+#more-menu #vol-slider::-webkit-slider-runnable-track{
   height:3px; background:var(--gold-dim); border-radius:2px;
 }
-#more-menu #vol-slider::-webkit-slider-thumb, #more-menu #nb-op-slider::-webkit-slider-thumb{
+#more-menu #vol-slider::-webkit-slider-thumb{
   -webkit-appearance:none; appearance:none;
   width:15px; height:15px; border-radius:50%;
   background:var(--gold); border:none; margin-top:-6px; cursor:pointer;
 }
-#more-menu #vol-slider::-moz-range-track, #more-menu #nb-op-slider::-moz-range-track{
+#more-menu #vol-slider::-moz-range-track{
   height:3px; background:var(--gold-dim); border-radius:2px;
 }
-#more-menu #vol-slider::-moz-range-progress, #more-menu #nb-op-slider::-moz-range-progress{
+#more-menu #vol-slider::-moz-range-progress{
   height:3px; background:var(--gold); border-radius:2px;
 }
-#more-menu #vol-slider::-moz-range-thumb, #more-menu #nb-op-slider::-moz-range-thumb{
+#more-menu #vol-slider::-moz-range-thumb{
   width:15px; height:15px; border-radius:50%;
   background:var(--gold); border:none; cursor:pointer;
 }
@@ -1023,7 +1058,7 @@ body:not(.focus-mode) #track{
      this only changes the slider's orientation/layout so it reads
      naturally in a dropdown list instead of as a vertical rocker. */
   #more-menu-volume #btn-mute{ padding:6px; min-width:36px; min-height:36px; flex-shrink:0; }
-  #more-menu-volume .more-menu-label, #more-menu-nbop .more-menu-label{ flex-shrink:0; }
+  #more-menu-volume .more-menu-label{ flex-shrink:0; }
 
   /* ── Bookmark + timer + progress ──
      One organized cluster in the lower-left corner: an icon column (timer
@@ -1187,11 +1222,11 @@ body:not(.focus-mode) #track{
     display:grid; grid-template-columns:1fr 1fr; gap:2px;
     min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
   }
-  #more-menu-textsize, #more-menu-volume, #more-menu-nbop, #timer-flower{ grid-column:1 / -1; }
+  #more-menu-textsize, #more-menu-volume, #timer-flower{ grid-column:1 / -1; }
   #more-menu .icon-btn{ min-height:32px; padding:3px 10px; }
   #more-menu{ max-height:calc(100vh - 62px); }
   #more-menu-textsize{ padding:3px 10px; }
-  #more-menu-volume, #more-menu-nbop{ padding:2px 10px; }
+  #more-menu-volume{ padding:2px 10px; }
   #timer-flower{ padding:2px 10px; }
   #flower-presets, #flower-controls{ padding:3px 0 2px; }
   .flower-preset, #flower-pause, #flower-reset{ padding:6px 0; }
@@ -1430,13 +1465,6 @@ body:not(.focus-mode) #track{
             </div>
           </div>
 
-          <!-- Focus Mode: how visible the previous / next sentence are -->
-          <div id="more-menu-nbop">
-            <span class="more-menu-label">Next / prev</span>
-            <input type="range" id="nb-op-slider" min="0" max="100" value="50" step="5" title="Focus Mode: opacity of the previous and next sentence">
-            <span id="nb-op-val">50%</span>
-          </div>
-
           <!-- Volume — moved here from the reading area. Mute toggle is
                untouched; the slider just renders inline in this row now
                instead of a separate floating popover. -->
@@ -1476,6 +1504,18 @@ body:not(.focus-mode) #track{
       <button id="fa-down" title="Slower" aria-label="Slower">−</button>
       <span id="fa-wpm">200</span>
       <button id="fa-up" title="Faster" aria-label="Faster">+</button>
+    </div>
+
+    <!-- Focus Mode only: "Opacity" button → drop-up slider for the previous / next sentence -->
+    <div id="focus-opacity">
+      <div id="fo-pop">
+        <span id="fo-cap">Prev / next sentence</span>
+        <div class="fo-row">
+          <input type="range" id="nb-op-slider" min="0" max="100" value="50" step="5" aria-label="Opacity of the previous and next sentence">
+          <span id="nb-op-val">50%</span>
+        </div>
+      </div>
+      <button id="fo-btn" type="button" aria-expanded="false">Opacity</button>
     </div>
 
     <!-- Bookmark toast -->
@@ -4751,6 +4791,7 @@ function sentenceIdxAtPoint(x, y) {
   return best;
 }
 function exitFocusMode() {
+  const fo = document.getElementById('focus-opacity'); if (fo) fo.classList.remove('open');
   focusMode = false;
   document.body.classList.remove('focus-mode');
   btnFocus.classList.remove('active');
@@ -5478,6 +5519,19 @@ nbSlider.addEventListener('input', () => {
   if (focusMode && nodes.length) layout(true);
 });
 syncNbUI();
+const foWrap = document.getElementById('focus-opacity');
+const foBtn  = document.getElementById('fo-btn');
+foBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  const open = foWrap.classList.toggle('open');
+  foBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+// Tapping anywhere else closes it
+document.addEventListener('pointerdown', e => {
+  if (foWrap.classList.contains('open') && !foWrap.contains(e.target)) {
+    foWrap.classList.remove('open'); foBtn.setAttribute('aria-expanded', 'false');
+  }
+});
 
 /* ── Volume controls ── */
 const volSlider   = document.getElementById('vol-slider');
