@@ -5031,6 +5031,8 @@ trackEl.addEventListener('mouseleave', () => {
   clearTimeout(_dictMoveTimer);
   tooltipHideTimer = setTimeout(hideTooltip, 180);
 });
+// Long-press on a word shouldn't open the browser's context menu while the dictionary is on.
+trackEl.addEventListener('contextmenu', e => { if (dictOn) e.preventDefault(); });
 trackEl.addEventListener('click', e => {
   if (!dictOn || Date.now() - _lastTouchTs < 900) return;      // touch taps are handled by touchend
   const sp = dictWordAtPoint(e.clientX, e.clientY);
@@ -5401,7 +5403,7 @@ function showTooltipForEl(sp, force) {
   const clean = cleanWord(sp.textContent);
   if (!clean || clean.length < 2) return;
   clearTimeout(tooltipHideTimer);
-  if (force) dictPauseAuto();     // pressed a word: hold auto-play while the definition is on screen
+  dictPauseAuto();                // a definition is about to show (tap, click OR mouse-hover): hold auto-play until it closes
   // Hovering the same word repeatedly (desktop mousemove) must not restart the lookup.
   if (!force && _activeWordEl === sp && tooltip.classList.contains('show')) return;
 
