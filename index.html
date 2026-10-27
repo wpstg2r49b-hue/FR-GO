@@ -785,33 +785,34 @@ body:not(.focus-mode) #track{
 }
 #font-select:hover{color:var(--gold);border-color:var(--gold-dim)}
 #font-select:focus{outline:none;border-color:var(--gold-dim)}
-#more-menu-volume{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
+#more-menu-volume, #more-menu-nbop{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
+#nb-op-val{ font-family:'DM Mono',monospace; font-size:11px; font-weight:700; color:var(--text-mid); min-width:34px; text-align:right; flex-shrink:0; }
 
 /* Volume slider — horizontal, transparent track (not the browser's default
    white bar) with a visible thumb so it clearly reads as draggable.
    Removing -webkit-appearance/appearance strips ALL native styling, so the
    track and thumb are rebuilt explicitly below for both engines. */
-#more-menu #vol-slider{
+#more-menu #vol-slider, #more-menu #nb-op-slider{
   -webkit-appearance:none; appearance:none;
   writing-mode:horizontal-tb; direction:ltr;
   width:auto; height:20px; flex:1; min-width:60px; margin:0;
   background:transparent; cursor:pointer;
 }
-#more-menu #vol-slider::-webkit-slider-runnable-track{
+#more-menu #vol-slider::-webkit-slider-runnable-track, #more-menu #nb-op-slider::-webkit-slider-runnable-track{
   height:3px; background:var(--gold-dim); border-radius:2px;
 }
-#more-menu #vol-slider::-webkit-slider-thumb{
+#more-menu #vol-slider::-webkit-slider-thumb, #more-menu #nb-op-slider::-webkit-slider-thumb{
   -webkit-appearance:none; appearance:none;
   width:15px; height:15px; border-radius:50%;
   background:var(--gold); border:none; margin-top:-6px; cursor:pointer;
 }
-#more-menu #vol-slider::-moz-range-track{
+#more-menu #vol-slider::-moz-range-track, #more-menu #nb-op-slider::-moz-range-track{
   height:3px; background:var(--gold-dim); border-radius:2px;
 }
-#more-menu #vol-slider::-moz-range-progress{
+#more-menu #vol-slider::-moz-range-progress, #more-menu #nb-op-slider::-moz-range-progress{
   height:3px; background:var(--gold); border-radius:2px;
 }
-#more-menu #vol-slider::-moz-range-thumb{
+#more-menu #vol-slider::-moz-range-thumb, #more-menu #nb-op-slider::-moz-range-thumb{
   width:15px; height:15px; border-radius:50%;
   background:var(--gold); border:none; cursor:pointer;
 }
@@ -1022,7 +1023,7 @@ body:not(.focus-mode) #track{
      this only changes the slider's orientation/layout so it reads
      naturally in a dropdown list instead of as a vertical rocker. */
   #more-menu-volume #btn-mute{ padding:6px; min-width:36px; min-height:36px; flex-shrink:0; }
-  #more-menu-volume .more-menu-label{ flex-shrink:0; }
+  #more-menu-volume .more-menu-label, #more-menu-nbop .more-menu-label{ flex-shrink:0; }
 
   /* ── Bookmark + timer + progress ──
      One organized cluster in the lower-left corner: an icon column (timer
@@ -1186,11 +1187,11 @@ body:not(.focus-mode) #track{
     display:grid; grid-template-columns:1fr 1fr; gap:2px;
     min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
   }
-  #more-menu-textsize, #more-menu-volume, #timer-flower{ grid-column:1 / -1; }
+  #more-menu-textsize, #more-menu-volume, #more-menu-nbop, #timer-flower{ grid-column:1 / -1; }
   #more-menu .icon-btn{ min-height:32px; padding:3px 10px; }
   #more-menu{ max-height:calc(100vh - 62px); }
   #more-menu-textsize{ padding:3px 10px; }
-  #more-menu-volume{ padding:2px 10px; }
+  #more-menu-volume, #more-menu-nbop{ padding:2px 10px; }
   #timer-flower{ padding:2px 10px; }
   #flower-presets, #flower-controls{ padding:3px 0 2px; }
   .flower-preset, #flower-pause, #flower-reset{ padding:6px 0; }
@@ -1427,6 +1428,13 @@ body:not(.focus-mode) #track{
               <span id="zoom-pct">100%</span>
               <button class="zoom-btn" id="btn-zoom-in" title="Larger text">A＋</button>
             </div>
+          </div>
+
+          <!-- Focus Mode: how visible the previous / next sentence are -->
+          <div id="more-menu-nbop">
+            <span class="more-menu-label">Next / prev</span>
+            <input type="range" id="nb-op-slider" min="0" max="100" value="50" step="5" title="Focus Mode: opacity of the previous and next sentence">
+            <span id="nb-op-val">50%</span>
           </div>
 
           <!-- Volume — moved here from the reading area. Mute toggle is
@@ -3197,6 +3205,9 @@ const VSTEPS = [
   {op:0,    scale:0.78, size:'26px'},
 ];
 
+// Focus Mode: opacity of the previous / next sentence (0 = invisible … 1 = fully opaque). User-adjustable.
+var nbOpacity = (() => { try { const v = parseInt(localStorage.getItem('focusreader_nb_opacity')); return isNaN(v) ? 0.5 : Math.max(0, Math.min(100, v)) / 100; } catch(e) { return 0.5; } })();
+
 let _cachedFocusH = 80;
 let _cachedFocusIdx = -1;
 let _cachedFocusLen = -1; // track sentence length so we only re-measure when content changes
@@ -3285,7 +3296,7 @@ function layout(animated) {
     const tx = step === 0
       ? 'translateY(-50%) scale(1)'
       : `translateY(calc(-50% + ${sign * DY[step]}px)) scale(${vstep.scale})`;
-    const op = String(vstep.op);
+    const op = String(step === 1 ? nbOpacity : vstep.op);
     const zi = step === 0 ? '5' : '1';
 
     if (el.style.transform !== tx) el.style.transform = tx;
@@ -5162,6 +5173,19 @@ function fmClearTimers() {
 
 trackEl.addEventListener('touchstart', e => {
   if (!focusMode || dropdownOpen()) return;
+  // With the dictionary on, every word is its own <span>. Swiping from a word moves to the next
+  // sentence, which rewrites that node's HTML and REMOVES the span the finger started on; the
+  // browser then sends touchend only to that detached span, it never bubbles up here, the
+  // "hold to keep reading" timer is never cleared and sentences race by. So listen for the end of
+  // THIS touch on the element it began on, which still receives it.
+  const tgt = e.target;
+  const endTouch = () => {
+    _fmActive = false; fmClearTimers();
+    tgt.removeEventListener('touchend', endTouch);
+    tgt.removeEventListener('touchcancel', endTouch);
+  };
+  tgt.addEventListener('touchend', endTouch);
+  tgt.addEventListener('touchcancel', endTouch);
   const t = e.touches[0];
   _fmActive  = true;
   _fmStartX  = t.clientX;
@@ -5190,7 +5214,10 @@ trackEl.addEventListener('touchmove', e => {
     _fmHoldTimer = setTimeout(() => {
       if (_fmActive) {
         fmClearTimers();
-        _fmHoldInterval = setInterval(() => navigate(_fmDir, 'momentum'), FM_HOLD_INTERVAL_MS);
+        _fmHoldInterval = setInterval(() => {
+          if (!focusMode || !_fmActive) { fmClearTimers(); return; }   // safety: never run without a finger down
+          navigate(_fmDir, 'momentum');
+        }, FM_HOLD_INTERVAL_MS);
       }
     }, FM_HOLD_DELAY_MS);
   }
@@ -5439,6 +5466,18 @@ function showTooltipForEl(sp, force) {
     positionTooltip();
   });
 }
+
+/* ── Focus Mode neighbour-sentence opacity ── */
+const nbSlider = document.getElementById('nb-op-slider');
+const nbVal    = document.getElementById('nb-op-val');
+function syncNbUI() { nbSlider.value = Math.round(nbOpacity * 100); nbVal.textContent = Math.round(nbOpacity * 100) + '%'; }
+nbSlider.addEventListener('input', () => {
+  nbOpacity = parseInt(nbSlider.value) / 100;
+  try { localStorage.setItem('focusreader_nb_opacity', String(Math.round(nbOpacity * 100))); } catch(e) {}
+  syncNbUI();
+  if (focusMode && nodes.length) layout(true);
+});
+syncNbUI();
 
 /* ── Volume controls ── */
 const volSlider   = document.getElementById('vol-slider');
