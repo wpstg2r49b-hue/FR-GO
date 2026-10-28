@@ -310,11 +310,12 @@ body:not(.focus-mode) #track{
   transition:transform .2s cubic-bezier(.22,1,.36,1),
              opacity   .15s ease;
   will-change:transform,opacity,filter;
-  transform-style:preserve-3d;
   /* contain removed — it creates an overflow clipping context that clips
      tall focused sentences. We apply it per-node only on non-focused slots. */
 }
-.snt.neighbour{contain:layout style} /* applied via JS on non-focused nodes */
+.snt.neighbour{contain:layout style}
+/* Focus Mode: previous / next sentence take their opacity from ONE variable (set by the Opacity slider) */
+.snt.nb1{opacity:var(--nb-op,.5)} /* applied via JS on non-focused nodes */
 .snt.zh{font-family:'Noto Serif SC',var(--reading-font,'Lora'),serif;line-height:1.9;font-size:24px}
 .snt b{font-weight:700;font-style:inherit}
 /* ── Book-page layout (Focus Mode AND normal reading mode — identical) ─────────
@@ -3324,6 +3325,7 @@ function layout(animated) {
     const vstep   = VSTEPS[step];
 
     if (aoff >= VSTEPS.length) {
+      if (el.classList.contains('nb1')) el.classList.remove('nb1');
       if (el.style.opacity !== '0') el.style.opacity = '0';
       el.style.transform = 'translateY(-50%) scale(0.7)';
       continue;
@@ -3336,11 +3338,17 @@ function layout(animated) {
     const tx = step === 0
       ? 'translateY(-50%) scale(1)'
       : `translateY(calc(-50% + ${sign * DY[step]}px)) scale(${vstep.scale})`;
-    const op = String(step === 1 ? nbOpacity : vstep.op);
     const zi = step === 0 ? '5' : '1';
 
     if (el.style.transform !== tx) el.style.transform = tx;
-    if (el.style.opacity   !== op) el.style.opacity   = op;
+    if (step === 1) {                       // previous / next sentence: opacity comes from the CSS variable
+      if (el.style.opacity) el.style.opacity = '';
+      if (!el.classList.contains('nb1')) el.classList.add('nb1');
+    } else {
+      if (el.classList.contains('nb1')) el.classList.remove('nb1');
+      const op = String(vstep.op);
+      if (el.style.opacity !== op) el.style.opacity = op;
+    }
     if (el.style.zIndex    !== zi) el.style.zIndex    = zi;
     // contain:layout on neighbours only — focused node must not be clipped
     const isNeighbour = step !== 0;
@@ -5511,7 +5519,11 @@ function showTooltipForEl(sp, force) {
 /* ── Focus Mode neighbour-sentence opacity ── */
 const nbSlider = document.getElementById('nb-op-slider');
 const nbVal    = document.getElementById('nb-op-val');
-function syncNbUI() { nbSlider.value = Math.round(nbOpacity * 100); nbVal.textContent = Math.round(nbOpacity * 100) + '%'; }
+function syncNbUI() {
+  nbSlider.value = Math.round(nbOpacity * 100);
+  nbVal.textContent = Math.round(nbOpacity * 100) + '%';
+  trackEl.style.setProperty('--nb-op', String(nbOpacity));
+}
 nbSlider.addEventListener('input', () => {
   nbOpacity = parseInt(nbSlider.value) / 100;
   try { localStorage.setItem('focusreader_nb_opacity', String(Math.round(nbOpacity * 100))); } catch(e) {}
