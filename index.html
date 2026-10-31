@@ -1302,6 +1302,51 @@ body:not(.focus-mode) #track{
   .pos-page-label, .pos-sent-label{ display:none; }
 }
 
+/* ── Read aloud ───────────────────────────────────────────────────────────── */
+#btn-narr{
+  background:none;border:none;cursor:pointer;padding:10px;display:flex;align-items:center;justify-content:center;
+  opacity:.5;transition:opacity .2s,color .2s;color:var(--text-mid);-webkit-tap-highlight-color:transparent;
+}
+#btn-narr:hover{opacity:1;color:var(--gold)}
+/* desktop: the speaker lives in the top toolbar (the left rail there is crowded by the speed controls) */
+@media (min-width:681px) and (min-height:501px), (min-width:681px) and (orientation:portrait){ #btn-narr{display:none} }
+#btn-narr.active{opacity:1;color:var(--gold)}
+/* the sentence currently being spoken — subtle: a soft gold wash and hairline outline */
+.snt[data-narr]{outline:1px solid var(--gold-dim);outline-offset:-2px;border-radius:6px}
+.snt[data-narr]:not([data-bm]){background:rgba(200,169,110,.09)}
+#narr-bar{
+  display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:110px;
+  width:min(440px,calc(100vw - 24px));padding:10px 12px;flex-direction:column;gap:8px;z-index:55;
+  background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.5);
+  font-family:'DM Mono',monospace;font-weight:700;
+}
+#narr-bar.show{display:flex}
+#narr-status{font-size:11px;letter-spacing:.06em;color:var(--text-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#narr-prog{height:2px;background:var(--border);overflow:hidden}
+#narr-prog span{display:block;height:100%;width:0;background:var(--gold);transition:width .3s ease}
+#narr-row{display:flex;align-items:center;gap:8px}
+#narr-row button{
+  width:34px;height:30px;padding:0;cursor:pointer;flex-shrink:0;font:inherit;font-size:13px;line-height:1;
+  color:var(--text-mid);background:none;border:1px solid var(--border);-webkit-tap-highlight-color:transparent;
+}
+#narr-row button:hover:not(:disabled){color:var(--gold);border-color:var(--gold-dim)}
+#narr-row button:disabled{opacity:.4;cursor:default}
+#narr-row select{
+  height:30px;min-width:0;font:inherit;font-size:11px;color:var(--text-mid);background:var(--surface);
+  border:1px solid var(--border);padding:0 4px;cursor:pointer;
+}
+#narr-row select:focus{outline:none;border-color:var(--gold-dim)}
+#narr-speed{flex:0 0 66px}
+#narr-voice{flex:1}
+.focus-mode #narr-bar{bottom:calc(52px + env(safe-area-inset-bottom,0px))}
+@media (max-width:680px), (orientation:landscape) and (max-height:500px){
+  #narr-bar{bottom:calc(var(--dock-h) + 10px)}
+  .focus-mode #narr-bar{bottom:calc(52px + env(safe-area-inset-bottom,0px))}
+  #narr-row select{font-size:16px}          /* ≥16px stops iOS zooming the page when a menu opens */
+  #btn-narr{padding:6px;min-width:38px;min-height:38px}
+}
+@media (max-width:350px){ #btn-narr{min-width:34px;padding:4px} }
+
 /* Respect reduced-motion preference across the whole app */
 @media (prefers-reduced-motion: reduce){
   *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; }
@@ -1400,6 +1445,12 @@ body:not(.focus-mode) #track{
               <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
             </svg>
             <span class="more-menu-label">Bionic reading</span>
+          </button>
+
+          <!-- Read aloud: speaker (desktop toolbar; on phones the dock button is used and this is the menu entry) -->
+          <button class="icon-btn" id="btn-narr-top" title="Read aloud" aria-label="Read aloud">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+            <span class="more-menu-label">Read aloud</span>
           </button>
 
           <!-- New book: plus inside a page -->
@@ -1505,6 +1556,7 @@ body:not(.focus-mode) #track{
       <button id="fa-down" title="Slower" aria-label="Slower">−</button>
       <span id="fa-wpm">200</span>
       <button id="fa-up" title="Faster" aria-label="Faster">+</button>
+      <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
     </div>
 
     <!-- Focus Mode only: "Opacity" button → drop-up slider for the previous / next sentence -->
@@ -1517,6 +1569,31 @@ body:not(.focus-mode) #track{
         </div>
       </div>
       <button id="fo-btn" type="button" aria-expanded="false">Opacity</button>
+    </div>
+
+    <!-- Read-aloud controls: only visible while narration is active -->
+    <div id="narr-bar" role="region" aria-label="Read aloud controls">
+      <div id="narr-status">Ready</div>
+      <div id="narr-prog"><span></span></div>
+      <div id="narr-row">
+        <button id="narr-pause" type="button" aria-label="Pause">Ⅱ</button>
+        <button id="narr-stop" type="button" aria-label="Stop reading aloud">■</button>
+        <select id="narr-speed" aria-label="Speaking speed">
+          <option value="0.8">0.8×</option><option value="0.9">0.9×</option><option value="1" selected>1×</option>
+          <option value="1.1">1.1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
+        </select>
+        <select id="narr-voice" aria-label="Voice">
+          <optgroup label="AI voices (on-device)">
+            <option value="af_heart">Heart · US F</option>
+            <option value="af_bella">Bella · US F</option>
+            <option value="af_nicole">Nicole · US F</option>
+            <option value="bf_emma">Emma · UK F</option>
+            <option value="am_michael">Michael · US M</option>
+            <option value="bm_george">George · UK M</option>
+          </optgroup>
+          <option value="system">Device voice</option>
+        </select>
+      </div>
     </div>
 
     <!-- Bookmark toast -->
@@ -1617,6 +1694,11 @@ body:not(.focus-mode) #track{
               </div>
             </div>
           </div>
+
+          <!-- Read aloud (audiobook narration) -->
+          <button id="btn-narr" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+          </button>
 
           <!-- Light / dark theme toggle -->
           <button id="btn-theme" title="Switch to light mode" aria-label="Switch to light mode">
@@ -3511,6 +3593,7 @@ function renderPool() {
 // Write a single sentence into a pool node — skips if already showing it
 function writeNode(el, sentIdx) {
   applyBmHighlight(el, sentIdx);
+  applyNarrHighlight(el, sentIdx);
   const isFocused = sentIdx === current;
   // Skip rewrite if content and focus state are unchanged
   if (el._sentIdx === sentIdx && el._focused === isFocused) return;
@@ -3629,6 +3712,15 @@ function renderNodeTextFast(prevIdx, nextIdx) {
   renderPool();
 }
 
+// Old call sites (figure-page handling) still call setNodeContent(), which no longer exists and threw a
+// ReferenceError whenever a book contained image pages. It now simply asks for one coalesced re-render.
+var _ncPending = false;
+function setNodeContent() {
+  if (_ncPending) return;
+  _ncPending = true;
+  Promise.resolve().then(() => { _ncPending = false; if (nodes.length) renderNodeText(); });
+}
+
 // Full re-render — called after mode changes (bionic/dict toggle), zoom, search
 function renderNodeText() {
   // Invalidate per-node stamps so writeNode rewrites everything
@@ -3648,6 +3740,7 @@ const posWrap        = document.getElementById('pos-wrap');
 let _lastHUDpct = -1, _lastHUDsent = -1, _lastHUDpg = -1;
 
 function updateHUD() {
+  if (narr.active) narrNoteMove();      // reader moved on its own while narrating → narration follows
   const pct = sentences.length > 1 ? current / (sentences.length - 1) : 0;
 
   if (pct !== _lastHUDpct) {
@@ -3817,6 +3910,7 @@ function syncPlayUI() {
   faPlay.textContent = autoOn ? 'Ⅱ' : '▶';
 }
 function startAuto() {
+  if (narr.active) narrStop();           // auto-play and read-aloud both move the reader — only one at a time
   autoOn=true; syncPlayUI(); wakeLockOn();
   if (focusMode) scheduleAuto();
   else { scrollVel = 0; physScrollStart(); }
@@ -3862,14 +3956,15 @@ async function wakeLockOn() {
     const lock = await navigator.wakeLock.request('screen');
     _wakeLock = lock;
     lock.addEventListener('release', () => { if (_wakeLock === lock) _wakeLock = null; });
-    if (!autoOn) wakeLockOff();            // auto-play was stopped while the request was pending
+    if (!autoOn && !narr.active) wakeLockOff();   // neither auto-play nor narration is running any more
   } catch (e) { _wakeLock = null; }        // unsupported / not allowed — auto-play still works, screen may dim
 }
 function wakeLockOff() {
+  if (narr.active) return;                // narration still needs the screen awake
   const lock = _wakeLock; _wakeLock = null;
   if (lock) { try { lock.release(); } catch (e) {} }
 }
-document.addEventListener('visibilitychange', () => { if (!document.hidden && autoOn) wakeLockOn(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && (autoOn || narr.active)) wakeLockOn(); });
 function stopAuto()  { autoOn=false; _dictAutoPaused=false; clearTimeout(autoTimer); clearAutoHold(); wakeLockOff(); syncPlayUI(); }
 function toggleAuto(){ autoOn?stopAuto():startAuto(); }
 
@@ -3891,7 +3986,7 @@ window.__transitionPerf = () => {
 function navigate(dir, source) {
   const t0 = performance.now();
   const now = Date.now();
-  if (source !== 'auto' && source !== 'momentum' && now - lastNav < 80) return;
+  if (source !== 'auto' && source !== 'momentum' && source !== 'narr' && now - lastNav < 80) return;
   lastNav = now;
   const next = current + dir;
   if (next < 0 || next >= sentences.length) {
@@ -3899,7 +3994,8 @@ function navigate(dir, source) {
     if (autoOn && next >= sentences.length) stopAuto();
     return;
   }
-  playTick(source === 'auto' ? 'auto' : 'manual');
+  if (source !== 'narr') playTick(source === 'auto' ? 'auto' : 'manual');
+  if (source !== 'narr' && narr.tween) { narr.tween = null; narr.moving = false; }
   const prev = current;
   current = next;
   scrollOff = 0; scrollVel = 0;   // stepping by key / auto-play re-centres the sentence
@@ -4340,6 +4436,14 @@ function rebuildBmMap() {
   bmColorMap = new Map();
   bookmarks.forEach(b => bmColorMap.set(b.idx, BM_COLORS.includes(b.color) ? b.color : 'yellow'));
 }
+/* Read-aloud shared state (the narration module below extends this object) */
+var narr = { active: false, moving: false, idx: -1, anchor: -1, tween: null };
+function applyNarrHighlight(el, idx) {
+  if (narr.idx >= 0 && idx === narr.idx) { if (el.dataset.narr !== '1') el.dataset.narr = '1'; }
+  else if (el.dataset.narr) delete el.dataset.narr;
+}
+function refreshNarrHighlight() { nodes.forEach(el => applyNarrHighlight(el, el._sentIdx)); }
+
 function applyBmHighlight(el, idx) {
   const c = bmColorMap.get(idx);
   if (c) { if (el.dataset.bm !== c) el.dataset.bm = c; }
@@ -4474,6 +4578,7 @@ document.addEventListener('click', (e) => {
 function jumpTo(idx) {
   if (idx < 0 || idx >= sentences.length) return;
   stopAuto();
+  if (narr.tween) { narr.tween = null; narr.moving = false; }   // the reader was gliding to a narrated sentence — a manual jump wins
   current = idx;
   // Keep the continuous-scroll position in sync, otherwise a bookmark tap that lands
   // while the scroll physics is still settling would be snapped back to the old spot.
@@ -4550,6 +4655,7 @@ function ensureSingleSentences(stored, isZh) {
 }
 
 function openBook(book) {
+  if (narr.active) narrStop();           // a different book → cancel the previous book's narration
   // Safety pass: re-split any stored chunk that contains multiple sentences.
   // This fixes books imported before the parser fix without requiring re-import.
   sentences = ensureSingleSentences(book.sentences, book.lang === 'zh');
@@ -5855,7 +5961,7 @@ function psCommit(prev) {
   updateHUD();
   if (currentBookId) saveProgress();
   const now = performance.now();
-  if (now - _psLastTick >= PS_TICK_MIN_MS) { _psLastTick = now; playTick(autoOn && !scrollDragging ? 'auto' : 'manual'); }
+  if (!narr.active && now - _psLastTick >= PS_TICK_MIN_MS) { _psLastTick = now; playTick(autoOn && !scrollDragging ? 'auto' : 'manual'); }
 }
 
 // Scroll by dPx (+ = forward). Processed in bounded steps so a huge fling or wheel
@@ -5900,10 +6006,25 @@ function physScrollApplyLayout() {
 }
 
 function physScrollLoop(ts) {
-  if (focusMode) { physScrollStop(); return; }
+  if (focusMode) { narr.tween = null; narr.moving = false; physScrollStop(); return; }
   if (!_psLastT) _psLastT = ts;
   const dt = Math.min(PS_MAX_DT_MS, ts - _psLastT);
   _psLastT = ts;
+
+  // Read-aloud: glide so the sentence being spoken reaches the centre line (a finger on the screen cancels it)
+  if (narr.tween) {
+    if (scrollDragging) { narr.tween = null; narr.moving = false; }
+    else {
+      const tw = narr.tween;
+      if (!tw.t0) tw.t0 = ts;
+      const t = Math.min(1, (ts - tw.t0) / tw.dur), e = 1 - Math.pow(1 - t, 3);
+      physScrollAdvance(tw.dist * (e - tw.e)); tw.e = e;
+      if (t >= 1) { narr.tween = null; narr.moving = false; if (narr.active) narrNoteMove(); }
+      physScrollApplyLayout();
+      scrollRAF = requestAnimationFrame(physScrollLoop);
+      return;
+    }
+  }
 
   if (!scrollDragging) {
     if (autoOn && !autoHold) {
@@ -6280,6 +6401,549 @@ if (!tryOpenFromURL()) {
   dropScreen.style.display='';
   dropScreen.classList.remove('hidden');
 }
+</script>
+
+<script>
+/* ══════════════════════════════════════════════════════════════════════════════
+   READ ALOUD — audiobook narration
+   ──────────────────────────────────────────────────────────────────────────────
+   • Reads the book from the SAME global `sentences[]` array the reader already uses
+     (every chapter / page, in order). Nothing is re-parsed.
+   • Neural voice: Kokoro-82M (Apache-2.0) via kokoro-js + Transformers.js + ONNX Runtime
+     Web, running 100 % on the device in a Web Worker (WASM, 8-bit weights ≈ 92 MB,
+     downloaded once and cached by the browser). The book text never leaves the device.
+   • Fallback: the browser's own SpeechSynthesis voices (also used for Chinese books,
+     because kokoro-js's phonemizer is English-only).
+   • One sentence = one audio unit, so the highlight is exact (no duration guessing).
+     A small look-ahead keeps the next few sentences generated while one plays; audio is
+     never kept for the whole book.
+   ══════════════════════════════════════════════════════════════════════════════ */
+(function () {
+'use strict';
+
+const N = narr;                                    // shared state object (declared in the main script)
+const $ = id => document.getElementById(id);
+
+const MODEL_ID   = 'onnx-community/Kokoro-82M-v1.0-ONNX';
+const KOKORO_URL = window.__narrKokoroURL || 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
+const DTYPE      = 'q8';                           // ≈ 92 MB — runs on every device with WebAssembly
+const MODEL_MB   = 92;
+const PIECE_MAX  = 260;                            // longest text sent to the model at once (chars)
+const PIECE_GAP  = 0.12;                           // seconds of silence joining pieces of one long sentence
+const AHEAD_VISIBLE = 2.5, AHEAD_HIDDEN = 30;      // seconds of audio scheduled ahead (more when the tab is hidden)
+const VOICES = ['af_heart', 'af_bella', 'af_nicole', 'bf_emma', 'am_michael', 'bm_george', 'system'];
+const SPEEDS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
+
+const bar = $('narr-bar'), stEl = $('narr-status'), progEl = document.querySelector('#narr-prog span');
+const btnPause = $('narr-pause'), btnStop = $('narr-stop');
+const selSpeed = $('narr-speed'), selVoice = $('narr-voice');
+const btnMain = $('btn-narr'), btnFocus = $('fa-narr'), btnTop = $('btn-narr-top');
+if (!bar || !btnMain) return;
+
+/* ── persisted preferences ───────────────────────────────────────────────── */
+function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+{
+  const v = lsGet('focusreader_narr_voice', 'af_heart');
+  N.voice = VOICES.includes(v) ? v : 'af_heart';
+  const sp = parseFloat(lsGet('focusreader_narr_speed', '1'));
+  N.speed = SPEEDS.reduce((a, b) => Math.abs(b - sp) < Math.abs(a - sp) ? b : a, 1);
+  selVoice.value = N.voice;
+  selSpeed.value = String(N.speed);
+}
+
+/* ── shared state ────────────────────────────────────────────────────────── */
+N.state = 'idle'; N.mode = 'neural'; N.token = 0; N.genIdx = 0; N.inflight = 0; N.pumpTok = 0;
+N.timer = null; N.resyncT = null; N.fail = 0; N.stalls = []; N.warned = false; N.msg = ''; N.loadMsg = '';
+
+let ctx = null, outGain = null;
+const ready = [];            // generated, not yet scheduled: {i, buf, gap}
+const playing = [];          // scheduled on the audio clock: {i, start, end, src, shown}
+let scheduledEnd = 0;
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const n = () => sentences.length;
+
+/* ══ TEXT → SPEAKABLE UNITS ═══════════════════════════════════════════════ */
+function clean(t, type) {
+  t = t.replace(/[\u00AD\u200B-\u200D\uFEFF]/g, '')
+       .replace(/\[\d{1,3}\]/g, ' ')                       // footnote markers
+       .replace(/https?:\/\/\S+/g, ' link ')
+       .replace(/\s*[\u2014\u2013]\s*/g, ', ')             // dashes → short pause
+       .replace(/[*_#~^|<>]/g, ' ')
+       .replace(/\s+/g, ' ').replace(/^,\s*/, '').trim();
+  if (type === 'HEADING' || type === 'ALLCAPS') {
+    const letters = t.replace(/[^A-Za-z]/g, ''), up = letters.replace(/[^A-Z]/g, '').length;
+    if (letters.length && up / letters.length > 0.7)        // ALL-CAPS heading → Title Case (else read letter by letter)
+      t = t.toLowerCase().replace(/(^|[\s(\-])([a-z])/g, (m, a, b) => a + b.toUpperCase());
+    if (!/[.!?:;,]$/.test(t)) t += '.';
+  } else if (type === 'LISTBULLET') {
+    t = t.replace(/^[\u2022\u00B7\u2023\u25E6\u25B8\u25B6\u25BA\u25C6\u25C7\u25CB\u25CF\u2713\u2717\u2726\-*]\s+/, '');
+  }
+  return t;
+}
+// → {text, type} for a readable sentence, or null for image pages / non-text
+function unit(i) {
+  const raw = sentences[i];
+  if (raw == null || /^\x01?IMG:\d+/.test(raw)) return null;
+  const m = raw.match(/^(HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
+  const type = m ? m[1] : 'PROSE';
+  const text = clean(m ? m[2] : raw, type);
+  return /[\p{L}\p{N}]/u.test(text) ? { text, type } : null;
+}
+function nextReadable(i) { while (i < n() && !unit(i)) i++; return i; }
+function gapFor(u) {
+  if (u.type === 'HEADING' || u.type === 'ALLCAPS') return 0.6;
+  if (u.type === 'LISTNUM' || u.type === 'LISTBULLET') return 0.25;
+  return /[.!?]["'\u201D\u2019)]*$/.test(u.text) ? 0.16 : 0.1;
+}
+function pieces(t) {
+  if (t.length <= PIECE_MAX) return [t];
+  const clauses = t.match(/[^,;:]+[,;:]?\s*/g) || [t], out = [];
+  let cur = '';
+  for (let c of clauses) {
+    while (c.length > PIECE_MAX) {                          // a single enormous clause: cut at a space
+      let cut = c.lastIndexOf(' ', PIECE_MAX); if (cut < 40) cut = PIECE_MAX;
+      if (cur) { out.push(cur.trim()); cur = ''; }
+      out.push(c.slice(0, cut).trim()); c = c.slice(cut);
+    }
+    if ((cur + c).length > PIECE_MAX && cur) { out.push(cur.trim()); cur = ''; }
+    cur += c;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out.filter(Boolean);
+}
+
+/* ══ NEURAL ENGINE (Kokoro in a Web Worker) ═══════════════════════════════ */
+const WORKER_SRC = `
+let tts = null; const files = {};
+self.onmessage = async (e) => {
+  const m = e.data;
+  if (m.type === 'init') {
+    try {
+      const mod = await import(m.url);
+      tts = await mod.KokoroTTS.from_pretrained(m.model, {
+        dtype: m.dtype, device: m.device,
+        progress_callback: (p) => {
+          if (p && p.file && typeof p.total === 'number' && p.total > 0) {
+            files[p.file] = { l: p.loaded || 0, t: p.total };
+            let big = null; for (const k in files) if (!big || files[k].t > files[big].t) big = k;
+            self.postMessage({ type: 'progress', loaded: files[big].l, total: files[big].t });
+          }
+        }
+      });
+      self.postMessage({ type: 'ready' });
+    } catch (err) { self.postMessage({ type: 'error', message: String((err && err.message) || err) }); }
+  } else if (m.type === 'gen') {
+    try {
+      const out = await tts.generate(m.text, { voice: m.voice, speed: m.speed });
+      const a = new Float32Array(out.audio);
+      self.postMessage({ type: 'audio', id: m.id, audio: a, sr: out.sampling_rate || 24000 }, [a.buffer]);
+    } catch (err) { self.postMessage({ type: 'error', id: m.id, message: String((err && err.message) || err) }); }
+  }
+};`;
+
+function makeWorkerNeural() {
+  let worker = null, isReady = false, loading = null, loadRes = null, loadRej = null, onProg = null, nextId = 1;
+  const pending = new Map();
+  function failAll(err) { pending.forEach(p => p.rej(err)); pending.clear(); }
+  function spawn() {
+    const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+    worker = new Worker(url, { type: 'module' });
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === 'progress') { if (onProg) onProg(m.loaded, m.total); }
+      else if (m.type === 'ready') { isReady = true; if (loadRes) loadRes(); }
+      else if (m.type === 'audio') { const p = pending.get(m.id); if (p) { pending.delete(m.id); p.res({ audio: m.audio, sr: m.sr }); } }
+      else if (m.type === 'error') {
+        const err = new Error(m.message);
+        if (m.id) { const p = pending.get(m.id); if (p) { pending.delete(m.id); p.rej(err); } }
+        else if (loadRej) loadRej(err);
+      }
+    };
+    worker.onerror = (e) => { const err = new Error((e && e.message) || 'worker error'); if (loadRej) loadRej(err); failAll(err); };
+  }
+  const api = {
+    get ready() { return isReady; },
+    init(progress) {
+      if (isReady) return Promise.resolve();
+      onProg = progress;
+      if (loading) return loading;
+      loading = new Promise((res, rej) => {
+        loadRes = res; loadRej = rej;
+        try { spawn(); worker.postMessage({ type: 'init', url: KOKORO_URL, model: MODEL_ID, dtype: DTYPE, device: 'wasm' }); }
+        catch (e) { rej(e); }
+      }).catch(e => { api.dispose(); throw e; });
+      return loading;
+    },
+    gen(text, voice, speed) {
+      return new Promise((res, rej) => {
+        if (!worker || !isReady) return rej(new Error('voice engine not ready'));
+        const id = nextId++; pending.set(id, { res, rej });
+        worker.postMessage({ type: 'gen', id, text, voice, speed });
+      });
+    },
+    dispose() {
+      if (worker) { try { worker.terminate(); } catch (e) {} }
+      worker = null; isReady = false; loading = null; failAll(new Error('voice engine stopped'));
+    }
+  };
+  return api;
+}
+const Neural = window.__narrNeuralFactory ? window.__narrNeuralFactory() : makeWorkerNeural();   // factory hook = tests only
+
+/* ══ AUDIO OUTPUT (Web Audio, gap-free scheduling) ════════════════════════ */
+function ensureCtx() {
+  if (!ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    ctx = new AC({ latencyHint: 'playback' });
+    outGain = ctx.createGain(); outGain.gain.value = 1; outGain.connect(ctx.destination);
+    ctx.onstatechange = () => {
+      // iOS can put the context in "interrupted" (call, Siri, lock) — show it as paused instead of silently stalling
+      if (N.active && N.mode === 'neural' && N.state === 'playing' && ctx.state !== 'running' && !document.hidden) setState('paused');
+    };
+  }
+  return ctx;
+}
+// Must run inside the tap that starts narration (iOS / Android autoplay rules).
+function unlockAudio() {
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}   // iOS 16.4+: play even with the silent switch on
+  try {
+    const c = ensureCtx(); if (c.state !== 'running') c.resume();
+    const b = c.createBuffer(1, 1, 22050), s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0);
+  } catch (e) {}
+  try { if ('speechSynthesis' in window) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); } } catch (e) {}
+}
+function aheadAudio() {
+  let s = ready.reduce((a, r) => a + r.buf.duration, 0);
+  if (ctx) s += Math.max(0, scheduledEnd - ctx.currentTime);
+  return s;
+}
+
+// text → one AudioBuffer (pieces of a long sentence joined by short silences)
+async function synthUnit(text, tok) {
+  const arrs = []; let sr = 24000;
+  for (const p of pieces(text)) {
+    if (tok !== N.token) return null;
+    const r = await Neural.gen(p, N.voice, N.speed);
+    sr = r.sr; arrs.push(r.audio);
+  }
+  if (tok !== N.token) return null;
+  const gapN = Math.round(sr * PIECE_GAP);
+  let total = 0; arrs.forEach((a, k) => { total += a.length + (k ? gapN : 0); });
+  const buf = ensureCtx().createBuffer(1, Math.max(1, total), sr), ch = buf.getChannelData(0);
+  let o = 0; arrs.forEach((a, k) => { if (k) o += gapN; ch.set(a, o); o += a.length; });
+  return buf;
+}
+
+// keeps a few sentences generated ahead of playback; one at a time (the worker is single-threaded)
+async function pump() {
+  if (N.mode !== 'neural' || !N.active) return;
+  const tok = N.token;
+  if (N.pumpTok === tok) return;
+  N.pumpTok = tok;
+  try {
+    while (tok === N.token && N.active && N.state !== 'loading') {
+      if (ready.length >= (document.hidden ? 8 : 3) || aheadAudio() > 60) break;
+      const i = nextReadable(N.genIdx);
+      if (i >= n()) { N.genIdx = n(); break; }
+      N.genIdx = i + 1; N.inflight++;
+      const u = unit(i);
+      let buf = null;
+      for (let attempt = 0; attempt < 2 && !buf; attempt++) {
+        try { buf = await synthUnit(u.text, tok); if (tok !== N.token) return; }
+        catch (e) { if (tok !== N.token) return; await sleep(250); }
+      }
+      if (tok !== N.token) return;
+      N.inflight--;
+      if (!buf) {
+        if (++N.fail >= 3) { fallbackToSystem('AI voice failed — switched to the device voice'); return; }
+        toast('Skipped a sentence (speech error)'); continue;
+      }
+      N.fail = 0;
+      ready.push({ i, buf, gap: gapFor(u) });
+      tick();
+    }
+  } finally { if (N.pumpTok === tok) N.pumpTok = 0; }
+}
+
+// clock-driven scheduler: queues buffers back-to-back on the audio clock and fires highlights at their real start time
+function tick() {
+  if (N.mode !== 'neural' || !N.active || !ctx || N.state === 'paused' || N.state === 'loading') return;
+  const now = ctx.currentTime, ahead = document.hidden ? AHEAD_HIDDEN : AHEAD_VISIBLE;
+  let latest = null;
+  for (const e of playing) if (!e.shown && e.start <= now) { e.shown = true; latest = e; }
+  if (latest) show(latest.i);
+  for (let k = playing.length - 1; k >= 0; k--) if (playing[k].end <= now && playing[k].shown) playing.splice(k, 1);
+
+  let scheduledAny = false;
+  while (ready.length && scheduledEnd - now < ahead) {
+    const r = ready.shift();
+    const src = ctx.createBufferSource(); src.buffer = r.buf; src.connect(outGain);
+    const start = Math.max(now + 0.04, scheduledEnd), end = start + r.buf.duration;
+    src.start(start);
+    playing.push({ i: r.i, start, end, src, shown: false });
+    scheduledEnd = end + r.gap; scheduledAny = true;
+  }
+  if (scheduledAny) pump();
+
+  const playingNow = playing.some(e => e.start <= now && e.end > now), upcoming = playing.some(e => e.start > now);
+  if (!playingNow && !upcoming && !ready.length) {
+    if (N.genIdx >= n() && N.inflight === 0) { finish(); return; }
+    if (N.state === 'playing') { setState('buffering'); noteStall(); }
+  } else if (N.state === 'buffering') setState('playing');
+}
+function noteStall() {
+  const t = Date.now(); N.stalls = N.stalls.filter(x => t - x < 90000); N.stalls.push(t);
+  if (N.stalls.length >= 4 && !N.warned) {
+    N.warned = true;
+    toast('This device generates speech slower than real time — choose “Device voice” for smooth playback');
+  }
+}
+
+/* ══ DEVICE VOICE (SpeechSynthesis) ═══════════════════════════════════════ */
+function pickDeviceVoice(lang) {
+  const all = ('speechSynthesis' in window) ? speechSynthesis.getVoices() : [];
+  const base = lang.slice(0, 2).toLowerCase();
+  let list = all.filter(v => (v.lang || '').toLowerCase().startsWith(base));
+  const local = list.filter(v => v.localService);
+  if (local.length) list = local;                                   // prefer on-device voices (text stays on the device)
+  const rank = v => (/natural|neural|premium|enhanced|siri|samantha|daniel|karen|moira/i.test(v.name) ? 0 : 1) + (v.default ? 0.5 : 0);
+  list.sort((a, b) => rank(a) - rank(b));
+  return list[0] || null;
+}
+function sysSpeak(from) {
+  if (!('speechSynthesis' in window)) { stop(); toast('This browser has no speech voices'); return; }
+  const tok = N.token, i = nextReadable(from);
+  if (i >= n()) { finish(); return; }
+  const u = unit(i), ut = new SpeechSynthesisUtterance(u.text);
+  const lang = isChineseBook ? 'zh-CN' : 'en-US', v = pickDeviceVoice(lang);
+  if (v) { ut.voice = v; ut.lang = v.lang; } else ut.lang = lang;
+  ut.rate = N.speed;
+  let moved = false;
+  const advance = () => { if (moved || tok !== N.token || N.state === 'paused') return; moved = true; setTimeout(() => { if (tok === N.token && N.state !== 'paused') sysSpeak(i + 1); }, 60); };
+  ut.onstart = () => { if (tok !== N.token) return; N.fail = 0; if (N.state === 'buffering') setState('playing'); show(i); };
+  ut.onend = advance;
+  ut.onerror = (e) => {
+    if (tok !== N.token) return;
+    if (e && (e.error === 'interrupted' || e.error === 'canceled')) return;
+    if (++N.fail >= 3) { stop(); toast('Device voice failed'); return; }
+    advance();
+  };
+  speechSynthesis.speak(ut);
+}
+
+/* ══ FOLLOWING THE NARRATION IN THE READER ════════════════════════════════ */
+function jumpQuiet(i) {                  // like jumpTo(), but never stops auto-play logic / animates
+  N.moving = true; N.tween = null;
+  current = i; scrollOff = 0; scrollVel = 0;
+  nodes.forEach(el => { el._sentIdx = -1; el._focused = undefined; });
+  renderPool();
+  _cachedFocusIdx = -1; _cachedFocusLen = -1;
+  updateHUD();
+  if (currentBookId) saveProgress();
+  requestAnimationFrame(() => { layout(focusMode); N.moving = false; });
+}
+function tweenTo(i) {                    // normal reading mode: glide so sentence i reaches the centre line
+  let dist = -scrollOff;
+  for (let k = current; k < i; k++) dist += psH(k) / 2 + PS_GAP + psH(k + 1) / 2;
+  N.moving = true; N.tween = { dist, dur: 450, t0: 0, e: 0 };
+  scrollVel = 0; physScrollStart();
+}
+function follow(i) {
+  if (i === current) return;
+  if (focusMode) {
+    if (i === current + 1) { N.moving = true; try { navigate(1, 'narr'); } finally { N.moving = false; } }
+    else jumpQuiet(i);
+  } else {
+    const d = i - current;
+    if (d >= 1 && d <= 3) tweenTo(i); else jumpQuiet(i);
+  }
+}
+function show(i) {                       // sentence i has just started being spoken
+  N.idx = i;
+  refreshNarrHighlight();
+  if (!N.resyncT) { N.anchor = i; follow(i); }   // a pending manual move wins: never drag the reader back
+  render();
+}
+// The reader moved somewhere else on its own (swipe, scroll, bookmark, page jump) → narration follows the reader
+function noteMove() {
+  if (!N.active || N.moving || N.state === 'loading') return;
+  if (current === N.anchor && !N.resyncT) return;
+  clearTimeout(N.resyncT);
+  N.resyncT = setTimeout(() => {
+    N.resyncT = null;
+    if (!N.active) return;
+    if (N.moving || scrollDragging) { noteMove(); return; }
+    if (current !== N.anchor) restartAt(current);
+  }, 900);
+}
+
+/* ══ STATE / UI ═══════════════════════════════════════════════════════════ */
+function pct() { return n() > 1 && N.idx >= 0 ? Math.round(N.idx / (n() - 1) * 100) : 0; }
+function statusText() {
+  const eng = N.mode === 'neural' ? 'AI voice' : 'device voice';
+  switch (N.state) {
+    case 'loading':   return N.loadMsg || 'Loading voice…';
+    case 'buffering': return 'Preparing speech… · ' + eng;
+    case 'playing':   return 'Reading · ' + pct() + '% · ' + eng;
+    case 'paused':    return 'Paused · ' + pct() + '%';
+    default:          return N.msg || '';
+  }
+}
+function render() {
+  const act = N.active;
+  bar.classList.toggle('show', act);
+  btnMain.classList.toggle('active', act); if (btnFocus) btnFocus.classList.toggle('active', act); if (btnTop) btnTop.classList.toggle('active', act);
+  btnMain.setAttribute('aria-pressed', act ? 'true' : 'false');
+  btnPause.textContent = N.state === 'paused' ? '\u25B6' : '\u2161';
+  btnPause.setAttribute('aria-label', N.state === 'paused' ? 'Resume' : 'Pause');
+  btnPause.disabled = N.state === 'loading';
+  stEl.textContent = statusText();
+  progEl.style.width = (N.state === 'loading' ? (N.loadFrac || 0) * 100 : pct()) + '%';
+  document.body.classList.toggle('narr-on', act);
+}
+function setState(s) { N.state = s; N.active = s !== 'idle'; render(); }
+function toast(msg) { try { showToast(msg); } catch (e) {} }
+
+/* ══ CONTROL ══════════════════════════════════════════════════════════════ */
+function halt() {                         // cancel everything in flight; does not change the on/off state
+  N.token++; N.inflight = 0; N.pumpTok = 0;
+  clearInterval(N.timer); N.timer = null; clearTimeout(N.resyncT); N.resyncT = null;
+  ready.length = 0;
+  playing.forEach(e => { try { e.src.onended = null; e.src.stop(); } catch (x) {} });
+  playing.length = 0; scheduledEnd = 0;
+  try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
+}
+function stop(msg) {
+  const wasNeural = N.mode === 'neural';
+  halt();
+  if (N.state === 'loading' && wasNeural) Neural.dispose();          // aborts an unfinished model download
+  N.idx = -1; N.anchor = -1; N.tween = null; N.moving = false;
+  N.msg = msg || '';
+  setState('idle');
+  refreshNarrHighlight();
+  try { if (ctx && ctx.state === 'suspended') ctx.resume(); } catch (e) {}
+  if (!autoOn) wakeLockOff();
+  if (msg) toast(msg);
+}
+function finish() { stop('Finished reading'); }
+
+function startTicker() { clearInterval(N.timer); N.timer = setInterval(tick, 50); }
+
+// core: (re)start narration at sentence `from` with the current voice / speed
+async function begin(from, startPaused) {
+  const tok = ++N.token;
+  const i0 = nextReadable(from);
+  if (i0 >= n()) { finish(); return; }
+  N.anchor = i0; N.genIdx = i0; N.inflight = 0; N.pumpTok = 0;
+  ready.length = 0; playing.length = 0; scheduledEnd = 0;
+
+  const wantSystem = N.voice === 'system' || isChineseBook;
+  if (isChineseBook && N.voice !== 'system' && !N.warnedZh) { N.warnedZh = true; toast('AI voices are English-only — using the device voice'); }
+
+  if (!wantSystem) {
+    N.mode = 'neural';
+    if (!Neural.ready) {
+      setState('loading'); N.loadFrac = 0; N.loadMsg = 'Loading voice… (one-time ~' + MODEL_MB + ' MB)';
+      render();
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+      try {
+        await Neural.init((loaded, total) => {
+          if (tok !== N.token) return;
+          N.loadFrac = total ? loaded / total : 0;
+          N.loadMsg = 'Downloading voice… ' + Math.round(N.loadFrac * 100) + '% (' + Math.round(loaded / 1048576) + ' / ' + Math.round(total / 1048576) + ' MB, one-time)';
+          render();
+        });
+      } catch (e) {
+        if (tok !== N.token) return;
+        fallbackToSystem('AI voice unavailable (' + String((e && e.message) || e).slice(0, 60) + ') — using the device voice', i0);
+        return;
+      }
+      if (tok !== N.token) return;
+    }
+    setState(startPaused ? 'paused' : 'buffering');
+    ensureCtx();
+    if (startPaused) { try { await ctx.suspend(); } catch (e) {} } else { try { if (ctx.state !== 'running') await ctx.resume(); } catch (e) {} }
+    startTicker(); pump();
+  } else {
+    N.mode = 'system';
+    if (!Neural.ready) Neural.dispose();          // chose the device voice while the AI model was still downloading → stop downloading
+    setState(startPaused ? 'paused' : 'buffering');
+    if (!startPaused) sysSpeak(i0);
+    else N.anchor = i0;
+  }
+}
+function fallbackToSystem(msg, from) {
+  const at = from != null ? from : (N.idx >= 0 ? N.idx : N.anchor);
+  const wasPaused = N.state === 'paused';
+  halt(); try { Neural.dispose(); } catch (e) {}
+  N.mode = 'system'; toast(msg);
+  N.token++;                                    // begin() increments again; keep monotonic
+  N.anchor = at; N.genIdx = at;
+  setState(wasPaused ? 'paused' : 'buffering');
+  if (!wasPaused) sysSpeak(at);
+}
+function restartAt(i) {
+  const wasPaused = N.state === 'paused';
+  halt();
+  begin(i, wasPaused);
+}
+function reconfigure() {                        // voice or speed changed while narrating
+  if (!N.active) return;
+  const at = N.idx >= 0 ? N.idx : N.anchor, wasPaused = N.state === 'paused';
+  halt(); begin(at, wasPaused);
+}
+
+function start() {
+  if (!n()) { toast('Open a book first'); return; }
+  unlockAudio();                                // inside the user's tap
+  if (autoOn) stopAuto();
+  // anything to read?
+  let readable = 0, imgs = 0;
+  for (let k = 0; k < n(); k++) { if (/^\x01?IMG:\d+/.test(sentences[k])) imgs++; else if (unit(k)) readable++; }
+  if (!readable) { toast('No readable text in this book (scanned pages need OCR first)'); return; }
+  if (imgs) toast('Image-only pages are skipped (' + imgs + ')');
+  N.warned = false; N.stalls = []; N.fail = 0; N.msg = '';
+  wakeLockOn();
+  begin(current, false);
+}
+function togglePause() {
+  if (!N.active || N.state === 'loading') return;
+  if (N.state === 'paused') {
+    if (N.mode === 'neural') { try { ctx.resume(); } catch (e) {} setState('playing'); tick(); }
+    else { setState('buffering'); sysSpeak(N.idx >= 0 ? N.idx : N.anchor); }
+  } else {
+    if (N.mode === 'neural') { try { ctx.suspend(); } catch (e) {} setState('paused'); }
+    else { N.token++; try { speechSynthesis.cancel(); } catch (e) {} setState('paused'); }
+  }
+}
+function onMainButton(e) { if (e) e.stopPropagation(); if (N.active) togglePause(); else start(); }
+
+/* ══ WIRING ═══════════════════════════════════════════════════════════════ */
+btnMain.addEventListener('click', onMainButton);
+if (btnFocus) btnFocus.addEventListener('click', onMainButton);
+if (btnTop) btnTop.addEventListener('click', onMainButton);
+btnPause.addEventListener('click', e => { e.stopPropagation(); togglePause(); });
+btnStop.addEventListener('click', e => { e.stopPropagation(); stop(); });
+selSpeed.addEventListener('change', () => { N.speed = parseFloat(selSpeed.value) || 1; lsSet('focusreader_narr_speed', String(N.speed)); reconfigure(); });
+selVoice.addEventListener('change', () => { N.voice = selVoice.value; lsSet('focusreader_narr_voice', N.voice); N.warnedZh = false; reconfigure(); });
+['click', 'touchstart', 'pointerdown'].forEach(ev => bar.addEventListener(ev, e => e.stopPropagation(), { passive: true }));
+document.addEventListener('visibilitychange', () => {
+  if (!N.active) return;
+  if (!document.hidden) { if (N.mode === 'neural' && N.state === 'playing' && ctx && ctx.state === 'suspended') { try { ctx.resume(); } catch (e) {} } wakeLockOn(); }
+  else tick();
+});
+window.addEventListener('pagehide', () => { try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} });
+if ('speechSynthesis' in window) { try { speechSynthesis.getVoices(); } catch (e) {} }
+
+N.api = { clean, unit, pieces, nextReadable, queues: () => ({ ready: ready.length, playing: playing.length, ahead: aheadAudio() }) };   // exposed for testing
+window.narrStop = stop;
+window.narrNoteMove = noteMove;
+window.__narr = N;                                  // handy for debugging in the console
+render();
+})();
+
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
