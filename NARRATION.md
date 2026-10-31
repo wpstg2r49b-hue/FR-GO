@@ -30,8 +30,13 @@ Everything is inside `index.html`. **No extra files, no build step.**
 * **Units:** one sentence = one audio unit, so the highlight is exact (no "total duration ÷ sentences" guessing). Sentences over 260 characters are split at clauses for the model and joined back into one unit.
 * **Text clean-up for speech:** ALL-CAPS headings → Title Case + pause; dashes → short pauses; footnote markers `[12]` and URLs removed; list bullets dropped. (Kokoro itself expands numbers, years, money, times, titles such as Mr./Dr.)
 * **AI voice:** Kokoro-82M through `kokoro-js`, in a Web Worker so the page never freezes. Generates 1–3 sentences ahead of playback; audio is scheduled gap-free on the Web Audio clock. Nothing is kept for the whole book (tested: 6,000-sentence book, queue never above 3 sentences, JS heap flat).
-* **Device voice:** the browser's own speech voices — used (a) if you choose "Device voice", (b) automatically if the AI voice cannot load or fails 3 times, (c) for Chinese books (kokoro-js's phonemizer is English-only).
-* **Looks slow?** If the AI voice cannot keep up with real time on a phone, you get "Preparing speech…" pauses; after four stalls a hint suggests the Device voice.
+* **Device voice:** the browser's own speech voices — used (a) if you choose "Device voice", (b) automatically whenever the AI voice cannot be used (see below), (c) for Chinese books (kokoro-js's phonemizer is English-only).
+* **Automatic fallback (so it can never sit on "Preparing speech…" forever).** The status line counts the seconds while the first sentence is prepared. The app switches to the Device voice, tells you why, and **saves Device voice as your voice** (pick an AI voice in the menu to try again) when:
+  * the AI engine does not answer within 60 s (first sentence) / 30 s (later sentences) — e.g. the worker was killed for memory;
+  * it generates speech more than 2.2× slower than the length of the speech;
+  * playback runs dry three times in 90 s;
+  * (without saving the preference) the model cannot be downloaded or loaded — the real reason is shown and logged to the console under `[Read aloud]`.
+* **Where the model runs:** in a background worker. Pages opened straight from disk (`file://`) are refused a *module* worker, so the app tries a classic worker first, then a module worker, then a `data:` worker, and as a last resort runs the model on the page itself (works everywhere; the page may stutter while a sentence is generated).
 
 ## Libraries, models, licences, sizes
 
@@ -87,13 +92,13 @@ Also: text clean-up and splitting verified; 6,000-sentence memory check.
 | Desktop Firefox | AI voice should work (module workers need Firefox 114+). Device voice works. |
 | Desktop Safari | AI voice should work (Safari 16.4+). Device voice works. |
 | Android Chrome | AI voice should work; may run slower than real time on mid-range phones (single-threaded WASM) — then use Device voice. Background playback is not guaranteed. |
-| iPhone Safari (iOS 16.4+) | AI voice may work on recent iPhones; older ones may run out of memory loading the model, in which case it falls back to the device voice automatically. The app asks iOS to play even with the silent switch on (iOS 16.4+). Locking the phone or switching apps usually pauses web audio — the app resumes when you return. |
+| iPhone Safari (iOS 16.4+) | **Reported problem:** with the first version the AI voice sat on "Preparing speech…" on an iPhone. The cause could not be reproduced here; the likely ones (audio start-up promise never completing, worker killed for memory, generation far slower than real time on a single-threaded phone) now each end in an automatic switch to the Device voice. Whether the AI voice is *fast enough* on a given iPhone is still unmeasured — expect it to be slow on older models. The app asks iOS to play even with the silent switch on (iOS 16.4+). Locking the phone or switching apps usually pauses web audio — the app resumes when you return. |
 
 ## Remaining limitations
 
 * **Scanned PDFs** contain pictures, not text. They are skipped with a notice; OCR is not included.
 * **AI voices are English only** (US/UK). Other languages use the device voice.
 * **Background / lock-screen playback** cannot be promised from a web page; there are no lock-screen media controls.
-* **Phone speed:** if generation is slower than speaking, expect short "Preparing speech…" waits.
+* **Phone speed:** the AI voice runs on a single CPU thread on phones (no cross-origin isolation on static hosting). If it cannot keep up, the app switches to the Device voice by itself.
 * **Voice choice before starting:** the voice/speed menus appear once narration starts (including during the download). Your choice is remembered.
 * Device-voice pause restarts the current sentence on resume (browser speech APIs cannot pause reliably).

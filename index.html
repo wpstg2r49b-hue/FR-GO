@@ -6433,6 +6433,9 @@ const PIECE_GAP  = 0.12;                           // seconds of silence joining
 const AHEAD_VISIBLE = 2.5, AHEAD_HIDDEN = 30;      // seconds of audio scheduled ahead (more when the tab is hidden)
 const VOICES = ['af_heart', 'af_bella', 'af_nicole', 'bf_emma', 'am_michael', 'bm_george', 'system'];
 const SPEEDS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
+const GEN_TIMEOUT_FIRST = window.__narrGenTimeout || 60000;   // first sentence also pays model warm-up
+const GEN_TIMEOUT       = window.__narrGenTimeout || 30000;
+const SLOW_RTF = 2.2;                                         // generating slower than 2.2× the audio length = unusable
 
 const bar = $('narr-bar'), stEl = $('narr-status'), progEl = document.querySelector('#narr-prog span');
 const btnPause = $('narr-pause'), btnStop = $('narr-stop');
@@ -6463,6 +6466,12 @@ let scheduledEnd = 0;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const n = () => sentences.length;
+function withTimeout(promise, ms) {
+  return new Promise((res, rej) => {
+    const t = setTimeout(() => { const e = new Error('timed out after ' + Math.round(ms / 1000) + 's'); e.timeout = true; rej(e); }, ms);
+    promise.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); });
+  });
+}
 
 /* ══ TEXT → SPEAKABLE UNITS ═══════════════════════════════════════════════ */
 function clean(t, type) {
@@ -6517,6 +6526,7 @@ function pieces(t) {
 /* ══ NEURAL ENGINE (Kokoro in a Web Worker) ═══════════════════════════════ */
 const WORKER_SRC = `
 let tts = null; const files = {};
+self.postMessage({ type: 'alive' });
 self.onmessage = async (e) => {
   const m = e.data;
   if (m.type === 'init') {
@@ -6544,15 +6554,16 @@ self.onmessage = async (e) => {
 };`;
 
 function makeWorkerNeural() {
-  let worker = null, isReady = false, loading = null, loadRes = null, loadRej = null, onProg = null, nextId = 1;
+  let worker = null, mode = null, tts = null, isReady = false, loading = null, onProg = null, nextId = 1;
+  let loadRes = null, loadRej = null, aliveRes = null, aliveRej = null;
   const pending = new Map();
-  function failAll(err) { pending.forEach(p => p.rej(err)); pending.clear(); }
-  function spawn() {
-    const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
-    worker = new Worker(url, { type: 'module' });
-    worker.onmessage = (e) => {
+  const failAll = err => { pending.forEach(p => p.rej(err)); pending.clear(); };
+
+  function wire(w) {
+    w.onmessage = (e) => {
       const m = e.data;
-      if (m.type === 'progress') { if (onProg) onProg(m.loaded, m.total); }
+      if (m.type === 'alive') { if (aliveRes) aliveRes(); }
+      else if (m.type === 'progress') { if (onProg) onProg(m.loaded, m.total); }
       else if (m.type === 'ready') { isReady = true; if (loadRes) loadRes(); }
       else if (m.type === 'audio') { const p = pending.get(m.id); if (p) { pending.delete(m.id); p.res({ audio: m.audio, sr: m.sr }); } }
       else if (m.type === 'error') {
@@ -6561,7 +6572,45 @@ function makeWorkerNeural() {
         else if (loadRej) loadRej(err);
       }
     };
-    worker.onerror = (e) => { const err = new Error((e && e.message) || 'worker error'); if (loadRej) loadRej(err); failAll(err); };
+    w.onerror = (e) => {
+      const err = new Error((e && e.message) || 'worker failed to start');
+      if (aliveRej) aliveRej(err); else { if (loadRej) loadRej(err); failAll(err); }
+    };
+  }
+  // Start a worker of one kind and wait until it says it is alive. Different kinds because browsers differ:
+  // a page opened straight from disk (file://) is refused a *module* worker but accepts a classic one.
+  function spawn(kind) {
+    return new Promise((resolve, reject) => {
+      let w = null;
+      const done = (fn, v) => { clearTimeout(t); aliveRes = aliveRej = null; fn(v); };
+      const t = setTimeout(() => { try { w && w.terminate(); } catch (e) {} done(reject, new Error('worker start timeout')); }, 6000);
+      aliveRes = () => done(resolve);
+      aliveRej = (err) => { try { w && w.terminate(); } catch (e) {} done(reject, err); };
+      try {
+        const blob = () => URL.createObjectURL(new Blob([WORKER_SRC], { type: 'text/javascript' }));
+        if (kind === 'blob-classic') w = new Worker(blob());
+        else if (kind === 'blob-module') w = new Worker(blob(), { type: 'module' });
+        else w = new Worker('data:text/javascript;charset=utf-8,' + encodeURIComponent(WORKER_SRC));
+      } catch (e) { return done(reject, e); }
+      worker = w; wire(w);
+    });
+  }
+  // Last resort: run the model on the page itself (works everywhere, but the page can stutter while a sentence is generated).
+  async function initMain(progress) {
+    mode = 'main';
+    const mod = await import(KOKORO_URL);
+    const files = {};
+    tts = await mod.KokoroTTS.from_pretrained(MODEL_ID, {
+      dtype: DTYPE, device: 'wasm',
+      progress_callback: (p) => {
+        if (p && p.file && typeof p.total === 'number' && p.total > 0) {
+          files[p.file] = { l: p.loaded || 0, t: p.total };
+          let big = null; for (const k in files) if (!big || files[k].t > files[big].t) big = k;
+          if (progress) progress(files[big].l, files[big].t);
+        }
+      }
+    });
+    isReady = true;
   }
   const api = {
     get ready() { return isReady; },
@@ -6569,14 +6618,33 @@ function makeWorkerNeural() {
       if (isReady) return Promise.resolve();
       onProg = progress;
       if (loading) return loading;
-      loading = new Promise((res, rej) => {
-        loadRes = res; loadRej = rej;
-        try { spawn(); worker.postMessage({ type: 'init', url: KOKORO_URL, model: MODEL_ID, dtype: DTYPE, device: 'wasm' }); }
-        catch (e) { rej(e); }
-      }).catch(e => { api.dispose(); throw e; });
+      loading = (async () => {
+        let started = false;
+        for (const kind of ['blob-classic', 'blob-module', 'data-classic']) {
+          try { await spawn(kind); started = true; mode = 'worker'; break; }
+          catch (e) { console.warn('[Read aloud] background worker (' + kind + ') could not start:', e && e.message); }
+        }
+        if (started) {
+          await new Promise((res, rej) => {
+            loadRes = res; loadRej = rej;
+            worker.postMessage({ type: 'init', url: KOKORO_URL, model: MODEL_ID, dtype: DTYPE, device: 'wasm' });
+          });
+        } else {
+          console.warn('[Read aloud] no background worker available — running the voice on the main thread');
+          await initMain(onProg);
+        }
+      })().catch(e => { console.error('[Read aloud] AI voice failed to load:', e); api.dispose(); throw e; });
       return loading;
     },
     gen(text, voice, speed) {
+      if (mode === 'main') {
+        return (async () => {
+          if (!tts) throw new Error('voice engine not ready');
+          const out = await tts.generate(text, { voice, speed });
+          await sleep(0);                                   // let the page breathe between sentences
+          return { audio: new Float32Array(out.audio), sr: out.sampling_rate || 24000 };
+        })();
+      }
       return new Promise((res, rej) => {
         if (!worker || !isReady) return rej(new Error('voice engine not ready'));
         const id = nextId++; pending.set(id, { res, rej });
@@ -6585,7 +6653,7 @@ function makeWorkerNeural() {
     },
     dispose() {
       if (worker) { try { worker.terminate(); } catch (e) {} }
-      worker = null; isReady = false; loading = null; failAll(new Error('voice engine stopped'));
+      worker = null; tts = null; mode = null; isReady = false; loading = null; failAll(new Error('voice engine stopped'));
     }
   };
   return api;
@@ -6622,13 +6690,19 @@ function aheadAudio() {
 
 // text → one AudioBuffer (pieces of a long sentence joined by short silences)
 async function synthUnit(text, tok) {
-  const arrs = []; let sr = 24000;
+  const arrs = []; let sr = 24000, genSec = 0;
   for (const p of pieces(text)) {
     if (tok !== N.token) return null;
-    const r = await Neural.gen(p, N.voice, N.speed);
+    const t0 = performance.now();
+    const r = await withTimeout(Neural.gen(p, N.voice, N.speed), N.firstGenDone ? GEN_TIMEOUT : GEN_TIMEOUT_FIRST);
+    genSec += (performance.now() - t0) / 1000;
+    N.firstGenDone = true;
     sr = r.sr; arrs.push(r.audio);
   }
   if (tok !== N.token) return null;
+  // how fast is this device? (seconds spent generating ÷ seconds of speech produced)
+  const audSec = arrs.reduce((a, x) => a + x.length, 0) / sr;
+  if (audSec > 0.3) { const r = genSec / audSec; N.rtf = N.rtfN ? N.rtf * 0.5 + r * 0.5 : r; N.rtfN++; }
   const gapN = Math.round(sr * PIECE_GAP);
   let total = 0; arrs.forEach((a, k) => { total += a.length + (k ? gapN : 0); });
   const buf = ensureCtx().createBuffer(1, Math.max(1, total), sr), ch = buf.getChannelData(0);
@@ -6652,7 +6726,12 @@ async function pump() {
       let buf = null;
       for (let attempt = 0; attempt < 2 && !buf; attempt++) {
         try { buf = await synthUnit(u.text, tok); if (tok !== N.token) return; }
-        catch (e) { if (tok !== N.token) return; await sleep(250); }
+        catch (e) {
+          if (tok !== N.token) return;
+          console.warn('[Read aloud] sentence generation failed:', e && e.message);
+          if (e && e.timeout) { fallbackToSystem('AI voice stopped responding (' + e.message + ') — using the device voice', null, true); return; }
+          await sleep(250);
+        }
       }
       if (tok !== N.token) return;
       N.inflight--;
@@ -6661,6 +6740,10 @@ async function pump() {
         toast('Skipped a sentence (speech error)'); continue;
       }
       N.fail = 0;
+      if (N.rtfN >= 2 && N.rtf > SLOW_RTF) {
+        fallbackToSystem('AI voice is too slow on this device (' + N.rtf.toFixed(1) + '× slower than speech) — using the device voice', null, true);
+        return;
+      }
       ready.push({ i, buf, gap: gapFor(u) });
       tick();
     }
@@ -6670,6 +6753,7 @@ async function pump() {
 // clock-driven scheduler: queues buffers back-to-back on the audio clock and fires highlights at their real start time
 function tick() {
   if (N.mode !== 'neural' || !N.active || !ctx || N.state === 'paused' || N.state === 'loading') return;
+  if (N.state === 'buffering' && Date.now() - (N.lastElapsed || 0) > 1000) { N.lastElapsed = Date.now(); render(); }
   const now = ctx.currentTime, ahead = document.hidden ? AHEAD_HIDDEN : AHEAD_VISIBLE;
   let latest = null;
   for (const e of playing) if (!e.shown && e.start <= now) { e.shown = true; latest = e; }
@@ -6695,9 +6779,9 @@ function tick() {
 }
 function noteStall() {
   const t = Date.now(); N.stalls = N.stalls.filter(x => t - x < 90000); N.stalls.push(t);
-  if (N.stalls.length >= 4 && !N.warned) {
+  if (N.stalls.length >= 3 && !N.warned) {
     N.warned = true;
-    toast('This device generates speech slower than real time — choose “Device voice” for smooth playback');
+    fallbackToSystem('AI voice cannot keep up on this device — using the device voice', null, true);
   }
 }
 
@@ -6785,7 +6869,10 @@ function statusText() {
   const eng = N.mode === 'neural' ? 'AI voice' : 'device voice';
   switch (N.state) {
     case 'loading':   return N.loadMsg || 'Loading voice…';
-    case 'buffering': return 'Preparing speech… · ' + eng;
+    case 'buffering': {
+      const secs = Math.max(0, Math.round((Date.now() - (N.bufSince || Date.now())) / 1000));
+      return 'Preparing speech… ' + (secs ? secs + 's' : '') + (secs >= 20 && N.mode === 'neural' ? ' — slow? choose Device voice' : ' · ' + eng);
+    }
     case 'playing':   return 'Reading · ' + pct() + '% · ' + eng;
     case 'paused':    return 'Paused · ' + pct() + '%';
     default:          return N.msg || '';
@@ -6803,7 +6890,7 @@ function render() {
   progEl.style.width = (N.state === 'loading' ? (N.loadFrac || 0) * 100 : pct()) + '%';
   document.body.classList.toggle('narr-on', act);
 }
-function setState(s) { N.state = s; N.active = s !== 'idle'; render(); }
+function setState(s) { if (s === 'buffering' && N.state !== 'buffering') N.bufSince = Date.now(); N.state = s; N.active = s !== 'idle'; render(); }
 function toast(msg) { try { showToast(msg); } catch (e) {} }
 
 /* ══ CONTROL ══════════════════════════════════════════════════════════════ */
@@ -6837,6 +6924,7 @@ async function begin(from, startPaused) {
   const i0 = nextReadable(from);
   if (i0 >= n()) { finish(); return; }
   N.anchor = i0; N.genIdx = i0; N.inflight = 0; N.pumpTok = 0;
+  N.rtf = 0; N.rtfN = 0; if (!Neural.ready) N.firstGenDone = false;
   ready.length = 0; playing.length = 0; scheduledEnd = 0;
 
   const wantSystem = N.voice === 'system' || isChineseBook;
@@ -6857,27 +6945,29 @@ async function begin(from, startPaused) {
         });
       } catch (e) {
         if (tok !== N.token) return;
-        fallbackToSystem('AI voice unavailable (' + String((e && e.message) || e).slice(0, 60) + ') — using the device voice', i0);
+        fallbackToSystem('AI voice unavailable: ' + String((e && e.message) || e).slice(0, 110) + ' — using the device voice', i0);
         return;
       }
       if (tok !== N.token) return;
     }
     setState(startPaused ? 'paused' : 'buffering');
     ensureCtx();
-    if (startPaused) { try { await ctx.suspend(); } catch (e) {} } else { try { if (ctx.state !== 'running') await ctx.resume(); } catch (e) {} }
+    // not awaited on purpose: on iOS a resume()/suspend() promise can stay pending, which used to freeze everything at "Preparing speech…"
+    try { if (startPaused) ctx.suspend(); else if (ctx.state !== 'running') ctx.resume(); } catch (e) {}
     startTicker(); pump();
   } else {
     N.mode = 'system';
-    if (!Neural.ready) Neural.dispose();          // chose the device voice while the AI model was still downloading → stop downloading
+    try { Neural.dispose(); } catch (e) {}        // device voice chosen → stop any download / free the AI engine's memory
     setState(startPaused ? 'paused' : 'buffering');
     if (!startPaused) sysSpeak(i0);
     else N.anchor = i0;
   }
 }
-function fallbackToSystem(msg, from) {
+function fallbackToSystem(msg, from, makeDefault) {
   const at = from != null ? from : (N.idx >= 0 ? N.idx : N.anchor);
   const wasPaused = N.state === 'paused';
   halt(); try { Neural.dispose(); } catch (e) {}
+  if (makeDefault) { N.voice = 'system'; selVoice.value = 'system'; lsSet('focusreader_narr_voice', 'system'); }   // too slow here → don't try again every time; picking an AI voice re-enables it
   N.mode = 'system'; toast(msg);
   N.token++;                                    // begin() increments again; keep monotonic
   N.anchor = at; N.genIdx = at;
