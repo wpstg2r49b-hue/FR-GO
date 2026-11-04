@@ -4,6 +4,8 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
 <meta name="theme-color" content="#0c0b09"/>
+<!-- Multi-threaded AI voice: makes the page cross-origin isolated (needs coi-serviceworker.js in the same folder, HTTPS). To switch off, delete this line. -->
+<script src="coi-serviceworker.js"></script>
 <title>Focus Reader</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@300;400&family=Noto+Serif+SC:wght@400;500&family=Literata:ital,wght@0,400;0,500;0,600;1,400&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Baskervville:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -1583,6 +1585,7 @@ body:not(.focus-mode) #track{
           <option value="1.1">1.1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
         </select>
         <select id="narr-voice" aria-label="Voice">
+          <option value="auto">Auto · starts instantly</option>
           <optgroup label="AI voices (on-device)">
             <option value="af_heart">Heart · US F</option>
             <option value="af_bella">Bella · US F</option>
@@ -1759,9 +1762,9 @@ body:not(.focus-mode) #track{
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" crossorigin="anonymous"></script>
 <script>
 // ── EPUB extractor ────────────────────────────────────────────────────────────
 // EPUBs are ZIP files containing HTML/XHTML content files.
@@ -6405,18 +6408,19 @@ if (!tryOpenFromURL()) {
 
 <script>
 /* ══════════════════════════════════════════════════════════════════════════════
-   READ ALOUD — audiobook narration
+   READ ALOUD — audiobook narration  (v2)
    ──────────────────────────────────────────────────────────────────────────────
-   • Reads the book from the SAME global `sentences[]` array the reader already uses
-     (every chapter / page, in order). Nothing is re-parsed.
-   • Neural voice: Kokoro-82M (Apache-2.0) via kokoro-js + Transformers.js + ONNX Runtime
-     Web, running 100 % on the device in a Web Worker (WASM, 8-bit weights ≈ 92 MB,
-     downloaded once and cached by the browser). The book text never leaves the device.
-   • Fallback: the browser's own SpeechSynthesis voices (also used for Chinese books,
-     because kokoro-js's phonemizer is English-only).
-   • One sentence = one audio unit, so the highlight is exact (no duration guessing).
-     A small look-ahead keeps the next few sentences generated while one plays; audio is
-     never kept for the whole book.
+   What changed in v2 (fixes "AI voice takes forever / always falls back"):
+   A. STREAMED PIECES  — a sentence is cut into short pieces (≤110 chars). Each piece is queued
+      for playback the moment it is generated, so you hear the first words after ONE short
+      piece instead of after the whole (possibly very long) sentence.
+   B. HONEST SPEED CHECK — the model is warmed up first (not timed). Speed is the MEDIAN of the
+      last pieces, never the first one, and falling back no longer saves "Device voice"
+      as your permanent choice.
+   C. INSTANT START ("Auto") — reading starts at once with the device voice while the AI model
+      downloads / warms up in the background. It is benchmarked on the real book text; only if it
+      generates speech faster than it plays does the reader switch to it (at a sentence boundary).
+      Otherwise the device voice simply carries on. Choosing a specific AI voice still forces the AI voice.
    ══════════════════════════════════════════════════════════════════════════════ */
 (function () {
 'use strict';
@@ -6428,14 +6432,18 @@ const MODEL_ID   = 'onnx-community/Kokoro-82M-v1.0-ONNX';
 const KOKORO_URL = window.__narrKokoroURL || 'https://cdn.jsdelivr.net/npm/kokoro-js@1.2.1/dist/kokoro.web.js';
 const DTYPE      = 'q8';                           // ≈ 92 MB — runs on every device with WebAssembly
 const MODEL_MB   = 92;
-const PIECE_MAX  = 260;                            // longest text sent to the model at once (chars)
-const PIECE_GAP  = 0.12;                           // seconds of silence joining pieces of one long sentence
+const PIECE_MAX  = 110;                            // longest text sent to the model at once (chars) — short = fast first audio
+const PIECE_GAP  = 0.08;                           // seconds of silence between pieces of one sentence
 const AHEAD_VISIBLE = 2.5, AHEAD_HIDDEN = 30;      // seconds of audio scheduled ahead (more when the tab is hidden)
-const VOICES = ['af_heart', 'af_bella', 'af_nicole', 'bf_emma', 'am_michael', 'bm_george', 'system'];
+const AI_VOICES = ['af_heart', 'af_bella', 'af_nicole', 'bf_emma', 'am_michael', 'bm_george'];
+const VOICES = ['auto'].concat(AI_VOICES, ['system']);
 const SPEEDS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
-const GEN_TIMEOUT_FIRST = window.__narrGenTimeout || 60000;   // first sentence also pays model warm-up
-const GEN_TIMEOUT       = window.__narrGenTimeout || 30000;
-const SLOW_RTF = 2.2;                                         // generating slower than 2.2× the audio length = unusable
+const GEN_TIMEOUT  = window.__narrGenTimeout  || 45000;    // one short piece
+const WARM_TIMEOUT = window.__narrWarmTimeout || 120000;   // first-ever generation (WASM compile + voice file)
+const HANDOFF_RTF   = window.__narrHandoffRtf || 0.9;      // Auto: switch to AI only if it makes speech this much faster than it plays (<1 = faster than real time)
+const SLOW_AUTO     = 1.4;                                 // after the switch: fall back to the device voice if the median goes above this
+const SLOW_EXPLICIT = 2.5;                                 // user explicitly picked an AI voice: be patient
+const SKIP_KEY = 'focusreader_narr_ai_skip';               // timestamp: AI voice was too slow here → don't auto-try for 3 days
 
 const bar = $('narr-bar'), stEl = $('narr-status'), progEl = document.querySelector('#narr-prog span');
 const btnPause = $('narr-pause'), btnStop = $('narr-stop');
@@ -6447,8 +6455,13 @@ if (!bar || !btnMain) return;
 function lsGet(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : v; } catch (e) { return d; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 {
-  const v = lsGet('focusreader_narr_voice', 'af_heart');
-  N.voice = VOICES.includes(v) ? v : 'af_heart';
+  let v = lsGet('focusreader_narr_voice', null);
+  // v1 force-saved "system" after any slow moment. Reset that once so existing users get the new Auto mode.
+  if (lsGet('focusreader_narr_v2', '') !== '1') {
+    if (!v || v === 'system') v = 'auto';
+    lsSet('focusreader_narr_voice', v); lsSet('focusreader_narr_v2', '1');
+  }
+  N.voice = VOICES.includes(v) ? v : 'auto';
   const sp = parseFloat(lsGet('focusreader_narr_speed', '1'));
   N.speed = SPEEDS.reduce((a, b) => Math.abs(b - sp) < Math.abs(a - sp) ? b : a, 1);
   selVoice.value = N.voice;
@@ -6456,13 +6469,21 @@ function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
 }
 
 /* ── shared state ────────────────────────────────────────────────────────── */
-N.state = 'idle'; N.mode = 'neural'; N.token = 0; N.genIdx = 0; N.inflight = 0; N.pumpTok = 0;
-N.timer = null; N.resyncT = null; N.fail = 0; N.stalls = []; N.warned = false; N.msg = ''; N.loadMsg = '';
+N.state = 'idle'; N.mode = 'neural'; N.token = 0; N.upTok = 0; N.genIdx = 0; N.inflight = 0; N.pumpTok = 0;
+N.timer = null; N.resyncT = null; N.uiT = null; N.fail = 0; N.stalls = []; N.msg = ''; N.loadMsg = '';
+N.bgMsg = '';            // background note shown while the device voice reads and the AI voice loads
+N.upgrade = false;       // Auto mode: the AI voice is loading / being tested in the background
+N.handoff = false;       // Auto mode: AI voice passed the speed test → switch at the next sentence boundary
+N.explicit = false;      // the user picked a specific AI voice
+N.noUpgrade = false;     // session flag: AI voice was too slow, don't try again
+N.benchRtf = null;       // measured generation time ÷ speech length (<1 = faster than real time)
+N.warmed = false; N.warmSince = 0; N.loadFrac = 0; N.rtf = 0;
 
 let ctx = null, outGain = null;
-const ready = [];            // generated, not yet scheduled: {i, buf, gap}
+const ready = [];            // generated pieces, not yet scheduled: {i, buf, gap, first}
 const playing = [];          // scheduled on the audio clock: {i, start, end, src, shown}
 let scheduledEnd = 0;
+const rtfSamples = [];       // recent generation-time ÷ speech-time values (one per piece)
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const n = () => sentences.length;
@@ -6472,6 +6493,13 @@ function withTimeout(promise, ms) {
     promise.then(v => { clearTimeout(t); res(v); }, e => { clearTimeout(t); rej(e); });
   });
 }
+const aiVoice = () => AI_VOICES.includes(N.voice) ? N.voice : 'af_heart';
+function aiSkipped() {
+  if (N.noUpgrade) return true;
+  const t = parseInt(lsGet(SKIP_KEY, '0'), 10) || 0;
+  return t > 0 && Date.now() - t < 3 * 864e5;
+}
+function markSlow() { N.noUpgrade = true; lsSet(SKIP_KEY, String(Date.now())); }
 
 /* ══ TEXT → SPEAKABLE UNITS ═══════════════════════════════════════════════ */
 function clean(t, type) {
@@ -6506,13 +6534,14 @@ function gapFor(u) {
   if (u.type === 'LISTNUM' || u.type === 'LISTBULLET') return 0.25;
   return /[.!?]["'\u201D\u2019)]*$/.test(u.text) ? 0.16 : 0.1;
 }
+// Cut a sentence into short pieces at commas / semicolons / colons (then at spaces). Short pieces = fast first audio.
 function pieces(t) {
   if (t.length <= PIECE_MAX) return [t];
   const clauses = t.match(/[^,;:]+[,;:]?\s*/g) || [t], out = [];
   let cur = '';
   for (let c of clauses) {
     while (c.length > PIECE_MAX) {                          // a single enormous clause: cut at a space
-      let cut = c.lastIndexOf(' ', PIECE_MAX); if (cut < 40) cut = PIECE_MAX;
+      let cut = c.lastIndexOf(' ', PIECE_MAX); if (cut < 30) cut = PIECE_MAX;
       if (cur) { out.push(cur.trim()); cur = ''; }
       out.push(c.slice(0, cut).trim()); c = c.slice(cut);
     }
@@ -6520,7 +6549,20 @@ function pieces(t) {
     cur += c;
   }
   if (cur.trim()) out.push(cur.trim());
-  return out.filter(Boolean);
+  const res = out.filter(Boolean);
+  // a tiny tail ("…and so on.") sounds odd on its own → glue it to the previous piece
+  if (res.length > 1 && res[res.length - 1].length < 20 && (res[res.length - 2] + ' ' + res[res.length - 1]).length <= PIECE_MAX * 1.4) {
+    const last = res.pop(); res[res.length - 1] += ' ' + last;
+  }
+  return res;
+}
+// a few real pieces from the book, used to benchmark the AI voice on text it will actually have to read
+function samplePieces(from, count) {
+  const out = [];
+  for (let i = nextReadable(Math.max(0, from)); i < n() && out.length < count; i = nextReadable(i + 1)) {
+    for (const p of pieces(unit(i).text)) { if (p.length >= 40) out.push(p); if (out.length >= count) break; }
+  }
+  return out.length ? out : ['This is a short sample sentence, used to measure how quickly this device can speak.'];
 }
 
 /* ══ NEURAL ENGINE (Kokoro in a Web Worker) ═══════════════════════════════ */
@@ -6595,7 +6637,7 @@ function makeWorkerNeural() {
       worker = w; wire(w);
     });
   }
-  // Last resort: run the model on the page itself (works everywhere, but the page can stutter while a sentence is generated).
+  // Last resort: run the model on the page itself (works everywhere, but the page can stutter while a piece is generated).
   async function initMain(progress) {
     mode = 'main';
     const mod = await import(KOKORO_URL);
@@ -6633,6 +6675,7 @@ function makeWorkerNeural() {
           console.warn('[Read aloud] no background worker available — running the voice on the main thread');
           await initMain(onProg);
         }
+        console.info('[Read aloud] AI voice loaded · crossOriginIsolated =', !!self.crossOriginIsolated, '· cores =', navigator.hardwareConcurrency);
       })().catch(e => { console.error('[Read aloud] AI voice failed to load:', e); api.dispose(); throw e; });
       return loading;
     },
@@ -6641,7 +6684,7 @@ function makeWorkerNeural() {
         return (async () => {
           if (!tts) throw new Error('voice engine not ready');
           const out = await tts.generate(text, { voice, speed });
-          await sleep(0);                                   // let the page breathe between sentences
+          await sleep(0);                                   // let the page breathe between pieces
           return { audio: new Float32Array(out.audio), sr: out.sampling_rate || 24000 };
         })();
       }
@@ -6659,6 +6702,7 @@ function makeWorkerNeural() {
   return api;
 }
 const Neural = window.__narrNeuralFactory ? window.__narrNeuralFactory() : makeWorkerNeural();   // factory hook = tests only
+function disposeNeural() { try { Neural.dispose(); } catch (e) {} N.warmed = false; N.benchRtf = null; }
 
 /* ══ AUDIO OUTPUT (Web Audio, gap-free scheduling) ════════════════════════ */
 function ensureCtx() {
@@ -6688,29 +6732,26 @@ function aheadAudio() {
   return s;
 }
 
-// text → one AudioBuffer (pieces of a long sentence joined by short silences)
-async function synthUnit(text, tok) {
-  const arrs = []; let sr = 24000, genSec = 0;
-  for (const p of pieces(text)) {
-    if (tok !== N.token) return null;
-    const t0 = performance.now();
-    const r = await withTimeout(Neural.gen(p, N.voice, N.speed), N.firstGenDone ? GEN_TIMEOUT : GEN_TIMEOUT_FIRST);
-    genSec += (performance.now() - t0) / 1000;
-    N.firstGenDone = true;
-    sr = r.sr; arrs.push(r.audio);
-  }
+/* ── generating audio, one short piece at a time ─────────────────────────── */
+// Speed = median of the last pieces. Pieces shorter than ~0.8 s of speech are ignored (too noisy).
+function noteSpeed(genSec, audSec) {
+  if (audSec < 0.8) return;
+  rtfSamples.push(genSec / audSec); if (rtfSamples.length > 6) rtfSamples.shift();
+  if (rtfSamples.length >= 4) { const s = rtfSamples.slice().sort((a, b) => a - b); N.rtf = s[s.length >> 1]; }
+}
+function tooSlow() { return rtfSamples.length >= 4 && N.rtf > (N.explicit ? SLOW_EXPLICIT : SLOW_AUTO); }
+
+async function synthPiece(text, tok) {
+  const t0 = performance.now();
+  const r = await withTimeout(Neural.gen(text, aiVoice(), N.speed), GEN_TIMEOUT);
   if (tok !== N.token) return null;
-  // how fast is this device? (seconds spent generating ÷ seconds of speech produced)
-  const audSec = arrs.reduce((a, x) => a + x.length, 0) / sr;
-  if (audSec > 0.3) { const r = genSec / audSec; N.rtf = N.rtfN ? N.rtf * 0.5 + r * 0.5 : r; N.rtfN++; }
-  const gapN = Math.round(sr * PIECE_GAP);
-  let total = 0; arrs.forEach((a, k) => { total += a.length + (k ? gapN : 0); });
-  const buf = ensureCtx().createBuffer(1, Math.max(1, total), sr), ch = buf.getChannelData(0);
-  let o = 0; arrs.forEach((a, k) => { if (k) o += gapN; ch.set(a, o); o += a.length; });
+  noteSpeed((performance.now() - t0) / 1000, r.audio.length / r.sr);
+  const buf = ensureCtx().createBuffer(1, Math.max(1, r.audio.length), r.sr);
+  buf.getChannelData(0).set(r.audio);
   return buf;
 }
 
-// keeps a few sentences generated ahead of playback; one at a time (the worker is single-threaded)
+// keeps a few pieces generated ahead of playback; one at a time (the worker is single-threaded)
 async function pump() {
   if (N.mode !== 'neural' || !N.active) return;
   const tok = N.token;
@@ -6718,34 +6759,39 @@ async function pump() {
   N.pumpTok = tok;
   try {
     while (tok === N.token && N.active && N.state !== 'loading') {
-      if (ready.length >= (document.hidden ? 8 : 3) || aheadAudio() > 60) break;
+      if (ready.length >= (document.hidden ? 16 : 6) || aheadAudio() > 60) break;
       const i = nextReadable(N.genIdx);
       if (i >= n()) { N.genIdx = n(); break; }
       N.genIdx = i + 1; N.inflight++;
-      const u = unit(i);
-      let buf = null;
-      for (let attempt = 0; attempt < 2 && !buf; attempt++) {
-        try { buf = await synthUnit(u.text, tok); if (tok !== N.token) return; }
-        catch (e) {
-          if (tok !== N.token) return;
-          console.warn('[Read aloud] sentence generation failed:', e && e.message);
-          if (e && e.timeout) { fallbackToSystem('AI voice stopped responding (' + e.message + ') — using the device voice', null, true); return; }
-          await sleep(250);
+      const u = unit(i), parts = pieces(u.text);
+      let firstPushed = false;
+      for (let k = 0; k < parts.length; k++) {
+        let buf = null;
+        for (let attempt = 0; attempt < 2 && !buf; attempt++) {
+          try { buf = await synthPiece(parts[k], tok); if (tok !== N.token) return; }
+          catch (e) {
+            if (tok !== N.token) return;
+            console.warn('[Read aloud] piece generation failed:', e && e.message);
+            if (e && e.timeout) { markSlow(); fallbackToSystem('AI voice stopped responding — using the device voice'); return; }
+            await sleep(250);
+          }
         }
+        if (tok !== N.token) return;
+        if (!buf) {
+          if (++N.fail >= 3) { fallbackToSystem('AI voice failed — switched to the device voice'); return; }
+          toast('Skipped a piece (speech error)'); continue;
+        }
+        N.fail = 0;
+        if (tooSlow()) {
+          markSlow();
+          fallbackToSystem('AI voice is too slow on this device (' + N.rtf.toFixed(1) + '× slower than speech) — using the device voice');
+          return;
+        }
+        ready.push({ i, buf, first: !firstPushed, gap: k === parts.length - 1 ? gapFor(u) : PIECE_GAP });
+        firstPushed = true;
+        tick();
       }
-      if (tok !== N.token) return;
       N.inflight--;
-      if (!buf) {
-        if (++N.fail >= 3) { fallbackToSystem('AI voice failed — switched to the device voice'); return; }
-        toast('Skipped a sentence (speech error)'); continue;
-      }
-      N.fail = 0;
-      if (N.rtfN >= 2 && N.rtf > SLOW_RTF) {
-        fallbackToSystem('AI voice is too slow on this device (' + N.rtf.toFixed(1) + '× slower than speech) — using the device voice', null, true);
-        return;
-      }
-      ready.push({ i, buf, gap: gapFor(u) });
-      tick();
     }
   } finally { if (N.pumpTok === tok) N.pumpTok = 0; }
 }
@@ -6753,7 +6799,6 @@ async function pump() {
 // clock-driven scheduler: queues buffers back-to-back on the audio clock and fires highlights at their real start time
 function tick() {
   if (N.mode !== 'neural' || !N.active || !ctx || N.state === 'paused' || N.state === 'loading') return;
-  if (N.state === 'buffering' && Date.now() - (N.lastElapsed || 0) > 1000) { N.lastElapsed = Date.now(); render(); }
   const now = ctx.currentTime, ahead = document.hidden ? AHEAD_HIDDEN : AHEAD_VISIBLE;
   let latest = null;
   for (const e of playing) if (!e.shown && e.start <= now) { e.shown = true; latest = e; }
@@ -6766,7 +6811,7 @@ function tick() {
     const src = ctx.createBufferSource(); src.buffer = r.buf; src.connect(outGain);
     const start = Math.max(now + 0.04, scheduledEnd), end = start + r.buf.duration;
     src.start(start);
-    playing.push({ i: r.i, start, end, src, shown: false });
+    playing.push({ i: r.i, start, end, src, shown: !r.first });   // only the first piece of a sentence moves the highlight
     scheduledEnd = end + r.gap; scheduledAny = true;
   }
   if (scheduledAny) pump();
@@ -6777,12 +6822,11 @@ function tick() {
     if (N.state === 'playing') { setState('buffering'); noteStall(); }
   } else if (N.state === 'buffering') setState('playing');
 }
+// Auto mode only: after the hand-over, repeated stalls mean this device can't keep up → back to the device voice.
 function noteStall() {
+  if (N.explicit) return;
   const t = Date.now(); N.stalls = N.stalls.filter(x => t - x < 90000); N.stalls.push(t);
-  if (N.stalls.length >= 3 && !N.warned) {
-    N.warned = true;
-    fallbackToSystem('AI voice cannot keep up on this device — using the device voice', null, true);
-  }
+  if (N.stalls.length >= 3) { markSlow(); fallbackToSystem('AI voice cannot keep up on this device — back to the device voice'); }
 }
 
 /* ══ DEVICE VOICE (SpeechSynthesis) ═══════════════════════════════════════ */
@@ -6805,7 +6849,15 @@ function sysSpeak(from) {
   if (v) { ut.voice = v; ut.lang = v.lang; } else ut.lang = lang;
   ut.rate = N.speed;
   let moved = false;
-  const advance = () => { if (moved || tok !== N.token || N.state === 'paused') return; moved = true; setTimeout(() => { if (tok === N.token && N.state !== 'paused') sysSpeak(i + 1); }, 60); };
+  const advance = () => {
+    if (moved || tok !== N.token || N.state === 'paused') return;
+    moved = true;
+    setTimeout(() => {
+      if (tok !== N.token || N.state === 'paused') return;
+      if (N.handoff && Neural.ready) switchToNeural(i + 1);        // Auto: the AI voice passed its speed test → take over here
+      else sysSpeak(i + 1);
+    }, 60);
+  };
   ut.onstart = () => { if (tok !== N.token) return; N.fail = 0; if (N.state === 'buffering') setState('playing'); show(i); };
   ut.onend = advance;
   ut.onerror = (e) => {
@@ -6867,14 +6919,17 @@ function noteMove() {
 function pct() { return n() > 1 && N.idx >= 0 ? Math.round(N.idx / (n() - 1) * 100) : 0; }
 function statusText() {
   const eng = N.mode === 'neural' ? 'AI voice' : 'device voice';
+  const bg = N.bgMsg ? ' · ' + N.bgMsg : '';
   switch (N.state) {
-    case 'loading':   return N.loadMsg || 'Loading voice…';
+    case 'loading':
+      if (N.warmSince) return 'Warming up AI voice… ' + Math.round((Date.now() - N.warmSince) / 1000) + 's (first time only)';
+      return N.loadMsg || 'Loading voice…';
     case 'buffering': {
       const secs = Math.max(0, Math.round((Date.now() - (N.bufSince || Date.now())) / 1000));
-      return 'Preparing speech… ' + (secs ? secs + 's' : '') + (secs >= 20 && N.mode === 'neural' ? ' — slow? choose Device voice' : ' · ' + eng);
+      return 'Preparing speech… ' + (secs ? secs + 's' : '') + (secs >= 20 && N.mode === 'neural' ? ' — slow? choose Device voice' : ' · ' + eng) + bg;
     }
-    case 'playing':   return 'Reading · ' + pct() + '% · ' + eng;
-    case 'paused':    return 'Paused · ' + pct() + '%';
+    case 'playing':   return 'Reading · ' + pct() + '% · ' + eng + bg;
+    case 'paused':    return 'Paused · ' + pct() + '%' + bg;
     default:          return N.msg || '';
   }
 }
@@ -6894,8 +6949,10 @@ function setState(s) { if (s === 'buffering' && N.state !== 'buffering') N.bufSi
 function toast(msg) { try { showToast(msg); } catch (e) {} }
 
 /* ══ CONTROL ══════════════════════════════════════════════════════════════ */
-function halt() {                         // cancel everything in flight; does not change the on/off state
+// Cancel everything in flight; does not change the on/off state. keepUpgrade = leave the background AI load / test running.
+function halt(keepUpgrade) {
   N.token++; N.inflight = 0; N.pumpTok = 0;
+  if (!keepUpgrade) { N.upTok++; N.upgrade = false; N.handoff = false; N.bgMsg = ''; }
   clearInterval(N.timer); N.timer = null; clearTimeout(N.resyncT); N.resyncT = null;
   ready.length = 0;
   playing.forEach(e => { try { e.src.onended = null; e.src.stop(); } catch (x) {} });
@@ -6903,9 +6960,10 @@ function halt() {                         // cancel everything in flight; does n
   try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
 }
 function stop(msg) {
-  const wasNeural = N.mode === 'neural';
+  const wasLoading = N.state === 'loading' && N.mode === 'neural';
   halt();
-  if (N.state === 'loading' && wasNeural) Neural.dispose();          // aborts an unfinished model download
+  if (wasLoading) disposeNeural();          // aborts an unfinished (explicit) model download
+  clearInterval(N.uiT); N.uiT = null;
   N.idx = -1; N.anchor = -1; N.tween = null; N.moving = false;
   N.msg = msg || '';
   setState('idle');
@@ -6917,72 +6975,166 @@ function stop(msg) {
 function finish() { stop('Finished reading'); }
 
 function startTicker() { clearInterval(N.timer); N.timer = setInterval(tick, 50); }
+function resetQueues(i0) {
+  N.anchor = i0; N.genIdx = i0; N.inflight = 0; N.pumpTok = 0; N.fail = 0; N.rtf = 0;
+  rtfSamples.length = 0; ready.length = 0; playing.length = 0; scheduledEnd = 0;
+}
+function startSystem(i0, startPaused) {
+  N.mode = 'system'; N.anchor = i0;
+  setState(startPaused ? 'paused' : 'buffering');
+  if (!startPaused) sysSpeak(i0);        // synchronous with the user's tap (iOS requires that)
+}
+function runNeural(i0, startPaused) {
+  N.mode = 'neural';
+  setState(startPaused ? 'paused' : 'buffering');
+  ensureCtx();
+  // not awaited on purpose: on iOS a resume()/suspend() promise can stay pending
+  try { if (startPaused) ctx.suspend(); else if (ctx.state !== 'running') ctx.resume(); } catch (e) {}
+  startTicker(); pump();
+}
+// Auto mode: hand over from the device voice to the (already tested) AI voice
+function switchToNeural(at) {
+  const i0 = nextReadable(at);
+  if (i0 >= n()) { finish(); return; }
+  halt();                                // also clears handoff / upgrade flags
+  resetQueues(i0);
+  toast('Switched to the AI voice');
+  runNeural(i0, false);
+}
+async function warmUp() {
+  N.warmSince = Date.now(); render();
+  try { await withTimeout(Neural.gen('Ready.', aiVoice(), N.speed), WARM_TIMEOUT); }   // loads the voice file + compiles WASM; not timed
+  finally { N.warmSince = 0; }
+}
+// Measure how fast this device really generates speech, on text from the current book position.
+async function benchmark(alive) {
+  const from = N.idx >= 0 ? N.idx : N.anchor;
+  N.warmSince = Date.now(); render();
+  try {
+    await withTimeout(Neural.gen('Ready.', aiVoice(), N.speed), WARM_TIMEOUT);          // warm-up, not measured
+    if (!alive()) return 99;
+    const rtfs = [];
+    for (const s of samplePieces(from + 1, 2)) {
+      const t0 = performance.now();
+      const r = await withTimeout(Neural.gen(s, aiVoice(), N.speed), WARM_TIMEOUT);
+      if (!alive()) return 99;
+      const a = r.audio.length / r.sr;
+      if (a > 0.5) rtfs.push(((performance.now() - t0) / 1000) / a);
+    }
+    N.warmed = true;
+    return rtfs.length ? rtfs.reduce((a, b) => a + b, 0) / rtfs.length : 99;
+  } finally { N.warmSince = 0; }
+}
+// Auto mode: load + test the AI voice while the device voice is already reading
+async function upgradeInBackground() {
+  const up = ++N.upTok; N.upgrade = true; N.handoff = false;
+  const alive = () => up === N.upTok && N.active;
+  try {
+    if (!Neural.ready) {
+      N.bgMsg = 'AI voice downloading…'; render();
+      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
+      await Neural.init((loaded, total) => {
+        if (!alive()) return;
+        N.bgMsg = 'AI voice downloading ' + Math.round((total ? loaded / total : 0) * 100) + '%'; render();
+      });
+      if (!alive()) return;
+    }
+    if (N.benchRtf == null) {
+      N.bgMsg = 'testing AI voice speed…'; render();
+      const rtf = await benchmark(alive);
+      if (!alive()) return;
+      N.benchRtf = rtf;
+      console.info('[Read aloud] AI voice speed test: ' + rtf.toFixed(2) + '× (below ' + HANDOFF_RTF + ' = fast enough)');
+    }
+    if (N.benchRtf > HANDOFF_RTF) {
+      markSlow(); N.bgMsg = ''; N.upgrade = false;
+      toast('AI voice is too slow on this device (' + N.benchRtf.toFixed(1) + '×) — keeping the device voice');
+      render(); return;
+    }
+    N.bgMsg = ''; N.handoff = true; render();       // switch happens at the next sentence boundary
+  } catch (e) {
+    console.warn('[Read aloud] AI upgrade failed:', e && e.message);
+    if (e && e.timeout) markSlow();
+    if (alive()) { N.bgMsg = ''; N.upgrade = false; N.handoff = false; toast('AI voice unavailable — keeping the device voice'); render(); }
+  } finally { if (up === N.upTok && !N.handoff) N.upgrade = false; }
+}
 
 // core: (re)start narration at sentence `from` with the current voice / speed
 async function begin(from, startPaused) {
   const tok = ++N.token;
   const i0 = nextReadable(from);
   if (i0 >= n()) { finish(); return; }
-  N.anchor = i0; N.genIdx = i0; N.inflight = 0; N.pumpTok = 0;
-  N.rtf = 0; N.rtfN = 0; if (!Neural.ready) N.firstGenDone = false;
-  ready.length = 0; playing.length = 0; scheduledEnd = 0;
+  resetQueues(i0);
 
-  const wantSystem = N.voice === 'system' || isChineseBook;
-  if (isChineseBook && N.voice !== 'system' && !N.warnedZh) { N.warnedZh = true; toast('AI voices are English-only — using the device voice'); }
+  // 1) Device voice only (chosen, or Chinese book — the AI voices are English-only)
+  if (N.voice === 'system' || isChineseBook) {
+    N.upTok++; N.upgrade = false; N.handoff = false; N.bgMsg = ''; N.explicit = false;
+    if (isChineseBook && N.voice !== 'system' && N.voice !== 'auto' && !N.warnedZh) { N.warnedZh = true; toast('AI voices are English-only — using the device voice'); }
+    if (N.voice === 'system') disposeNeural();        // device voice chosen → stop any download / free the AI engine's memory
+    startSystem(i0, startPaused);
+    return;
+  }
 
-  if (!wantSystem) {
-    N.mode = 'neural';
-    if (!Neural.ready) {
-      setState('loading'); N.loadFrac = 0; N.loadMsg = 'Loading voice… (one-time ~' + MODEL_MB + ' MB)';
-      render();
-      try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
-      try {
+  // 2) Auto: start instantly with the device voice, upgrade in the background if this device is fast enough
+  if (N.voice === 'auto') {
+    N.explicit = false;
+    if (Neural.ready && N.benchRtf != null && N.benchRtf <= HANDOFF_RTF && !aiSkipped()) {
+      N.upTok++; N.upgrade = false; N.handoff = false; N.bgMsg = '';     // already tested on this device → straight to the AI voice
+      runNeural(i0, startPaused);
+      return;
+    }
+    startSystem(i0, startPaused);
+    if (!N.upgrade && !aiSkipped()) upgradeInBackground();
+    return;
+  }
+
+  // 3) A specific AI voice was chosen: load it (with progress), warm it up, then read
+  N.explicit = true; N.upTok++; N.upgrade = false; N.handoff = false; N.bgMsg = '';
+  N.mode = 'neural';
+  if (!Neural.ready || !N.warmed) {
+    setState('loading'); N.loadFrac = 0; N.loadMsg = 'Loading voice… (one-time ~' + MODEL_MB + ' MB)';
+    render();
+    try {
+      if (!Neural.ready) {
+        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
         await Neural.init((loaded, total) => {
           if (tok !== N.token) return;
           N.loadFrac = total ? loaded / total : 0;
           N.loadMsg = 'Downloading voice… ' + Math.round(N.loadFrac * 100) + '% (' + Math.round(loaded / 1048576) + ' / ' + Math.round(total / 1048576) + ' MB, one-time)';
           render();
         });
-      } catch (e) {
         if (tok !== N.token) return;
-        fallbackToSystem('AI voice unavailable: ' + String((e && e.message) || e).slice(0, 110) + ' — using the device voice', i0);
-        return;
       }
+      N.loadFrac = 1;
+      if (!N.warmed) { await warmUp(); if (tok !== N.token) return; N.warmed = true; }
+    } catch (e) {
       if (tok !== N.token) return;
+      fallbackToSystem('AI voice unavailable: ' + String((e && e.message) || e).slice(0, 110) + ' — using the device voice', i0);
+      return;
     }
-    setState(startPaused ? 'paused' : 'buffering');
-    ensureCtx();
-    // not awaited on purpose: on iOS a resume()/suspend() promise can stay pending, which used to freeze everything at "Preparing speech…"
-    try { if (startPaused) ctx.suspend(); else if (ctx.state !== 'running') ctx.resume(); } catch (e) {}
-    startTicker(); pump();
-  } else {
-    N.mode = 'system';
-    try { Neural.dispose(); } catch (e) {}        // device voice chosen → stop any download / free the AI engine's memory
-    setState(startPaused ? 'paused' : 'buffering');
-    if (!startPaused) sysSpeak(i0);
-    else N.anchor = i0;
   }
+  runNeural(i0, startPaused);
 }
-function fallbackToSystem(msg, from, makeDefault) {
+// Fall back to the device voice for THIS session. It no longer overwrites your saved voice choice.
+function fallbackToSystem(msg, from) {
   const at = from != null ? from : (N.idx >= 0 ? N.idx : N.anchor);
   const wasPaused = N.state === 'paused';
-  halt(); try { Neural.dispose(); } catch (e) {}
-  if (makeDefault) { N.voice = 'system'; selVoice.value = 'system'; lsSet('focusreader_narr_voice', 'system'); }   // too slow here → don't try again every time; picking an AI voice re-enables it
-  N.mode = 'system'; toast(msg);
-  N.token++;                                    // begin() increments again; keep monotonic
+  halt(); disposeNeural();
+  N.mode = 'system'; N.explicit = false;
+  toast(msg);
   N.anchor = at; N.genIdx = at;
   setState(wasPaused ? 'paused' : 'buffering');
   if (!wasPaused) sysSpeak(at);
 }
 function restartAt(i) {
   const wasPaused = N.state === 'paused';
-  halt();
+  halt(N.upgrade && N.voice === 'auto');
   begin(i, wasPaused);
 }
 function reconfigure() {                        // voice or speed changed while narrating
   if (!N.active) return;
   const at = N.idx >= 0 ? N.idx : N.anchor, wasPaused = N.state === 'paused';
-  halt(); begin(at, wasPaused);
+  halt(N.upgrade && N.voice === 'auto'); begin(at, wasPaused);
 }
 
 function start() {
@@ -6994,8 +7146,13 @@ function start() {
   for (let k = 0; k < n(); k++) { if (/^\x01?IMG:\d+/.test(sentences[k])) imgs++; else if (unit(k)) readable++; }
   if (!readable) { toast('No readable text in this book (scanned pages need OCR first)'); return; }
   if (imgs) toast('Image-only pages are skipped (' + imgs + ')');
-  N.warned = false; N.stalls = []; N.fail = 0; N.msg = '';
+  N.stalls = []; N.fail = 0; N.msg = '';
   wakeLockOn();
+  clearInterval(N.uiT);
+  N.uiT = setInterval(() => {                   // keeps the "Preparing… 12s" counters moving
+    if (!N.active) { clearInterval(N.uiT); N.uiT = null; return; }
+    if (N.state === 'loading' || N.state === 'buffering' || N.warmSince) render();
+  }, 1000);
   begin(current, false);
 }
 function togglePause() {
@@ -7017,7 +7174,11 @@ if (btnTop) btnTop.addEventListener('click', onMainButton);
 btnPause.addEventListener('click', e => { e.stopPropagation(); togglePause(); });
 btnStop.addEventListener('click', e => { e.stopPropagation(); stop(); });
 selSpeed.addEventListener('change', () => { N.speed = parseFloat(selSpeed.value) || 1; lsSet('focusreader_narr_speed', String(N.speed)); reconfigure(); });
-selVoice.addEventListener('change', () => { N.voice = selVoice.value; lsSet('focusreader_narr_voice', N.voice); N.warnedZh = false; reconfigure(); });
+selVoice.addEventListener('change', () => {
+  N.voice = selVoice.value; lsSet('focusreader_narr_voice', N.voice); N.warnedZh = false;
+  if (N.voice === 'auto') { N.noUpgrade = false; lsSet(SKIP_KEY, '0'); N.benchRtf = null; }    // picking Auto again = "try the AI voice again"
+  reconfigure();
+});
 ['click', 'touchstart', 'pointerdown'].forEach(ev => bar.addEventListener(ev, e => e.stopPropagation(), { passive: true }));
 document.addEventListener('visibilitychange', () => {
   if (!N.active) return;
@@ -7027,17 +7188,16 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pagehide', () => { try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {} });
 if ('speechSynthesis' in window) { try { speechSynthesis.getVoices(); } catch (e) {} }
 
-N.api = { clean, unit, pieces, nextReadable, queues: () => ({ ready: ready.length, playing: playing.length, ahead: aheadAudio() }) };   // exposed for testing
+N.api = { clean, unit, pieces, nextReadable, samplePieces, queues: () => ({ ready: ready.length, playing: playing.length, ahead: aheadAudio() }) };   // exposed for testing
 window.narrStop = stop;
 window.narrNoteMove = noteMove;
 window.__narr = N;                                  // handy for debugging in the console
 render();
 })();
-
 </script>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script>
 (function(){
 const gestVideo  = document.getElementById('gest-video');
