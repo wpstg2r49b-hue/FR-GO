@@ -195,7 +195,6 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
 #focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
 #fa-wpm{min-width:28px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
-#fa-bm.active svg{fill:currentColor}
 /* Focus Mode only: Opacity button (bottom-left) + drop-up slider. The auto-read controls sit bottom-centre,
    so the two never touch. */
 #focus-opacity{
@@ -435,82 +434,110 @@ body:not(.focus-mode) #track{
 :root[data-theme="light"] #btn-theme .icon-moon{display:none}
 :root[data-theme="light"] #btn-theme .icon-sun{display:block}
 
-/* Bookmark button */
-#btn-bookmark{
-  background:none;border:none;cursor:pointer;
-  padding:12px;display:flex;align-items:center;justify-content:center;
-  opacity:.45;transition:opacity .2s;position:relative;
-}
-#btn-bookmark:hover{opacity:1}
-#btn-bookmark.has-bookmarks #bm-path{stroke:var(--gold)}
-#btn-bookmark.has-bookmarks{opacity:.9}
-
-/* Bookmark dropdown panel */
-#bm-panel{
-  position:absolute;left:calc(100% + 16px);top:50%;transform:translateY(-50%);
-  background:var(--surface);border:1px solid var(--border);
-  min-width:280px;max-width:360px;
-  z-index:100;display:none;flex-direction:column;
-  box-shadow:0 8px 32px rgba(0,0,0,.5);
-}
-#bm-panel.show{display:flex}
-#bm-panel-header{
-  padding:12px 16px;border-bottom:1px solid var(--border);
-  font-family:'DM Mono',monospace;font-size:13px;font-weight:700;
-  letter-spacing:.14em;color:var(--text-dim);text-transform:uppercase;
-  display:flex;justify-content:space-between;align-items:center;
-}
-#btn-bm-add{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.1em;color:var(--gold);background:none;border:1px solid var(--gold-dim);
-  padding:5px 12px;cursor:pointer;text-transform:uppercase;
-  transition:background .15s;
-}
-#btn-bm-add:hover{background:var(--gold-faint)}
-#bm-list{display:flex;flex-direction:column;max-height:300px;overflow-y:auto;contain:layout style;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;scroll-behavior:auto}
-.bm-item{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:11px 16px;border-bottom:1px solid var(--border);
-  cursor:pointer;gap:12px;
-}
-.bm-item:last-child{border-bottom:none}
-.bm-item:hover{background:var(--gold-faint)}
-.bm-item-text{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
-.bm-item-page{font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--gold);letter-spacing:.06em}
-.bm-item-preview{font-family:'Lora',serif;font-size:13px;font-weight:500;color:var(--gold);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bm-item-del{
-  background:none;border:none;cursor:pointer;
-  color:var(--text-dim);font-size:18px;line-height:1;
-  padding:4px;opacity:.4;transition:opacity .15s,color .15s;flex-shrink:0;
-}
-.bm-item-del:hover{opacity:1;color:#c0503a}
-#bm-empty{padding:18px;font-family:'DM Mono',monospace;font-size:13px;color:var(--text-dim);text-align:center;letter-spacing:.1em}
-
-/* ── Bookmark highlight colours ── */
-#bm-colors{
-  display:flex;align-items:center;gap:10px;padding:10px 16px;
-  border-bottom:1px solid var(--border);
-}
-#bm-colors-label{
-  font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
-  letter-spacing:.12em;color:var(--text-dim);text-transform:uppercase;margin-right:auto;
-}
-.bm-swatch{
-  width:22px;height:22px;border-radius:50%;cursor:pointer;padding:0;
-  border:2px solid transparent;background:var(--sw);
-  box-shadow:0 0 0 1px var(--border);transition:transform .15s,box-shadow .15s;
+/* ── Highlight Library ───────────────────────────────────────────────────────
+   Dock button + floating bottom sheet. Palette follows the light "ivory" spec; the dark theme gets warm
+   dark equivalents. Everything is scoped to #hl-sheet / #btn-highlights. */
+#btn-highlights{
+  background:none;border:none;cursor:pointer;color:var(--text-mid);
+  padding:10px;display:flex;align-items:center;justify-content:center;border-radius:50%;
+  opacity:.55;transition:opacity .2s,color .2s,background .2s;position:relative;
   -webkit-tap-highlight-color:transparent;
 }
-.bm-swatch:hover{transform:scale(1.12)}
-.bm-swatch.selected{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--sw)}
-.bm-item-dot{
-  width:14px;height:14px;border-radius:50%;flex-shrink:0;cursor:pointer;padding:0;
-  border:none;background:var(--sw);box-shadow:0 0 0 1px var(--border);
+#btn-highlights:hover{opacity:1}
+#btn-highlights.has-highlights{color:var(--gold);opacity:.85}
+#btn-highlights.open{color:var(--gold);opacity:1;background:var(--gold-faint)}
+
+#hl-sheet{
+  --hl-bg:#F7F5EF; --hl-bg2:#F0EDE5; --hl-text:#37352F; --hl-text2:#958C7D; --hl-gold:#A4864F; --hl-line:#E3DED3;
+  --hl-sans:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Helvetica,Arial,sans-serif;
+  position:fixed;z-index:240;
+  left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));
+  bottom:calc(env(safe-area-inset-bottom,0px) + 6px);
+  height:var(--hl-h,60vh);max-height:calc(100% - 20px);
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--hl-bg);color:var(--hl-text);font-family:var(--hl-sans);
+  border:1px solid var(--hl-line);border-radius:20px;
+  box-shadow:0 14px 44px rgba(40,34,20,.16),0 2px 8px rgba(40,34,20,.06);
+  overscroll-behavior:contain;-webkit-tap-highlight-color:transparent;
+  transform:translateY(calc(100% + 40px));visibility:hidden;
+  transition:transform .42s cubic-bezier(.22,1,.36,1),height .34s cubic-bezier(.22,1,.36,1),visibility 0s linear .42s;
 }
-.bm-item-dot:hover{transform:scale(1.2)}
-@media (max-width:680px){
-  .bm-swatch{width:28px;height:28px}
-  .bm-item-dot{width:20px;height:20px}
+#hl-sheet.show{transform:none;visibility:visible;transition:transform .42s cubic-bezier(.22,1,.36,1),height .34s cubic-bezier(.22,1,.36,1),visibility 0s}
+#hl-sheet.dragging{transition:none}
+:root[data-theme="dark"] #hl-sheet{
+  --hl-bg:#1b1913; --hl-bg2:#242117; --hl-text:#e7decb; --hl-text2:#8f8470; --hl-gold:#c8a96e; --hl-line:#2f2b20;
+  box-shadow:0 14px 44px rgba(0,0,0,.5),0 2px 8px rgba(0,0,0,.3);
+}
+@supports (height:100dvh){ #hl-sheet{max-height:calc(100dvh - 20px)} }
+
+#hl-drag{flex:none;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#hl-grab{display:flex;justify-content:center;padding:9px 0 2px}
+#hl-grab span{width:34px;height:4px;border-radius:2px;background:var(--hl-text2);opacity:.28}
+#hl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:8px 20px 12px}
+#hl-title{margin:0;font-family:'Lora',Georgia,serif;font-size:20px;font-weight:600;letter-spacing:-.005em;line-height:1.2;color:var(--hl-text)}
+#hl-sub{margin-top:3px;font-size:12px;letter-spacing:.01em;color:var(--hl-text2)}
+#hl-close{flex:none;width:34px;height:34px;margin:-5px -9px 0 0;display:flex;align-items:center;justify-content:center;
+  background:none;border:0;border-radius:50%;color:var(--hl-text2);cursor:pointer;transition:background .15s,color .15s}
+#hl-close:hover{background:var(--hl-bg2);color:var(--hl-text)}
+
+#hl-filter{flex:none;display:flex;align-items:center;gap:2px;padding:0 14px 10px 16px;border-bottom:1px solid var(--hl-line)}
+.hl-all{font:500 12px var(--hl-sans);letter-spacing:.02em;color:var(--hl-text2);background:none;border:0;border-radius:14px;
+  height:30px;padding:0 11px;margin-right:4px;cursor:pointer;transition:background .2s,color .2s}
+.hl-all.selected{color:var(--hl-text);background:var(--hl-bg2)}
+.hl-sw{flex:none;width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.hl-sw i{display:block;width:14px;height:14px;border-radius:50%;background:var(--c);transition:box-shadow .2s,transform .2s}
+.hl-sw.selected i{transform:scale(1.08);box-shadow:0 0 0 2px var(--hl-bg),0 0 0 3.5px var(--c);animation:hlPop .38s cubic-bezier(.3,1.5,.5,1)}
+@keyframes hlPop{0%{transform:scale(.65)}60%{transform:scale(1.28)}100%{transform:scale(1.08)}}
+
+#hl-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;padding:0 20px 8px}
+.hl-item{position:relative;padding:17px 0 17px;border-bottom:1px solid var(--hl-line);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.hl-item:last-child{border-bottom:0}
+.hl-item.flash{animation:hlFlash 1.3s ease-out}
+@keyframes hlFlash{0%,35%{background:var(--hl-bg2)}100%{background:transparent}}
+.hl-meta{display:flex;align-items:center;gap:7px;min-height:24px;font-size:10.5px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--hl-text2)}
+.hl-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--c)}
+.hl-meta .pg{flex:none}
+.hl-meta .sep{flex:none;opacity:.6}
+.hl-meta .chap{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hl-more{flex:none;margin:-6px -9px -6px auto;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:none;border:0;border-radius:50%;color:var(--hl-text2);cursor:pointer;opacity:.75;transition:opacity .15s,background .15s}
+.hl-more:hover,.hl-item.open .hl-more{opacity:1;background:var(--hl-bg2)}
+.hl-text{margin:8px 0 0;font-family:var(--reading-font,'Lora',Georgia,serif);font-size:16.5px;font-weight:400;line-height:1.62;color:var(--hl-text);overflow-wrap:anywhere;transition:color .15s}
+.hl-item:active .hl-text{color:var(--hl-gold)}
+.hl-acts{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s ease}
+.hl-item.open .hl-acts{grid-template-rows:1fr}
+.hl-acts-in{min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:space-between}
+.hl-item.open .hl-acts-in{padding-top:10px}
+.hl-colors{display:flex;align-items:center;gap:0;margin-left:-8px}
+.hl-colors .hl-sw{width:32px;height:32px}
+.hl-rm{font:500 12.5px var(--hl-sans);color:var(--hl-text2);background:none;border:0;padding:8px 0 8px 12px;cursor:pointer;letter-spacing:.01em}
+.hl-rm:hover{color:#B5483B}
+
+#hl-foot{flex:none;padding:10px 16px 12px;border-top:1px solid var(--hl-line);background:var(--hl-bg)}
+#hl-add{width:100%;min-height:44px;display:flex;align-items:center;justify-content:center;background:var(--hl-bg2);border:0;border-radius:12px;
+  color:var(--hl-gold);font:600 13.5px var(--hl-sans);letter-spacing:.01em;cursor:pointer;transition:background .15s,transform .1s}
+#hl-add:active{transform:scale(.985)}
+#hl-undo{position:absolute;left:16px;right:16px;bottom:72px;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:10px 14px;border-radius:12px;background:var(--hl-text);color:var(--hl-bg);font-size:13px;
+  opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .22s,transform .22s}
+#hl-undo.show{opacity:1;transform:none;pointer-events:auto}
+#hl-undo button{background:none;border:0;color:inherit;font:600 13px var(--hl-sans);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:4px 2px}
+#hl-sheet.is-empty #hl-undo{bottom:20px}
+
+.hl-empty{padding:46px 14px 28px;text-align:center}
+.hl-empty h3{margin:0 0 9px;font-family:'Lora',Georgia,serif;font-style:italic;font-weight:400;font-size:19px;color:var(--hl-text)}
+.hl-empty p{margin:0 auto 16px;max-width:270px;font-size:13.5px;line-height:1.55;color:var(--hl-text2)}
+.hl-empty button{background:none;border:0;color:var(--hl-gold);font:600 13px var(--hl-sans);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:8px}
+
+/* Wider screens: same sheet, centred with a sensible maximum width */
+@media (min-width:681px) and (min-height:501px){
+  #hl-sheet{left:0;right:0;margin:0 auto;width:min(480px,calc(100vw - 32px));bottom:24px}
+}
+/* the reader sentence you jumped to from the library gets a brief gold glow */
+.snt.hl-pulse{animation:hlPulse 1.8s ease-out 1;border-radius:6px}
+@keyframes hlPulse{
+  0%{background-color:rgba(164,134,79,0);box-shadow:0 0 0 0 rgba(164,134,79,0)}
+  18%{background-color:rgba(164,134,79,.22);box-shadow:0 0 0 6px rgba(164,134,79,.16)}
+  100%{background-color:rgba(164,134,79,0);box-shadow:0 0 0 14px rgba(164,134,79,0)}
 }
 /* The bookmarked sentence itself, wherever it appears (normal reading + Focus Mode) */
 .snt[data-bm]{
@@ -1084,12 +1111,7 @@ body:not(.focus-mode) #track{
     flex-direction:column; justify-content:flex-start; align-items:center;
     gap:6px; z-index:20; width:auto;
   }
-  #btn-bookmark{ padding:8px; min-width:40px; min-height:40px; }
-  #bm-panel{
-    left:0; right:auto; top:auto; bottom:calc(100% + 10px);
-    transform:none;
-    min-width:min(84vw,320px); max-width:calc(100vw - 32px);
-  }
+  #btn-highlights{ padding:8px; min-width:40px; min-height:40px; }
 
   /* Timer lives in the ☰ dropdown: a full-width row (icon + "Timer" / "12:34 left"),
      with its presets / pause-reset as an inline row underneath. */
@@ -1239,8 +1261,6 @@ body:not(.focus-mode) #track{
   #more-menu .more-menu-label{ white-space:nowrap; }
   /* Menu is tall on a short screen — keep it above the dock, never behind it */
   #topbar{ z-index:30; }
-  /* Bookmark list must fit above the lower-left cluster on a short screen */
-  #bm-list{ max-height:min(300px, 34vh); }
 
   /* Even on phones that report no cut-out, keep a comfortable side gutter */
   .snt{
@@ -1295,7 +1315,7 @@ body:not(.focus-mode) #track{
   #left-panel{ flex-direction:row; align-items:center; gap:0; }
   #btn-theme{ padding:6px; min-width:38px; min-height:38px; }
   #ap-wrap{ display:flex; }
-  #btn-bookmark{ padding:6px; min-width:38px; min-height:38px; }
+  #btn-highlights{ padding:6px; min-width:38px; min-height:38px; }
   #pos-wrap{ flex-direction:row; align-items:center; gap:8px; opacity:.9; padding-top:0; min-width:0; }
   #pos-page, #pos-sent{ height:36px; gap:3px; }
   #pos-page-input{ width:34px; }
@@ -1562,7 +1582,7 @@ body:not(.focus-mode) #track{
       <span id="fa-wpm">200</span>
       <button id="fa-up" title="Faster" aria-label="Faster">+</button>
       <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
-      <button id="fa-bm" title="Bookmark this sentence (V)" aria-label="Bookmark this sentence" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 16 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M2 2h12v16l-6-4-6 4V2z"/></svg></button>
+      <button id="fa-hl" title="Highlight this sentence (V)" aria-label="Highlight this sentence" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
     </div>
 
     <!-- Focus Mode only: "Opacity" button → drop-up slider for the previous / next sentence -->
@@ -1676,31 +1696,11 @@ body:not(.focus-mode) #track{
             </div>
           </div>
 
-          <!-- Bookmark with dropdown panel -->
+          <!-- Highlight Library button (opens the "My Highlights" sheet) -->
           <div style="position:relative">
-            <button id="btn-bookmark" title="Bookmarks">
-              <svg width="22" height="28" viewBox="0 0 16 20" fill="none">
-                <path id="bm-path" d="M2 2h12v16l-6-4-6 4V2z" stroke="#6b5a38" stroke-width="1.4" stroke-linejoin="round"/>
-              </svg>
+            <button id="btn-highlights" type="button" title="My Highlights" aria-label="My Highlights" aria-haspopup="dialog" aria-expanded="false">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>
             </button>
-            <!-- Bookmark dropdown -->
-            <div id="bm-panel">
-              <div id="bm-panel-header">
-                <span>bookmarks</span>
-                <button id="btn-bm-add">+ add here</button>
-              </div>
-              <div id="bm-colors">
-                <span id="bm-colors-label">highlight</span>
-                <button class="bm-swatch" data-color="yellow" title="Yellow" aria-label="Yellow" style="--sw:#f0c846"></button>
-                <button class="bm-swatch" data-color="red"    title="Red"    aria-label="Red"    style="--sw:#eb5a50"></button>
-                <button class="bm-swatch" data-color="green"  title="Green"  aria-label="Green"  style="--sw:#50c878"></button>
-                <button class="bm-swatch" data-color="blue"   title="Blue"   aria-label="Blue"   style="--sw:#5a96ff"></button>
-                <button class="bm-swatch" data-color="purple" title="Purple" aria-label="Purple" style="--sw:#aa6ee6"></button>
-              </div>
-              <div id="bm-list">
-                <div id="bm-empty">no bookmarks yet</div>
-              </div>
-            </div>
           </div>
 
           <!-- Read aloud (audiobook narration) -->
@@ -1732,6 +1732,31 @@ body:not(.focus-mode) #track{
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- Highlight Library — floating bottom sheet -->
+  <div id="hl-sheet" role="dialog" aria-modal="false" aria-labelledby="hl-title" aria-hidden="true">
+    <div id="hl-drag">
+      <div id="hl-grab"><span></span></div>
+      <div id="hl-head">
+        <div>
+          <h2 id="hl-title">My Highlights</h2>
+          <div id="hl-sub">0 saved passages</div>
+        </div>
+        <button id="hl-close" type="button" aria-label="Close My Highlights"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg></button>
+      </div>
+    </div>
+    <div id="hl-filter" role="group" aria-label="Filter by colour">
+      <button type="button" class="hl-all selected" data-filter="all" aria-pressed="true">All</button>
+      <button type="button" class="hl-sw" data-filter="yellow" style="--c:#E2B84A" aria-label="Yellow" aria-pressed="false"><i></i></button>
+      <button type="button" class="hl-sw" data-filter="red"    style="--c:#D86C5F" aria-label="Red" aria-pressed="false"><i></i></button>
+      <button type="button" class="hl-sw" data-filter="green"  style="--c:#6FB083" aria-label="Green" aria-pressed="false"><i></i></button>
+      <button type="button" class="hl-sw" data-filter="blue"   style="--c:#6F98D8" aria-label="Blue" aria-pressed="false"><i></i></button>
+      <button type="button" class="hl-sw" data-filter="purple" style="--c:#9F82CC" aria-label="Purple" aria-pressed="false"><i></i></button>
+    </div>
+    <div id="hl-list"></div>
+    <div id="hl-foot"><button type="button" id="hl-add"><span id="hl-add-label">+ Highlight current sentence</span></button></div>
+    <div id="hl-undo" role="status" aria-live="polite"><span>Highlight removed</span><button type="button" id="hl-undo-btn">Undo</button></div>
   </div>
 
   <div id="dict-tooltip">
@@ -4410,24 +4435,17 @@ function sentenceToPage(idx) {
   return null;
 }
 
-/* ── Multi-bookmark system — Fix 6 ───────────────────────────────────────────
-   Bookmarks are stored as an array per book: [{idx, label, ts}]
-   The panel opens on hover of the bookmark icon.
-   + add here → adds current sentence as a bookmark
-   Each item → click jumps there; × deletes it
-   The bookmark icon turns gold if any bookmarks exist for this book.
+/* ── Highlight storage + state ────────────────────────────────────────────────
+   Highlights are stored as an array per book: [{idx, ts, color}]  (idx = exact sentence index).
+   The dock highlighter button opens the "My Highlights" sheet (see Highlight Library below).
 ──────────────────────────────────────────────────────────────────────────── */
-const bmBtn    = document.getElementById('btn-bookmark');
-const bmPath   = document.getElementById('bm-path');
-const bmPanel  = document.getElementById('bm-panel');
-const bmList   = document.getElementById('bm-list');
-const bmEmpty  = document.getElementById('bm-empty');
-const btnBmAdd = document.getElementById('btn-bm-add');
+const bmBtn    = document.getElementById('btn-highlights');
+const bmPanel  = document.getElementById('hl-sheet');        // the Highlight Library sheet (internal names kept for compatibility)
 
 let bookmarks = []; // [{idx, ts, color}] for current book
 
 const BM_COLORS = ['yellow','red','green','blue','purple'];
-const BM_HEX    = { blue:'#5a96ff', green:'#50c878', red:'#eb5a50', yellow:'#f0c846', purple:'#aa6ee6' };
+const BM_HEX    = { blue:'#6F98D8', green:'#6FB083', red:'#D86C5F', yellow:'#E2B84A', purple:'#9F82CC' };
 const BM_COLOR_KEY = 'focusreader_bm_color';
 let bmColor = (() => { try { const c = localStorage.getItem(BM_COLOR_KEY); return BM_COLORS.includes(c) ? c : 'yellow'; } catch(e) { return 'yellow'; } })();
 let bmColorMap = new Map();   // sentence index → colour name
@@ -4462,51 +4480,11 @@ function refreshBmHighlights() {
   rebuildBmMap();
   nodes.forEach(el => applyBmHighlight(el, el._sentIdx));
 }
-function syncSwatches() {
-  // If the sentence you're on is bookmarked, the row shows (and edits) THAT bookmark's colour;
-  // otherwise it shows the colour the next new bookmark will get.
-  const cur = bookmarks.find(b => b.idx === current);
-  const sel = cur ? (BM_COLORS.includes(cur.color) ? cur.color : 'yellow') : bmColor;
-  document.querySelectorAll('.bm-swatch').forEach(b => b.classList.toggle('selected', b.dataset.color === sel));
-}
-document.querySelectorAll('.bm-swatch').forEach(b => b.addEventListener('click', e => {
-  e.stopPropagation();
-  bmColor = b.dataset.color;
-  try { localStorage.setItem(BM_COLOR_KEY, bmColor); } catch(err) {}
-  const cur = bookmarks.find(x => x.idx === current);      // already bookmarked? recolour it right away
-  if (cur) {
-    cur.color = bmColor;
-    saveBookmarks(currentBookId, bookmarks);
-    renderBmPanel();
-    updateBmIcon();
-  }
-  syncSwatches();
-}));
-syncSwatches();
-
-/* Bookmark / un-bookmark the sentence you are on (V key and the Focus Mode button). */
-function toggleBookmarkHere() {
-  if (!currentBookId) return;
-  const existIdx = bookmarks.findIndex(b => b.idx === current);
-  if (existIdx >= 0) {
-    bookmarks.splice(existIdx, 1);
-    saveBookmarks(currentBookId, bookmarks); updateBmIcon(); showToast('bookmark removed');
-  } else {
-    bookmarks.push({ idx: current, ts: Date.now(), color: bmColor });
-    saveBookmarks(currentBookId, bookmarks); updateBmIcon(); showToast('bookmark added');
-  }
-  syncFocusBm();
-}
-function syncFocusBm() {
-  const b = document.getElementById('fa-bm'); if (!b) return;
-  const on = bookmarks.some(x => x.idx === current);
-  b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  b.title = on ? 'Remove bookmark (V)' : 'Bookmark this sentence (V)';
-}
-document.getElementById('fa-bm').addEventListener('click', e => { e.stopPropagation(); toggleBookmarkHere(); });
-
+/* ── Highlight Library ───────────────────────────────────────────────────────
+   Data is unchanged: per book, [{idx, ts, color}] under  focusreader_bm2_<bookId>  — so every highlight saved by
+   earlier versions loads as before. idx = the exact sentence index; the page comes from the existing pageMap.
+   "Chapter" is the nearest heading chunk (HEADING:) before the sentence, when the book has one. */
 function bmStorageKey(bookId) { return 'focusreader_bm2_' + bookId; }
-
 function loadBookmarks(bookId) {
   try { return JSON.parse(localStorage.getItem(bmStorageKey(bookId)) || '[]'); }
   catch(e) { return []; }
@@ -4515,96 +4493,263 @@ function saveBookmarks(bookId, arr) {
   try { localStorage.setItem(bmStorageKey(bookId), JSON.stringify(arr)); }
   catch(e) {}
 }
-
-function renderBmPanel() {
-  syncSwatches();
-  bmList.innerHTML = '';
-  if (bookmarks.length === 0) {
-    bmList.appendChild(bmEmpty);
-    bmEmpty.style.display = '';
-    return;
-  }
-  bmEmpty.style.display = 'none';
-  // Sort by sentence index
-  const sorted = [...bookmarks].sort((a,b) => a.idx - b.idx);
-  sorted.forEach(bm => {
-    const pg      = sentenceToPage(bm.idx);
-    const plain   = sentPlain(sentences[bm.idx]);
-    const preview = plain.slice(0, 48) + (plain.length > 48 ? '…' : '');
-    const item    = document.createElement('div');
-    item.className = 'bm-item';
-    const bmCol = BM_COLORS.includes(bm.color) ? bm.color : 'yellow';
-    item.innerHTML = `
-      <button class="bm-item-dot" title="Change highlight colour" style="--sw:${BM_HEX[bmCol]}"></button>
-      <div class="bm-item-text">
-        <span class="bm-item-page">${pg ? `p.${pg}` : `#${bm.idx+1}`} &nbsp;·&nbsp; sent.${bm.idx+1}</span>
-        <span class="bm-item-preview">${escHtml(preview)}</span>
-      </div>
-      <button class="bm-item-del" title="Delete bookmark">×</button>
-    `;
-    // Tap the dot to cycle this bookmark's highlight colour
-    item.querySelector('.bm-item-dot').addEventListener('click', (e) => {
-      e.stopPropagation();
-      bm.color = BM_COLORS[(BM_COLORS.indexOf(bmCol) + 1) % BM_COLORS.length];
-      saveBookmarks(currentBookId, bookmarks);
-      renderBmPanel();
-      updateBmIcon();
-    });
-    // Jump to bookmark
-    item.querySelector('.bm-item-text').addEventListener('click', (e) => {
-      e.stopPropagation();
-      closeBmPanel();
-      jumpTo(bm.idx);
-    });
-    // Delete bookmark
-    item.querySelector('.bm-item-del').addEventListener('click', (e) => {
-      e.stopPropagation();
-      bookmarks = bookmarks.filter(b => b.idx !== bm.idx);
-      saveBookmarks(currentBookId, bookmarks);
-      renderBmPanel();
-      updateBmIcon();
-    });
-    bmList.appendChild(item);
-  });
-}
-
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-function updateBmIcon() {
-  refreshBmHighlights();
-  syncFocusBm();
-  const has = bookmarks.length > 0;
-  bmBtn.classList.toggle('has-bookmarks', has);
-  bmPath.style.fill   = has ? 'var(--gold)' : 'none';
-  bmPath.style.stroke = has ? 'var(--gold)' : '#6b5a38';
+const hlList = document.getElementById('hl-list'), hlSub = document.getElementById('hl-sub');
+const hlFilterEl = document.getElementById('hl-filter'), hlFoot = document.getElementById('hl-foot');
+const hlAdd = document.getElementById('hl-add'), hlAddLabel = document.getElementById('hl-add-label');
+const hlUndoEl = document.getElementById('hl-undo'), hlUndoBtn = document.getElementById('hl-undo-btn');
+const hlDragEl = document.getElementById('hl-drag'), hlCloseBtn = document.getElementById('hl-close');
+let hlFilter = 'all', hlOpenIdx = -1, hlChapters = null, hlUndoEntry = null, hlUndoTimer = null, hlSnap = 'half', hlNoteTimer = null;
+const HL_ADD_TEXT = '+ Highlight current sentence';
+const HL_NAMES = { yellow:'Yellow', red:'Red', green:'Green', blue:'Blue', purple:'Purple' };
+
+function hlColorOf(b) { return BM_COLORS.includes(b.color) ? b.color : 'yellow'; }
+
+/* chapter / page labels */
+function hlBuildChapters() {
+  const n = sentences.length, arr = new Int32Array(n); let cur = -1;
+  for (let i = 0; i < n; i++) {
+    const raw = sentences[i];
+    if (raw && raw.startsWith('HEADING:')) {
+      const t = raw.slice(8).trim();
+      if (t.length >= 3 && t.length <= 90 && /[A-Za-z\u00C0-\u024F\u4e00-\u9fff]/.test(t)) cur = i;
+    }
+    arr[i] = cur;
+  }
+  hlChapters = arr;
+}
+function hlChapterName(idx) {
+  if (!hlChapters || hlChapters.length !== sentences.length) hlBuildChapters();
+  const h = hlChapters[idx];
+  if (h < 0 || h === idx) return '';
+  const t = sentPlain(sentences[h]).trim();
+  return t.length > 40 ? t.slice(0, 38).trim() + '\u2026' : t;
 }
 
-function openBmPanel() { closeApPop(); renderBmPanel(); bmPanel.classList.add('show'); }
-function closeBmPanel(){ bmPanel.classList.remove('show'); }
-
-// Toggle panel on click
-bmBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  bmPanel.classList.contains('show') ? closeBmPanel() : openBmPanel();
-});
-
-// Add bookmark at current sentence
-btnBmAdd.addEventListener('click', (e) => {
-  e.stopPropagation();
-  // Don't add duplicate
-  if (bookmarks.some(b => b.idx === current)) return;
-  bookmarks.push({ idx: current, ts: Date.now(), color: bmColor });
-  saveBookmarks(currentBookId, bookmarks);
+/* rendering */
+function hlCard(bm) {
+  const col = hlColorOf(bm), pg = sentenceToPage(bm.idx), chap = hlChapterName(bm.idx);
+  const text = sentPlain(sentences[bm.idx]).trim();
+  const quoted = /^["\u201C\u2018']/.test(text) ? text : '\u201C' + text + '\u201D';
+  const open = hlOpenIdx === bm.idx;
+  const el = document.createElement('article');
+  el.className = 'hl-item' + (open ? ' open' : '');
+  el.dataset.idx = bm.idx;
+  el.style.setProperty('--c', BM_HEX[col]);
+  const meta = (pg ? '<span class="pg">Page ' + pg + '</span>' : '') + (pg && chap ? '<span class="sep">\u00B7</span>' : '') +
+               (chap ? '<span class="chap">' + escHtml(chap) + '</span>' : '') + (!pg && !chap ? '<span class="pg">Passage</span>' : '');
+  el.innerHTML =
+    '<div class="hl-meta"><i class="hl-dot"></i>' + meta +
+      '<button type="button" class="hl-more" data-act="more" aria-label="More options" aria-expanded="' + open + '">' +
+      '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="13" cy="8" r="1.3"/></svg></button></div>' +
+    '<p class="hl-text">' + escHtml(quoted) + '</p>' +
+    '<div class="hl-acts"><div class="hl-acts-in"><div class="hl-colors">' +
+      BM_COLORS.map(c => '<button type="button" class="hl-sw' + (c === col ? ' selected' : '') + '" data-act="color" data-color="' + c + '" style="--c:' + BM_HEX[c] +
+        '" aria-label="Change to ' + HL_NAMES[c] + '"><i></i></button>').join('') +
+    '</div><button type="button" class="hl-rm" data-act="remove">Remove</button></div></div>';
+  return el;
+}
+function hlEmpty(title, text, btnText, onBtn) {
+  const d = document.createElement('div'); d.className = 'hl-empty';
+  d.innerHTML = '<h3>' + title + '</h3><p>' + text + '</p>';
+  const b = document.createElement('button'); b.type = 'button'; b.textContent = btnText; b.addEventListener('click', onBtn);
+  d.appendChild(b); return d;
+}
+function renderBmPanel() {
+  const all = [...bookmarks].sort((a, b) => a.idx - b.idx), total = all.length;
+  if (hlFilter !== 'all' && !BM_COLORS.includes(hlFilter)) hlFilter = 'all';
+  const shown = hlFilter === 'all' ? all : all.filter(b => hlColorOf(b) === hlFilter);
+  hlSub.textContent = total === 0 ? 'Nothing saved yet'
+    : hlFilter === 'all' ? total + ' saved passage' + (total === 1 ? '' : 's') : shown.length + ' of ' + total + ' passages';
+  hlFilterEl.querySelectorAll('[data-filter]').forEach(b => {
+    const on = b.dataset.filter === hlFilter; b.classList.toggle('selected', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  bmPanel.classList.toggle('is-empty', total === 0);
+  hlFilterEl.style.display = hlFoot.style.display = total === 0 ? 'none' : '';
+  hlList.innerHTML = '';
+  if (total === 0) {
+    hlList.appendChild(hlEmpty('Nothing highlighted yet.', 'Save a sentence that speaks to you, and it will find a home here.', 'Highlight current sentence', hlAddCurrent));
+    return;
+  }
+  if (!shown.length) {
+    hlList.appendChild(hlEmpty('No ' + HL_NAMES[hlFilter].toLowerCase() + ' highlights.', 'Passages you mark in this colour will gather here.', 'Show all', () => hlSetFilter('all')));
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  shown.forEach(bm => frag.appendChild(hlCard(bm)));
+  hlList.appendChild(frag);
+}
+function updateBmIcon() {
+  refreshBmHighlights();          // repaints the highlight on the sentences in the reader
+  syncFocusBm();
+  bmBtn.classList.toggle('has-highlights', bookmarks.length > 0);
+}
+function hlSetFilter(f) {
+  hlFilter = f;
+  if (f !== 'all') { bmColor = f; try { localStorage.setItem(BM_COLOR_KEY, bmColor); } catch(e) {} }   // new highlights use the colour you last picked
   renderBmPanel();
-  updateBmIcon();
-});
+}
 
-// Close panel when clicking outside
-document.addEventListener('click', (e) => {
-  if (!bmBtn.contains(e.target) && !bmPanel.contains(e.target)) closeBmPanel();
+/* actions */
+function hlNote(msg) {
+  hlAddLabel.textContent = msg; clearTimeout(hlNoteTimer);
+  hlNoteTimer = setTimeout(() => { hlAddLabel.textContent = HL_ADD_TEXT; }, 1700);
+}
+function hlFlash(idx) {
+  const el = hlList.querySelector('.hl-item[data-idx="' + idx + '"]'); if (!el) return;
+  try { el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch(e) {}
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+function hlAddCurrent() {
+  if (!currentBookId || !sentences.length) return;
+  if (bookmarks.some(b => b.idx === current)) {           // never save the same sentence twice
+    if (hlFilter !== 'all' && hlColorOf(bookmarks.find(b => b.idx === current)) !== hlFilter) { hlFilter = 'all'; renderBmPanel(); }
+    hlNote('Already highlighted'); hlFlash(current); return;
+  }
+  const col = hlFilter !== 'all' ? hlFilter : bmColor;
+  bookmarks.push({ idx: current, ts: Date.now(), color: col });
+  saveBookmarks(currentBookId, bookmarks); updateBmIcon();
+  renderBmPanel(); hlNote('Highlighted'); hlFlash(current);
+}
+function hlSetColor(idx, c) {
+  const bm = bookmarks.find(b => b.idx === idx); if (!bm || !BM_COLORS.includes(c) || hlColorOf(bm) === c) return;
+  bm.color = c; saveBookmarks(currentBookId, bookmarks);
+  updateBmIcon();                                           // the sentence in the reader changes colour immediately
+  if (hlFilter !== 'all') hlFilter = c;                      // keep following the passage you just recoloured
+  renderBmPanel();
+}
+function hlRemove(idx) {
+  const k = bookmarks.findIndex(b => b.idx === idx); if (k < 0) return;
+  const entry = bookmarks.splice(k, 1)[0];
+  saveBookmarks(currentBookId, bookmarks); hlOpenIdx = -1; updateBmIcon(); renderBmPanel();
+  hlUndoEntry = entry; hlUndoEl.classList.add('show'); clearTimeout(hlUndoTimer);
+  hlUndoTimer = setTimeout(hlHideUndo, 5500);
+}
+function hlHideUndo() { clearTimeout(hlUndoTimer); hlUndoEl.classList.remove('show'); hlUndoEntry = null; }
+hlUndoBtn.addEventListener('click', () => {
+  const e = hlUndoEntry; hlHideUndo();
+  if (e && !bookmarks.some(b => b.idx === e.idx)) { bookmarks.push(e); saveBookmarks(currentBookId, bookmarks); updateBmIcon(); renderBmPanel(); hlFlash(e.idx); }
 });
+function hlPulse(idx) {
+  const el = nodes[sentToSlot(idx)];
+  if (!el || el._sentIdx !== idx) return;
+  el.classList.remove('hl-pulse'); void el.offsetWidth; el.classList.add('hl-pulse');
+  el.addEventListener('animationend', () => el.classList.remove('hl-pulse'), { once: true });
+}
+/* tap a saved passage → close the sheet and land on exactly that sentence (page follows from its index) */
+function hlGo(idx) {
+  closeBmPanel();
+  jumpTo(idx);
+  setTimeout(() => hlPulse(idx), 280);
+}
+
+/* V key and the Focus Mode button: highlight / un-highlight the sentence you are on */
+function toggleBookmarkHere() {
+  if (!currentBookId) return;
+  const k = bookmarks.findIndex(b => b.idx === current);
+  if (k >= 0) { bookmarks.splice(k, 1); saveBookmarks(currentBookId, bookmarks); updateBmIcon(); showToast('highlight removed'); }
+  else { bookmarks.push({ idx: current, ts: Date.now(), color: bmColor }); saveBookmarks(currentBookId, bookmarks); updateBmIcon(); showToast('highlighted'); }
+  if (bmPanel.classList.contains('show')) renderBmPanel();
+}
+function syncFocusBm() {
+  const b = document.getElementById('fa-hl'); if (!b) return;
+  const on = bookmarks.some(x => x.idx === current);
+  b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  b.title = on ? 'Remove highlight (V)' : 'Highlight this sentence (V)';
+}
+document.getElementById('fa-hl').addEventListener('click', e => { e.stopPropagation(); toggleBookmarkHere(); });
+
+/* sheet: open / close / size / drag */
+function hlSizes() {
+  const H = window.innerHeight, W = window.innerWidth, si = _safeInsets();
+  const desk = W > 680 && H > 500;
+  const botOff = si.b + (desk ? 24 : 6), topMar = si.t + (desk ? 24 : 14);
+  const full = Math.max(220, Math.min(H - botOff - topMar, desk ? 840 : H));
+  const half = H <= 500 ? full : Math.round(Math.min(full, desk ? Math.min(H * 0.7, 620) : H * 0.62));
+  return { half, full };
+}
+function hlSnapTo(which) {
+  const sz = hlSizes(); hlSnap = which;
+  bmPanel.style.setProperty('--hl-h', (which === 'full' ? sz.full : sz.half) + 'px');
+}
+function openBmPanel() {
+  closeApPop();
+  try { moreMenu.classList.remove('open'); } catch(e) {}
+  hlSnapTo('half'); hlOpenIdx = -1; renderBmPanel();
+  bmPanel.classList.add('show'); bmPanel.setAttribute('aria-hidden', 'false');
+  bmBtn.classList.add('open'); bmBtn.setAttribute('aria-expanded', 'true');
+}
+function closeBmPanel() {
+  if (!bmPanel.classList.contains('show')) return;
+  bmPanel.classList.remove('show', 'dragging'); bmPanel.setAttribute('aria-hidden', 'true');
+  bmBtn.classList.remove('open'); bmBtn.setAttribute('aria-expanded', 'false');
+  hlHideUndo(); hlOpenIdx = -1;
+}
+bmBtn.addEventListener('click', e => { e.stopPropagation(); bmPanel.classList.contains('show') ? closeBmPanel() : openBmPanel(); });
+hlCloseBtn.addEventListener('click', e => { e.stopPropagation(); closeBmPanel(); });
+hlAdd.addEventListener('click', hlAddCurrent);
+hlFilterEl.addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (b) hlSetFilter(b.dataset.filter); });
+hlList.addEventListener('click', e => {
+  const item = e.target.closest('.hl-item'); if (!item) return;
+  const idx = +item.dataset.idx, t = e.target.closest('[data-act]');
+  if (t) {
+    const act = t.dataset.act;
+    if (act === 'more') {
+      hlOpenIdx = hlOpenIdx === idx ? -1 : idx;
+      hlList.querySelectorAll('.hl-item').forEach(x => {
+        const o = +x.dataset.idx === hlOpenIdx; x.classList.toggle('open', o); x.querySelector('.hl-more').setAttribute('aria-expanded', o ? 'true' : 'false');
+      });
+    } else if (act === 'color') hlSetColor(idx, t.dataset.color);
+    else if (act === 'remove') hlRemove(idx);
+    return;
+  }
+  hlGo(idx);
+});
+// Clicks inside the sheet never reach the "tap outside to close" handler (a re-render detaches the tapped element).
+bmPanel.addEventListener('click', e => e.stopPropagation());
+// Close when tapping anywhere else (the reader stays visible behind the sheet — there is no dark overlay)
+document.addEventListener('click', e => {
+  if (!bmBtn.contains(e.target)) closeBmPanel();
+});
+window.addEventListener('resize', () => { if (bmPanel.classList.contains('show')) hlSnapTo(hlSnap); });
+
+// drag the handle / header: up = expand, down = collapse, further down (or a quick flick) = dismiss
+let hlDg = null;
+hlDragEl.addEventListener('pointerdown', e => {
+  if (e.target.closest('button')) return;
+  hlDg = { id: e.pointerId, y0: e.clientY, t0: performance.now(), h0: bmPanel.offsetHeight, h: bmPanel.offsetHeight, lastY: e.clientY, lastT: performance.now(), v: 0 };
+  try { hlDragEl.setPointerCapture(e.pointerId); } catch(err) {}
+  bmPanel.classList.add('dragging');
+});
+hlDragEl.addEventListener('pointermove', e => {
+  if (!hlDg || e.pointerId !== hlDg.id) return;
+  const full = hlSizes().full;
+  let h = hlDg.h0 - (e.clientY - hlDg.y0);
+  if (h > full) h = full + (h - full) * 0.18;               // gentle resistance past the top
+  h = Math.max(90, h); hlDg.h = h;
+  const now = performance.now(), dt = Math.max(1, now - hlDg.lastT);
+  hlDg.v = 0.75 * hlDg.v + 0.25 * ((e.clientY - hlDg.lastY) / dt); hlDg.lastY = e.clientY; hlDg.lastT = now;   // px/ms, + = downward
+  bmPanel.style.setProperty('--hl-h', h + 'px');
+  e.preventDefault();
+});
+function hlDragEnd(e) {
+  if (!hlDg || (e && e.pointerId !== hlDg.id)) return;
+  const d = hlDg; hlDg = null; bmPanel.classList.remove('dragging');
+  const sz = hlSizes();
+  if (Math.abs((e ? e.clientY : d.lastY) - d.y0) < 5 && performance.now() - d.t0 < 400) { hlSnapTo(hlSnap === 'half' ? 'full' : 'half'); return; }   // a tap on the handle toggles
+  let target;
+  if (d.v > 0.7) target = d.h > sz.half + 48 ? 'half' : 'close';
+  else if (d.v < -0.7) target = 'full';
+  else if (d.h < sz.half * 0.6) target = 'close';
+  else target = Math.abs(d.h - sz.full) < Math.abs(d.h - sz.half) ? 'full' : 'half';
+  if (target === 'close') closeBmPanel(); else hlSnapTo(target);
+}
+hlDragEl.addEventListener('pointerup', hlDragEnd);
+hlDragEl.addEventListener('pointercancel', hlDragEnd);
+
 
 function jumpTo(idx) {
   if (idx < 0 || idx >= sentences.length) return;
@@ -4742,6 +4887,7 @@ function openBook(book) {
   scrollOff = 0; scrollVel = 0;
   bookmarks     = loadBookmarks(book.id);
   rebuildBmMap();
+  hlChapters = null; hlFilter = 'all'; hlOpenIdx = -1; closeBmPanel();
   _psPxPerUnit = 0;
   bookTitle.textContent = book.title;
   stopAuto();
@@ -6155,7 +6301,7 @@ if (typeof document !== 'undefined' && document.fonts && document.fonts.ready) {
 function isReaderChromeTarget(t) {
   return !!(t && t.closest && t.closest(
     '#topbar, #bottombar, #left-panel, #ring-wrap, #more-menu, #search-wrap, ' +
-    '#bm-panel, #timer-flower, .icon-btn, .btn, button, input, a'
+    '#hl-sheet, #timer-flower, .icon-btn, .btn, button, input, a'
   ));
 }
 
@@ -6163,7 +6309,7 @@ let _wheelIdleTimer = null;
 window.addEventListener('wheel', e=>{
   if (!readerEl.classList.contains('visible')) return;
   // Let the bookmark panel (and any other scrollable overlay) scroll naturally
-  if (e.target.closest('#bm-panel')) return;
+  if (e.target.closest('#hl-sheet')) return;
   if (dropdownOpen()) return;          // menus own the gestures while open
 
   if (focusMode) {
@@ -6364,6 +6510,7 @@ window.addEventListener('keydown',e=>{
     case 'Backspace':
       e.preventDefault(); stopAuto(); navigate(-1); return;
     case 'Escape':
+      if (bmPanel.classList.contains('show')) { closeBmPanel(); return; }
       if (focusMode) { exitFocusMode(); return; }
       stopAuto(); hideTooltip(); return;
 
