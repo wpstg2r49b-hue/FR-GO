@@ -5055,6 +5055,7 @@ function tryOpenFromURL() {
   dropScreen.style.display = 'none';
   readerEl.classList.add('visible');
   openBook({ ...meta, sentences: sents });
+  if (params.get('highlights') === '1') setTimeout(() => { try { openBmPanel(); } catch (e) {} }, 700);   // library marker → open the book on its highlights
   return true;
 }
 
