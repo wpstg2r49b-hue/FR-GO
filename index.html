@@ -905,16 +905,16 @@ body:not(.focus-mode) #track{
    unstyled/leaked defaults. */
 .more-menu-label{ display:none; } /* only shown inside the mobile dropdown list */
 #more-menu-textsize{ display:flex; align-items:center; gap:4px; }
-#more-menu-font{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
-#font-select{
+#more-menu-font, #more-menu-sound{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+#font-select, #sound-select{
   font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
   color:var(--text-mid);background:var(--surface);
   border:1px solid var(--border);padding:6px 8px;
   cursor:pointer;letter-spacing:.02em;max-width:150px;
   transition:color .15s,border-color .15s;
 }
-#font-select:hover{color:var(--gold);border-color:var(--gold-dim)}
-#font-select:focus{outline:none;border-color:var(--gold-dim)}
+#font-select:hover, #sound-select:hover{color:var(--gold);border-color:var(--gold-dim)}
+#font-select:focus, #sound-select:focus{outline:none;border-color:var(--gold-dim)}
 #more-menu-volume{ display:flex; align-items:center; gap:10px; padding:8px 10px; }
 
 /* Volume slider — horizontal, transparent track (not the browser's default
@@ -1238,8 +1238,8 @@ body:not(.focus-mode) #track{
   }
   #more-menu-textsize #zoom-zone{ gap:6px; }
   #more-menu-textsize .zoom-btn{ min-width:36px; min-height:32px; font-size:12px; }
-  #more-menu-font{ padding:8px 10px 4px; }
-  #font-select{ max-width:none; flex:1; margin-left:10px; }
+  #more-menu-font, #more-menu-sound{ padding:8px 10px 4px; }
+  #font-select, #sound-select{ max-width:none; flex:1; margin-left:10px; }
 
   /* Reclaim the vertical room the old, taller bottom bar used to take —
      the reading area (and the Focus Sentence within it) grows to fill it. */
@@ -1636,6 +1636,21 @@ body:not(.focus-mode) #track{
           <!-- Volume — moved here from the reading area. Mute toggle is
                untouched; the slider just renders inline in this row now
                instead of a separate floating popover. -->
+          <div id="more-menu-sound">
+            <span class="more-menu-label">Scroll sound</span>
+            <select id="sound-select" title="Scroll sound" aria-label="Scroll sound">
+              <option value="off">Off</option>
+              <option value="classic">Classic tick</option>
+              <option value="page">Page flick</option>
+              <option value="felt">Felt tap</option>
+              <option value="kalimba">Kalimba pluck</option>
+              <option value="tink">Ceramic tink</option>
+              <option value="graphite">Graphite tick</option>
+              <option value="droplet">Droplet</option>
+              <option value="wind">Wind hush</option>
+            </select>
+          </div>
+
           <div id="more-menu-volume">
             <button id="btn-mute" title="Mute / Unmute tick sound">
               <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
@@ -3311,6 +3326,81 @@ function toWordSpans(text) {
 let audioCtx = null;
 let tickVolume = 3.456;
 let tickMuted  = false;
+/* Scroll sounds. "classic" is the original noise click; the others are synthesised live with Web Audio (no audio files). */
+const TICK_STYLE_KEY = 'focusreader_tick_style';
+const TICK_STYLES = ['off','classic','page','felt','kalimba','tink','graphite','droplet','wind'];
+let tickStyle = (() => { try { const v = localStorage.getItem(TICK_STYLE_KEY); return TICK_STYLES.includes(v) ? v : 'classic'; } catch(e) { return 'classic'; } })();
+const SOUND_MIN_MS = { page:55, felt:60, kalimba:95, tink:65, graphite:38, droplet:75, wind:120 };   // fast scrolling never turns into a buzz
+let _sBus = null, _sNoise = null, _lastSynth = 0, _kalIdx = 2;
+function synthBus(ctx) {                       // shared output with a gentle compressor so overlapping sounds never clip
+  if (_sBus) return _sBus;
+  const g = ctx.createGain(), c = ctx.createDynamicsCompressor();
+  c.threshold.value = -20; c.knee.value = 18; c.ratio.value = 5; c.attack.value = .003; c.release.value = .12;
+  g.connect(c); c.connect(ctx.destination); _sBus = g; return g;
+}
+function synthNoise(ctx) {
+  if (_sNoise) return _sNoise;
+  const b = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  return (_sNoise = b);
+}
+function synthEnv(g, t, peak, atk, dec) {
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + atk);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + atk + dec);
+}
+function noiseVoice(ctx, t, o) {
+  const src = ctx.createBufferSource(); src.buffer = synthNoise(ctx); src.loop = true;
+  const f = ctx.createBiquadFilter(); f.type = o.type; f.Q.value = o.q || 0.7; f.frequency.setValueAtTime(o.freq, t);
+  if (o.sweepTo) f.frequency.exponentialRampToValueAtTime(o.sweepTo, t + o.atk + o.dec);
+  const g = ctx.createGain(); synthEnv(g, t, o.peak, o.atk, o.dec);
+  src.connect(f); f.connect(g); g.connect(synthBus(ctx));
+  src.start(t, Math.random() * 0.8); src.stop(t + o.atk + o.dec + 0.05);
+}
+function toneVoice(ctx, t, o) {
+  const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.setValueAtTime(o.f0, t);
+  if (o.f1) osc.frequency.exponentialRampToValueAtTime(o.f1, t + o.atk + o.dec * 0.6);
+  const g = ctx.createGain(); synthEnv(g, t, o.peak, o.atk, o.dec);
+  osc.connect(g); g.connect(synthBus(ctx));
+  osc.start(t); osc.stop(t + o.atk + o.dec + 0.05);
+}
+function playSynth(style, type, vol, fast) {
+  const ctx = getAudio(), t = ctx.currentTime + 0.005;
+  const r = 1 + (Math.random() - 0.5) * 0.10;                       // ±5 % pitch / brightness, so it never feels mechanical
+  const k = vol * (type === 'limit' ? 0.45 : type === 'auto' ? 0.8 : 1) * (fast ? 0.7 : 1);   // softer at the end of the book / when auto-scrolling / when scrolling fast
+  switch (style) {
+    case 'page':     // thumb across a page edge
+      noiseVoice(ctx, t, { type:'bandpass', freq:3200*r, sweepTo:1800*r, q:.9, peak:.16*k, atk:.006, dec:fast ? .04 : .075 });
+      noiseVoice(ctx, t + .018, { type:'highpass', freq:5200*r, q:.5, peak:.05*k, atk:.004, dec:.04 });
+      break;
+    case 'felt':     // finger on felt-covered wood
+      toneVoice(ctx, t, { f0:190*r, f1:140*r, peak:.34*k, atk:.003, dec:fast ? .07 : .11 });
+      noiseVoice(ctx, t, { type:'lowpass', freq:900, q:.5, peak:.07*k, atk:.002, dec:.025 });
+      break;
+    case 'kalimba': {  // soft pentatonic pluck that wanders up and down the scale
+      const N = [523.25, 587.33, 659.25, 783.99, 880, 1046.5];
+      _kalIdx = Math.max(0, Math.min(N.length - 1, _kalIdx + (Math.random() < .5 ? -1 : 1) * (Math.random() < .3 ? 2 : 1)));
+      const f = N[_kalIdx], dec = fast ? .16 : .34;
+      toneVoice(ctx, t, { f0:f, peak:.17*k, atk:.002, dec });
+      toneVoice(ctx, t, { f0:f*2.76, peak:.035*k, atk:.002, dec:dec*.35 });
+      break;
+    }
+    case 'tink':     // fingernail on porcelain
+      toneVoice(ctx, t, { f0:1500*r, peak:.11*k, atk:.002, dec:fast ? .03 : .055 });
+      toneVoice(ctx, t, { f0:1500*r*2.4, peak:.025*k, atk:.002, dec:.025 });
+      break;
+    case 'graphite': // pencil tapping paper
+      noiseVoice(ctx, t, { type:'highpass', freq:4200*r, q:.6, peak:.12*k, atk:.001, dec:.012 });
+      toneVoice(ctx, t, { f0:820*r, f1:600*r, peak:.07*k, atk:.001, dec:.018 });
+      break;
+    case 'droplet':
+      toneVoice(ctx, t, { f0:420*r, f1:980*r, peak:.2*k, atk:.004, dec:fast ? .09 : .15 });
+      break;
+    case 'wind':     // a breath of air
+      noiseVoice(ctx, t, { type:'bandpass', freq:700*r, sweepTo:1700*r, q:.8, peak:.13*k, atk:.045, dec:fast ? .12 : .22 });
+      break;
+  }
+}
 let _tickBuf = null;   // main click buffer
 let _tickBuf2 = null;  // secondary transient buffer
 
@@ -3356,7 +3446,14 @@ function getHP() {
 }
 
 function playTick(type) {
-  if (tickMuted || tickVolume === 0) return;
+  if (tickMuted || tickVolume === 0 || tickStyle === 'off') return;
+  if (tickStyle !== 'classic') {
+    const nowMs = performance.now(), gap = nowMs - _lastSynth;
+    if (gap < (SOUND_MIN_MS[tickStyle] || 60)) return;
+    _lastSynth = nowMs;
+    try { playSynth(tickStyle, type, tickVolume, gap < 160); } catch(e) {}
+    return;
+  }
   try {
     const ctx = getAudio(), now = ctx.currentTime;
     if (!_tickBuf) _bakeTick();
@@ -5953,6 +6050,16 @@ btnMute.addEventListener('click', () => {
 // Set initial volume to match slider default (60 → 1.92)
 tickVolume = 0.60 * 3.2;
 updateMuteUI();
+
+/* Scroll sound picker (☰ menu) */
+const soundSelect = document.getElementById('sound-select');
+soundSelect.value = tickStyle;
+soundSelect.addEventListener('change', () => {
+  tickStyle = TICK_STYLES.includes(soundSelect.value) ? soundSelect.value : 'classic';
+  try { localStorage.setItem(TICK_STYLE_KEY, tickStyle); } catch(e) {}
+  _lastSynth = 0; _kalIdx = 2;
+  playTick('manual');                                      // preview
+});
 
 /* ── Theme (light / dark) ─────────────────────────────────────────────────── */
 const THEME_KEY   = 'focusreader_theme';
