@@ -255,6 +255,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 }
 #focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
 #focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
+#focus-auto #fa-hl{width:30px;height:26px;margin-left:16px}
 #fa-wpm{min-width:28px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
 /* Focus Mode only: Opacity button (bottom-left) + drop-up slider. The auto-read controls sit bottom-centre,
    so the two never touch. */
@@ -268,9 +269,9 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 .focus-mode #focus-opacity{opacity:.5;pointer-events:all}
 .focus-mode #focus-opacity:hover,.focus-mode #focus-opacity.open{opacity:1}
 #fo-btn{
-  height:22px;padding:0 9px;cursor:pointer;
-  font:inherit;font-size:11px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--text-mid);background:none;border:1px solid var(--border);
+  width:30px;height:26px;padding:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font:inherit;color:var(--text-mid);background:none;border:1px solid var(--border);
   -webkit-tap-highlight-color:transparent;
 }
 #fo-btn:hover,#focus-opacity.open #fo-btn{color:var(--gold);border-color:var(--gold-dim)}
@@ -1565,7 +1566,7 @@ body:not(.focus-mode) #track{
 
           <!-- Read aloud: speaker (desktop toolbar; on phones the dock button is used and this is the menu entry) -->
           <button class="icon-btn" id="btn-narr-top" title="Read aloud" aria-label="Read aloud">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C3.8 8.9 6.5 8.3 9 9.7 11.5 8.3 14.2 8.9 16 12 14.2 15.4 11.5 16.6 9 16.6 6.5 16.6 3.8 15.4 2 12Z"/><path d="M3 12h12"/><path d="M19 9.5a4 4 0 0 1 0 5"/><path d="M21.5 7a7.5 7.5 0 0 1 0 10"/></svg>
             <span class="more-menu-label">Read aloud</span>
           </button>
 
@@ -1687,20 +1688,20 @@ body:not(.focus-mode) #track{
       <button id="fa-down" title="Slower" aria-label="Slower">−</button>
       <span id="fa-wpm">200</span>
       <button id="fa-up" title="Faster" aria-label="Faster">+</button>
-      <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg></button>
-      <button id="fa-hl" title="Highlight this sentence (V)" aria-label="Highlight this sentence" aria-pressed="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
+      <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C3.8 8.9 6.5 8.3 9 9.7 11.5 8.3 14.2 8.9 16 12 14.2 15.4 11.5 16.6 9 16.6 6.5 16.6 3.8 15.4 2 12Z"/><path d="M3 12h12"/><path d="M19 9.5a4 4 0 0 1 0 5"/><path d="M21.5 7a7.5 7.5 0 0 1 0 10"/></svg></button>
+      <button id="fa-hl" title="Highlight this sentence (V)" aria-label="Highlight this sentence" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
     </div>
 
     <!-- Focus Mode only: "Opacity" button → drop-up slider for the previous / next sentence -->
     <div id="focus-opacity">
       <div id="fo-pop">
-        <span id="fo-cap">Prev / next sentence</span>
+        <span id="fo-cap">Opacity</span>
         <div class="fo-row">
           <input type="range" id="nb-op-slider" min="0" max="100" value="50" step="5" aria-label="Opacity of the previous and next sentence">
           <span id="nb-op-val">50%</span>
         </div>
       </div>
-      <button id="fo-btn" type="button" aria-expanded="false">Opacity</button>
+      <button id="fo-btn" type="button" aria-expanded="false" aria-label="Opacity" title="Opacity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></button>
     </div>
 
     <!-- Read-aloud controls: only visible while narration is active -->
@@ -1811,7 +1812,7 @@ body:not(.focus-mode) #track{
 
           <!-- Read aloud (audiobook narration) -->
           <button id="btn-narr" title="Read aloud" aria-label="Read aloud" aria-pressed="false">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C3.8 8.9 6.5 8.3 9 9.7 11.5 8.3 14.2 8.9 16 12 14.2 15.4 11.5 16.6 9 16.6 6.5 16.6 3.8 15.4 2 12Z"/><path d="M3 12h12"/><path d="M19 9.5a4 4 0 0 1 0 5"/><path d="M21.5 7a7.5 7.5 0 0 1 0 10"/></svg>
           </button>
 
           <!-- Light / dark theme toggle -->
