@@ -44,13 +44,11 @@ button{font-family:inherit}
 #lib-sub{grid-column:1/-1;font-family:var(--serif);font-style:italic;font-weight:500;font-size:17px;line-height:1.2;letter-spacing:.03em;color:var(--text-mid)}
 #lib-rule{grid-column:1/-1;width:68px;height:1px;margin-top:4px;background:var(--gold)}
 #lib-tools{display:flex;align-items:center;gap:2px;margin:6px -8px 0 0}
-.tool-div{width:1px;height:24px;margin:0 4px;background:var(--border)}
 .lib-icon{position:relative;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;background:none;color:var(--text);border-radius:50%;cursor:pointer;
   transition:color .2s,background .2s;-webkit-tap-highlight-color:transparent}
 .lib-icon:hover{color:var(--gold);background:var(--gold-faint)}
 .lib-icon:active{transform:scale(.94)}
 .lib-icon.active::after{content:'';position:absolute;top:10px;right:10px;width:6px;height:6px;border-radius:50%;background:var(--gold)}
-#bs-ai-star-status{display:none}
 #lib-search{position:absolute;display:none;align-items:center;gap:6px;
   top:calc(34px + env(safe-area-inset-top,0px));bottom:18px;left:calc(24px + env(safe-area-inset-left,0px));right:calc(24px + env(safe-area-inset-right,0px))}
 #lib-head.searching #lib-id,#lib-head.searching #lib-tools{visibility:hidden}
@@ -190,42 +188,6 @@ button{font-family:inherit}
 .btn:hover{color:var(--gold);border-color:var(--gold-dim)}
 .btn.danger:hover{color:#E2A394;border-color:#6B3A30}
 
-/* ── Import / key panels (same behaviour, new skin) ── */
-#bs-import-modal,#bs-ai-panel{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(23,19,15,.93)}
-#bs-import-modal{z-index:900}#bs-ai-panel{z-index:950}
-#bs-import-modal.show,#bs-ai-panel.show{display:flex}
-#bs-import-box,#bs-ai-box{display:flex;flex-direction:column;gap:18px;background:var(--card);border:1px solid var(--border);border-radius:18px}
-#bs-import-box{width:min(480px,calc(100vw - 32px));padding:28px 24px 22px;max-height:calc(100dvh - 32px);overflow-y:auto}
-#bs-ai-box{width:min(420px,calc(100vw - 32px));padding:28px 24px 22px}
-#bs-import-box h2,#bs-ai-box h2{margin:0;font-family:var(--serif);font-weight:600;font-size:24px;letter-spacing:.005em;color:var(--text)}
-.bs-import-filename{padding-bottom:14px;border-bottom:1px solid var(--line);font:400 12.5px var(--mono);color:var(--text-mid);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.bs-import-options{display:flex;flex-direction:column;gap:12px}
-.bs-import-opt{position:relative;display:flex;flex-direction:column;gap:6px;padding:16px 18px;border:1px solid var(--border);border-radius:12px;cursor:pointer;transition:border-color .15s,background .15s}
-.bs-import-opt:hover:not(.bs-disabled){border-color:var(--gold-dim);background:var(--gold-faint)}
-.bs-import-opt.bs-disabled{opacity:.45;cursor:not-allowed}
-.bs-import-opt.bs-selected{border-color:var(--gold-dim);background:var(--gold-faint)}
-.bs-import-opt-title{padding-right:96px;font:600 14px var(--sans);color:var(--text)}
-.bs-import-opt.bs-selected .bs-import-opt-title{color:var(--gold)}
-.bs-import-opt-desc{font:400 13px/1.6 var(--sans);color:var(--text-mid)}
-.bs-import-opt-badge{position:absolute;top:14px;right:14px;padding:3px 9px;border-radius:10px;font:500 10px var(--mono);letter-spacing:.06em}
-.bs-badge-standard{background:var(--line);color:var(--text-mid)}
-.bs-badge-ai{background:var(--gold-faint);color:var(--gold);border:1px solid var(--gold-dim)}
-.bs-badge-nokey{color:var(--text-dim);border:1px solid var(--border)}
-#bs-import-actions,#bs-ai-btns{display:flex;gap:10px;justify-content:flex-end;padding-top:2px}
-#bs-btn-go,#bs-ai-save,#bs-btn-cancel,#bs-ai-cancel{min-height:44px;padding:0 20px;border-radius:22px;background:none;font:500 13px var(--sans);cursor:pointer;transition:background .15s,color .15s}
-#bs-btn-go,#bs-ai-save{color:var(--gold);border:1px solid var(--gold-dim)}
-#bs-btn-go:hover,#bs-ai-save:hover{background:var(--gold-faint)}
-#bs-btn-cancel,#bs-ai-cancel{color:var(--text-mid);border:1px solid var(--border)}
-#bs-btn-cancel:hover,#bs-ai-cancel:hover{color:var(--text)}
-.bs-setup-link{display:inline-block;margin-top:3px;font:400 12px var(--sans);color:var(--gold-dim);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
-.bs-setup-link:hover{color:var(--gold)}
-#bs-ai-box p{font:400 14px/1.7 var(--sans);color:var(--text-mid)}
-#bs-ai-box p strong{color:var(--text);font-weight:500}
-#bs-ai-box code{font-family:var(--mono);font-size:12px;color:var(--gold)}
-#bs-ai-key-input{width:100%;height:46px;padding:0 14px;font:400 16px var(--mono);letter-spacing:.03em;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:12px;outline:none}
-#bs-ai-key-input:focus{border-color:var(--gold-dim)}
-#bs-ai-status{min-height:16px;font:400 11.5px var(--mono);color:var(--text-mid)}
-
 /* ── Deck view ── */
 #deck-view{display:none;position:fixed;left:0;right:0;bottom:0;top:var(--deck-top,150px);overflow:hidden;background:radial-gradient(circle at 50% 30%,rgba(198,161,107,.09),transparent 55%),#17130F;z-index:30}
 #deck-view.show{display:block}
@@ -287,9 +249,6 @@ button{font-family:inherit}
   </div>
   <div id="lib-tools">
     <button class="lib-icon" id="btn-search" type="button" title="Search your library" aria-label="Search your library"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg></button>
-    <i class="tool-div" aria-hidden="true"></i>
-    <button class="lib-icon" id="bs-ai-star-btn" type="button" title="Import settings: AI structure enhancement (Groq key)" aria-label="Import settings"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
-    <span id="bs-ai-star-status"></span>
   </div>
   <div id="lib-search">
     <input id="lib-search-input" type="search" placeholder="Search your library" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search your library">
@@ -1676,7 +1635,7 @@ async function extractEpub(file) {
   return { text: parts.join('\n\n'), cover };
 }
 
-async function processFile(file, preloadedBuffer, importMode) {
+async function processFile(file, preloadedBuffer) {
   if (!file) return;
   uploadBar.style.width = '0';
   uploadOverlay.classList.add('show');
@@ -1701,14 +1660,6 @@ async function processFile(file, preloadedBuffer, importMode) {
       raw = await file.text(); setProg(1);
     }
     setMsg('splitting sentences…');
-
-    // AI Enhancement — only when user chose AI mode
-    if (importMode === 'ai' && raw.includes('\x03')) {
-      const preBatches = raw.split('\x03').filter(c => c.trim());
-      setMsg('✦ AI refining…');
-      const refined = await bsRefineChunks(preBatches);
-      raw = refined.join('\x03');
-    }
 
     const cleanedText = cleanPDFText(raw);
     const zh     = isChinese(cleanedText);
@@ -2039,7 +1990,7 @@ function makeAddCard() {
     const file = e.target.files[0];
     if (!file) return;
     addInput.value = '';
-    bsShowImportModal(file, null);
+    processFile(file, null);
   });
   div.addEventListener('dragover',  e => { e.preventDefault(); e.stopPropagation(); div.classList.add('over'); });
   div.addEventListener('dragleave', ()  => div.classList.remove('over'));
@@ -2050,8 +2001,8 @@ function makeAddCard() {
     const file = e.dataTransfer.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => bsShowImportModal(file, ev.target.result);
-    reader.onerror = () => bsShowImportModal(file, null);
+    reader.onload = ev => processFile(file, ev.target.result);
+    reader.onerror = () => processFile(file, null);
     reader.readAsArrayBuffer(file);
   });
   return div;
@@ -2183,278 +2134,6 @@ window.addEventListener('drop', e => {
   reader.onerror = () => processFile(file, null);
   reader.readAsArrayBuffer(file);
 }, false);
-</script>
-
-<!-- Import mode modal -->
-<div id="bs-import-modal">
-  <div id="bs-import-box">
-    <h2>Import Book</h2>
-    <div class="bs-import-filename" id="bs-import-filename">—</div>
-    <div class="bs-import-options">
-      <div class="bs-import-opt bs-selected" id="bs-opt-standard" onclick="bsSelectMode('standard')">
-        <span class="bs-import-opt-badge bs-badge-standard">Always available</span>
-        <div class="bs-import-opt-title">Standard Conversion</div>
-        <div class="bs-import-opt-desc">Fast, offline, heuristic-based. Reconstructs headings, numbered lists, and paragraph structure using positional and font analysis.</div>
-      </div>
-      <div class="bs-import-opt" id="bs-opt-ai" onclick="bsSelectMode('ai')">
-        <span class="bs-import-opt-badge" id="bs-ai-badge">—</span>
-        <div class="bs-import-opt-title">✦ AI Enhanced Conversion</div>
-        <div class="bs-import-opt-desc">Uses Groq (Llama 3.1, free) to semantically reconstruct structure during conversion — better at complex layouts, ambiguous headings, and nested lists.</div>
-        <span class="bs-setup-link" id="bs-setup-link" onclick="event.stopPropagation();bsOpenAIPanel()">Set up Groq API key →</span>
-      </div>
-    </div>
-    <div id="bs-import-actions">
-      <button id="bs-btn-cancel">Cancel</button>
-      <button id="bs-btn-go">Convert →</button>
-    </div>
-  </div>
-</div>
-
-<!-- AI key panel -->
-<div id="bs-ai-panel">
-  <div id="bs-ai-box">
-    <h2>✦ AI Semantic Enhancement</h2>
-    <p>Enter a Groq API key (free, no billing). Sign up at <strong>console.groq.com</strong> → API Keys → Create key. Key starts with <code>gsk_</code>.</p>
-    <input type="password" id="bs-ai-key-input" placeholder="gsk_…" autocomplete="off" spellcheck="false">
-    <div id="bs-ai-status"></div>
-    <div id="bs-ai-btns">
-      <button id="bs-ai-cancel">Cancel</button>
-      <button id="bs-ai-save">Save &amp; Enable</button>
-    </div>
-  </div>
-</div>
-
-
-<script>
-// ── Groq key helpers (shared with index.html via localStorage) ────────────────
-const BS_GROQ_KEY = 'focusreader_groq_key';
-const BS_GROQ_MODEL = 'llama-3.1-8b-instant';
-const BS_GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
-
-function bsLoadKey()  { try { return localStorage.getItem(BS_GROQ_KEY) || ''; } catch(e) { return ''; } }
-function bsSaveKey(k) { try { localStorage.setItem(BS_GROQ_KEY, k); } catch(e) {} }
-function bsIsAIEnabled() { return !!bsLoadKey(); }
-
-// ── Import modal state ────────────────────────────────────────────────────────
-let _bsPendingFile   = null;
-let _bsPendingBuf    = null;
-let _bsImportMode    = 'standard';
-let _bsReturnToModal = false;
-
-function bsShowImportModal(file, buf) {
-  if (!file) return;
-  _bsPendingFile = file;
-  _bsPendingBuf  = buf || null;
-  _bsImportMode  = 'standard';
-
-  document.getElementById('bs-import-filename').textContent = file.name;
-
-  const aiOpt    = document.getElementById('bs-opt-ai');
-  const badge    = document.getElementById('bs-ai-badge');
-  const setupLnk = document.getElementById('bs-setup-link');
-
-  if (bsIsAIEnabled()) {
-    aiOpt.classList.remove('bs-disabled');
-    badge.textContent = 'Groq free tier';
-    badge.className   = 'bs-import-opt-badge bs-badge-ai';
-    setupLnk.style.display = 'none';
-  } else {
-    aiOpt.classList.add('bs-disabled');
-    badge.textContent = 'API key required';
-    badge.className   = 'bs-import-opt-badge bs-badge-nokey';
-    setupLnk.style.display = 'inline-block';
-  }
-
-  bsSelectMode('standard');
-  document.getElementById('bs-import-modal').classList.add('show');
-}
-
-function bsSelectMode(mode) {
-  const aiOpt = document.getElementById('bs-opt-ai');
-  if (mode === 'ai' && aiOpt.classList.contains('bs-disabled')) return;
-  _bsImportMode = mode;
-  document.getElementById('bs-opt-standard').classList.toggle('bs-selected', mode === 'standard');
-  aiOpt.classList.toggle('bs-selected', mode === 'ai');
-}
-
-function bsCloseImportModal() {
-  document.getElementById('bs-import-modal').classList.remove('show');
-}
-
-function bsOpenAIPanel() {
-  bsCloseImportModal();
-  document.getElementById('bs-ai-panel').classList.add('show');
-  document.getElementById('bs-ai-key-input').value = bsLoadKey();
-  document.getElementById('bs-ai-key-input').focus();
-  _bsReturnToModal = true;
-}
-
-// AI key panel wiring
-document.getElementById('bs-ai-cancel').addEventListener('click', () => {
-  document.getElementById('bs-ai-panel').classList.remove('show');
-  if (_bsReturnToModal && _bsPendingFile) {
-    _bsReturnToModal = false;
-    setTimeout(() => bsShowImportModal(_bsPendingFile, _bsPendingBuf), 150);
-  }
-});
-
-document.getElementById('bs-ai-save').addEventListener('click', async () => {
-  const key = document.getElementById('bs-ai-key-input').value.trim();
-  const statusEl = document.getElementById('bs-ai-status');
-  if (!key) {
-    bsSaveKey('');
-    statusEl.textContent = 'AI disabled — key removed.';
-    setTimeout(() => {
-      document.getElementById('bs-ai-panel').classList.remove('show');
-      if (_bsReturnToModal && _bsPendingFile) { _bsReturnToModal = false; setTimeout(() => bsShowImportModal(_bsPendingFile, _bsPendingBuf), 150); }
-    }, 900);
-    return;
-  }
-  const btn = document.getElementById('bs-ai-save');
-  btn.textContent = 'Testing…'; btn.disabled = true;
-  statusEl.textContent = 'Verifying key with Groq…';
-  try {
-    const res = await fetch(BS_GROQ_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-      body: JSON.stringify({ model: BS_GROQ_MODEL, max_tokens: 5, temperature: 0,
-        messages: [{ role: 'user', content: 'Reply: ok' }] }),
-    });
-    if (res.ok) {
-      bsSaveKey(key);
-      statusEl.textContent = '✓ Key valid — AI enhancement enabled!';
-      setTimeout(() => {
-        btn.textContent = 'Save & Enable'; btn.disabled = false;
-        document.getElementById('bs-ai-panel').classList.remove('show');
-        if (_bsReturnToModal && _bsPendingFile) { _bsReturnToModal = false; setTimeout(() => bsShowImportModal(_bsPendingFile, _bsPendingBuf), 150); }
-      }, 1200);
-    } else {
-      const d = await res.json().catch(() => ({}));
-      statusEl.textContent = '✗ ' + (d?.error?.message || `HTTP ${res.status}`);
-      btn.textContent = 'Save & Enable'; btn.disabled = false;
-    }
-  } catch(e) {
-    statusEl.textContent = '✗ ' + e.message;
-    btn.textContent = 'Save & Enable'; btn.disabled = false;
-  }
-});
-
-// Go button — run processFile with chosen mode
-// AI star button in topbar
-(function() {
-  const starBtn     = document.getElementById('bs-ai-star-btn');
-  const starStatus  = document.getElementById('bs-ai-star-status');
-  function syncStar() {
-    const on = bsIsAIEnabled();
-    starBtn.classList.toggle('active', on);
-    starStatus.classList.toggle('show', on);
-  }
-  syncStar();
-  starBtn.addEventListener('click', () => {
-    document.getElementById('bs-ai-panel').classList.add('show');
-    document.getElementById('bs-ai-key-input').value = bsLoadKey();
-    document.getElementById('bs-ai-key-input').focus();
-    document.getElementById('bs-ai-status').textContent = bsIsAIEnabled()
-      ? '✓ AI enhancement active' : 'No key saved';
-  });
-  // Re-sync after AI panel closes
-  const aiPanel = document.getElementById('bs-ai-panel');
-  new MutationObserver(() => {
-    if (!aiPanel.classList.contains('show')) syncStar();
-  }).observe(aiPanel, { attributes: true, attributeFilter: ['class'] });
-})();
-
-document.getElementById('bs-btn-go').addEventListener('click', () => {
-  const file = _bsPendingFile;
-  const buf  = _bsPendingBuf;
-  const mode = _bsImportMode;
-  bsCloseImportModal();
-  processFile(file, buf, mode);
-});
-
-document.getElementById('bs-btn-cancel').addEventListener('click', () => {
-  bsCloseImportModal();
-  _bsPendingFile = null; _bsPendingBuf = null;
-});
-document.getElementById('bs-import-modal').addEventListener('click', e => {
-  if (e.target.id === 'bs-import-modal') bsCloseImportModal();
-});
-
-// ── Groq AI refine function ───────────────────────────────────────────────────
-async function bsRefineChunks(chunks) {
-  const key = bsLoadKey();
-  if (!key || !chunks.length) return chunks;
-
-  const TARGET = 6000;
-  const batches = [];
-  let batch = [], chars = 0;
-  for (const c of chunks) {
-    if (chars > TARGET && batch.length) { batches.push(batch); batch = []; chars = 0; }
-    batch.push(c); chars += c.length;
-  }
-  if (batch.length) batches.push(batch);
-
-  const refined = [];
-  for (let i = 0; i < batches.length; i++) {
-    try {
-      const inputJson = JSON.stringify(batches[i].map(c => {
-        const m = c.match(/^(HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
-        return m ? { type: m[1], text: m[2] } : { type: 'PROSE', text: c };
-      }), null, 2);
-
-      const prompt = `You are a semantic document reconstruction engine.
-Verify and correct the "type" label of each chunk. Do NOT change text content.
-HEADING=chapter/section title. ALLCAPS=all-caps subtitle. LISTNUM=numbered item. LISTBULLET=bullet. PROSE=paragraph.
-Preserve text exactly. Do not merge or split chunks. Omit page numbers (isolated digits).
-Return ONLY a valid JSON array with "type" and "text" fields. No markdown, no explanation.
-INPUT:
-${inputJson}`;
-
-      const res = await fetch(BS_GROQ_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({ model: BS_GROQ_MODEL, temperature: 0.1, max_tokens: 4096,
-          messages: [
-            { role: 'system', content: 'Output ONLY valid JSON arrays. No markdown, no commentary.' },
-            { role: 'user', content: prompt }
-          ]
-        }),
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const text = data?.choices?.[0]?.message?.content || '';
-        const clean = text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
-        try {
-          const parsed = JSON.parse(clean);
-          const arr = Array.isArray(parsed) ? parsed : (parsed?.chunks || parsed?.items || null);
-          if (arr) {
-            for (const item of arr) {
-              const types = ['HEADING','ALLCAPS','LISTNUM','LISTBULLET','PROSE'];
-              const type  = types.includes(item.type) ? item.type : 'PROSE';
-              const txt   = (item.text || '').trim();
-              if (txt) refined.push(`${type}:${txt}`);
-            }
-            continue;
-          }
-        } catch(e) {}
-      }
-    } catch(e) {}
-    refined.push(...batches[i]); // fallback
-    if (i < batches.length - 1) await new Promise(r => setTimeout(r, 300));
-  }
-
-  // Re-merge consecutive HEADING/ALLCAPS that Groq left split
-  const remerged = [];
-  for (let i = 0; i < refined.length; i++) {
-    const cur = refined[i], next = refined[i+1];
-    const curM  = cur  && cur.match(/^(HEADING|ALLCAPS):([\s\S]*)$/);
-    const nextM = next && next.match(/^(HEADING|ALLCAPS):([\s\S]*)$/);
-    if (curM && nextM) { remerged.push(curM[1]+':'+curM[2].trim()+' '+nextM[2].trim()); i++; }
-    else remerged.push(cur);
-  }
-  return remerged;
-}
 </script>
 
 <script>
@@ -2730,7 +2409,7 @@ ${inputJson}`;
   deckAddInput.addEventListener('change', e => {
     const file = e.target.files[0];
     deckAddInput.value = '';
-    if (file) bsShowImportModal(file, null); // reuses the existing import flow
+    if (file) processFile(file, null);
   });
 
   deckAddButton.addEventListener('click', () => deckAddInput.click());

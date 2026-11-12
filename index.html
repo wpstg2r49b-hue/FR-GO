@@ -733,121 +733,6 @@ body:not(.focus-mode) #track{
 #dict-def{font-family:'Lora',serif;font-size:14px;line-height:1.6;color:var(--text-mid);white-space:pre-line}
 #dict-loading{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--text-dim);letter-spacing:.1em}
 
-/* ── AI Groq panel ── */
-#ai-panel{
-  position:fixed;inset:0;background:rgba(12,11,9,.92);
-  z-index:600;display:none;align-items:center;justify-content:center;
-}
-#ai-panel.show{display:flex}
-#ai-box{
-  width:420px;max-width:92vw;
-  background:var(--surface);border:1px solid var(--border);
-  padding:32px 28px;display:flex;flex-direction:column;gap:18px;
-}
-#ai-box h2{
-  font-family:'DM Mono',monospace;font-size:13px;font-weight:700;
-  letter-spacing:.18em;text-transform:uppercase;color:var(--gold);
-}
-#ai-box p{
-  font-family:'Lora',serif;font-size:14px;color:var(--text-mid);line-height:1.7;
-}
-#ai-key-input{
-  font-family:'DM Mono',monospace;font-size:14px;font-weight:700;
-  color:var(--text);background:var(--bg);
-  border:1px solid var(--border);outline:none;
-  padding:10px 14px;width:100%;letter-spacing:.04em;
-}
-#ai-key-input:focus{border-color:var(--gold-dim)}
-#ai-key-input::placeholder{color:var(--text-dim);font-weight:400}
-#ai-box-btns{display:flex;gap:10px;justify-content:flex-end}
-#btn-ai-save{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;
-  color:var(--gold);background:none;border:1px solid var(--gold-dim);
-  padding:8px 18px;cursor:pointer;transition:background .15s;
-}
-#btn-ai-save:hover{background:var(--gold-faint)}
-#btn-ai-cancel{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;
-  color:var(--text-dim);background:none;border:1px solid var(--border);
-  padding:8px 18px;cursor:pointer;transition:color .15s;
-}
-#btn-ai-cancel:hover{color:var(--text)}
-#ai-status-line{
-  font-family:'DM Mono',monospace;font-size:11px;
-  color:var(--text-dim);letter-spacing:.08em;min-height:16px;
-}
-/* AI button active = gold sparkle */
-#btn-ai.active{opacity:1}
-#btn-ai.active svg{stroke:var(--gold)}
-
-
-/* ── Import mode modal ── */
-#import-modal{
-  position:fixed;inset:0;background:rgba(12,11,9,.93);
-  z-index:700;display:none;align-items:center;justify-content:center;
-}
-#import-modal.show{display:flex}
-#import-box{
-  width:480px;max-width:93vw;
-  background:var(--surface);border:1px solid var(--border);
-  padding:34px 30px 28px;display:flex;flex-direction:column;gap:20px;
-}
-#import-box h2{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin:0;
-}
-.import-filename{
-  font-family:'DM Mono',monospace;font-size:13px;color:var(--text-mid);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  border-bottom:1px solid var(--border);padding-bottom:16px;
-}
-.import-options{display:flex;flex-direction:column;gap:12px}
-.import-opt{
-  border:1px solid var(--border);padding:18px 20px;cursor:pointer;
-  display:flex;flex-direction:column;gap:6px;position:relative;
-  transition:border-color .15s,background .15s;
-}
-.import-opt:hover:not(.disabled){border-color:var(--gold-dim);background:var(--gold-faint)}
-.import-opt.disabled{opacity:.38;cursor:not-allowed}
-.import-opt.selected{border-color:var(--gold-dim);background:var(--gold-faint)}
-.import-opt-title{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.12em;text-transform:uppercase;color:var(--text);
-}
-.import-opt.selected .import-opt-title{color:var(--gold)}
-.import-opt-desc{font-family:'Lora',serif;font-size:13px;color:var(--text-mid);line-height:1.65}
-.import-opt-badge{
-  position:absolute;top:13px;right:14px;
-  font-family:'DM Mono',monospace;font-size:10px;font-weight:700;letter-spacing:.1em;
-  padding:3px 9px;
-}
-.badge-standard{background:var(--border);color:var(--text-dim)}
-.badge-ai{background:rgba(200,169,110,.14);color:var(--gold);border:1px solid var(--gold-dim)}
-.badge-nokey{color:var(--text-dim);border:1px solid var(--border)}
-#import-modal-actions{display:flex;gap:10px;justify-content:flex-end;padding-top:4px}
-#btn-import-go{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;
-  color:var(--gold);background:none;border:1px solid var(--gold-dim);
-  padding:9px 22px;cursor:pointer;transition:background .15s;
-}
-#btn-import-go:hover{background:var(--gold-faint)}
-#btn-import-cancel{
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.1em;text-transform:uppercase;
-  color:var(--text-dim);background:none;border:1px solid var(--border);
-  padding:9px 18px;cursor:pointer;transition:color .15s;
-}
-#btn-import-cancel:hover{color:var(--text)}
-.import-setup-link{
-  font-family:'DM Mono',monospace;font-size:11px;color:var(--gold-dim);
-  cursor:pointer;text-decoration:underline;margin-top:3px;display:inline-block;
-}
-.import-setup-link:hover{color:var(--gold)}
-
-
 /* ── Hourglass timer ── */
 #timer-flower{
   position:relative;
@@ -1176,13 +1061,13 @@ body:not(.focus-mode) #track{
 
   /* Timer lives in the ☰ dropdown: a full-width row (icon + "Timer" / "12:34 left"),
      with its presets / pause-reset as an inline row underneath. */
-  #timer-flower{ width:100%; flex-wrap:wrap; gap:0 10px; padding:4px 10px; }
-  #flower-btn{ width:34px; min-width:34px; height:38px; opacity:.85; }
-  #flower-svg{ width:34px; height:38px; }
+  #timer-flower{ width:100%; flex-wrap:wrap; align-items:center; gap:0 12px; padding:11px 10px; min-height:44px; }
+  #flower-btn{ width:22px; min-width:22px; height:22px; opacity:.8; }
+  #flower-svg{ width:22px; height:22px; }
   #flower-btn::after{ display:none; }
   #flower-label{
     display:inline; flex:1; cursor:pointer;
-    font-size:12px; letter-spacing:.06em; color:var(--text-mid); text-transform:none;
+    font-size:12px; font-weight:400; line-height:normal; letter-spacing:.06em; color:var(--text-mid); text-transform:none;
   }
   #flower-presets, #flower-controls{
     position:static; width:100%; flex-direction:row; gap:6px;
@@ -1261,9 +1146,6 @@ body:not(.focus-mode) #track{
   /* ── Bionic / dictionary word targets stay comfortably tappable ── */
   .snt .w{ padding:1px 0; }
 
-  /* ── Drop / import screen ── */
-  #import-box, #ai-box{ padding:26px 20px; }
-
   /* ── Gesture camera preview shrinks so it never blocks the text ── */
   #gest-canvas{ width:110px; height:62px; bottom:calc(60px + env(safe-area-inset-bottom)); }
   #gest-status{ bottom:calc(18px + env(safe-area-inset-bottom)); }
@@ -1315,7 +1197,7 @@ body:not(.focus-mode) #track{
   #more-menu{ max-height:calc(100vh - 62px); }
   #more-menu-textsize{ padding:3px 10px; }
   #more-menu-volume{ padding:2px 10px; }
-  #timer-flower{ padding:2px 10px; }
+  #timer-flower{ padding:3px 10px; min-height:32px; }
   #flower-presets, #flower-controls{ padding:3px 0 2px; }
   .flower-preset, #flower-pause, #flower-reset{ padding:6px 0; }
   #more-menu .more-menu-label{ white-space:nowrap; }
@@ -1662,22 +1544,10 @@ body:not(.focus-mode) #track{
                   stroke="#6b5a38" stroke-width="1.5" stroke-linecap="round" style="display:none"/>
               </svg>
             </button>
-            <span class="more-menu-label">Volume</span>
+            <span class="more-menu-label">Scroll volume</span>
             <input type="range" id="vol-slider" min="0" max="100" value="60" step="5" title="Tick volume">
           </div>
         </div>
-
-        <!-- AI semantic enhancement — intentionally not shown on the reading
-             screen (kept in DOM only so existing AI-panel wiring/hotkey
-             keep working). The same panel is reachable from the New Book /
-             import screen via "Set up Groq API key →" and from the
-             bookshelf's ✦ button. -->
-        <button class="icon-btn" id="btn-ai" title="AI semantic enhancement (A)" style="display:none">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2L9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5z"/>
-            <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
-          </svg>
-        </button>
 
       </div>
     </div>
@@ -1734,7 +1604,7 @@ body:not(.focus-mode) #track{
     <!-- Bookmark toast -->
     <div id="bm-toast"></div>
     <div id="swipe-hint">Swipe to read · double-tap to exit</div>
-    <div id="reader-open-hint">DOUBLE-TAP A SENTENCE TO FOCUS</div>
+    <div id="reader-open-hint">DOUBLE TAP SENTENCE TO FOCUS</div>
 
     <!-- Search overlay — shown by Ctrl+F or search button -->
     <div id="search-wrap">
@@ -4438,7 +4308,7 @@ function scorePageText(rawText, hasRasterImage) {
 
 /* extractPDFText replaced — see semantic parser below */
 
-async function handleFile(file, importMode) {
+async function handleFile(file) {
   if (!file) return;
   const name=file.name.replace(/\.[^.]+$/,'');
   bookTitle.textContent=name;
@@ -4492,30 +4362,7 @@ async function handleFile(file, importMode) {
       }
     })();
 
-    setStatus(importMode === 'ai' ? '✦ AI enhanced — processing…' : 'splitting sentences…');
-
-    // ── AI enhancement: only runs when user explicitly chose AI mode ────
-    // Falls back silently to heuristic output on any error.
-    if (importMode === 'ai' && AI.isEnabled() && rawText.includes('\x03')) {
-      const preBatches = rawText.split('\x03').filter(c => c.trim());
-      const refined    = await AI.refineChunks(preBatches, window.__totalPages || 0);
-      // Re-merge consecutive HEADING/ALLCAPS chunks that Groq left separate
-      // (wrapped titles like "SELF-REALIZATION AND ENLIGHTENMENT OF THE" + "MYSTIC")
-      const remerged = [];
-      for (let i = 0; i < refined.length; i++) {
-        const cur  = refined[i];
-        const next = refined[i + 1];
-        const curM  = cur  && cur.match(/^(HEADING|ALLCAPS):([\s\S]*)$/);
-        const nextM = next && next.match(/^(HEADING|ALLCAPS):([\s\S]*)$/);
-        if (curM && nextM) {
-          remerged.push(curM[1] + ':' + curM[2].trim() + ' ' + nextM[2].trim());
-          i++; // skip next — merged
-        } else {
-          remerged.push(cur);
-        }
-      }
-      rawText = remerged.join('\x03');
-    }
+    setStatus('splitting sentences…');
 
     const cleanedText = cleanPDFText(rawText);
     const zh=isChinese(cleanedText);
@@ -5164,14 +5011,14 @@ dropZone.addEventListener('drop', e=>{
   e.preventDefault();
   dropZone.classList.remove('over');
   const f = e.dataTransfer.files[0];
-  if (f) showImportModal(f);
+  if (f) handleFile(f);
 });
 // Click anywhere on drop zone → open file picker
 dropZone.addEventListener('click', () => fileInput.click());
 // File picker result → show import modal
 fileInput.addEventListener('change', e => {
   const f = e.target.files[0];
-  if (f) showImportModal(f);
+  if (f) handleFile(f);
   fileInput.value = ''; // reset so same file can be re-selected
 });
 
@@ -5223,11 +5070,13 @@ const swipeHintEl = document.getElementById('swipe-hint');
 const readerOpenHintEl = document.getElementById('reader-open-hint');
 let _swipeHintTimer = null;
 let _readerOpenHintTimer = null;
+let _readerOpenHintShown = false;   // once per app start (every page load)
 function showReaderOpenHint() {
-  if (!readerOpenHintEl) return;
+  if (!readerOpenHintEl || _readerOpenHintShown) return;
+  _readerOpenHintShown = true;
   readerOpenHintEl.classList.add('show');
   clearTimeout(_readerOpenHintTimer);
-  _readerOpenHintTimer = setTimeout(() => readerOpenHintEl.classList.remove('show'), 3000);
+  _readerOpenHintTimer = setTimeout(() => readerOpenHintEl.classList.remove('show'), 2000);
 }
 function maybeShowSwipeHint() {
   let seen = false;
@@ -7790,496 +7639,6 @@ document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(
 })();
 </script>
 
-
-
-  <!-- Import mode modal -->
-  <div id="import-modal">
-    <div id="import-box">
-      <h2>Import Book</h2>
-      <div class="import-filename" id="import-modal-filename">—</div>
-      <div class="import-options">
-
-        <div class="import-opt selected" id="import-opt-standard" onclick="selectImportMode('standard')">
-          <span class="import-opt-badge badge-standard">Always available</span>
-          <div class="import-opt-title">Standard Conversion</div>
-          <div class="import-opt-desc">Fast, fully offline. Reconstructs headings, numbered lists, and paragraph structure using positional and font analysis. Works on all PDFs with no setup required.</div>
-        </div>
-
-        <div class="import-opt" id="import-opt-ai" onclick="selectImportMode('ai')">
-          <span class="import-opt-badge" id="ai-mode-badge">—</span>
-          <div class="import-opt-title">✦ AI Enhanced Conversion</div>
-          <div class="import-opt-desc">Uses Groq (Llama 3.1, free) to semantically reconstruct structure during conversion — better at complex layouts, ambiguous headings, and nested lists.</div>
-          <span class="import-setup-link" id="import-setup-link" onclick="event.stopPropagation();openAIPanel()">Set up Groq API key →</span>
-        </div>
-
-      </div>
-      <div id="import-modal-actions">
-        <button id="btn-import-cancel">Cancel</button>
-        <button id="btn-import-go">Convert →</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- AI Groq panel -->
-  <div id="ai-panel">
-    <div id="ai-box">
-      <h2>✦ AI Semantic Enhancement</h2>
-      <p>Enter a Groq API key to enable AI-powered semantic reconstruction. Groq is free with no billing required — sign up at <span style="color:var(--gold)">console.groq.com</span> → API Keys → Create key.<br><br>The AI detects headings, lists, and paragraph boundaries — improving structure beyond positional analysis. Your key is stored locally only.</p>
-      <input type="password" id="ai-key-input" placeholder="gsk_…" autocomplete="off" spellcheck="false">
-      <div id="ai-status-line"></div>
-      <div id="ai-box-btns">
-        <button id="btn-ai-cancel">Cancel</button>
-        <button id="btn-ai-save">Save &amp; Enable</button>
-      </div>
-    </div>
-  </div>
-
-
-<script>
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  IMPORT MODE MODAL
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-let _pendingImportFile = null;
-let _importMode        = 'standard';
-let _aiPanelReturnToImport = false;
-
-function showImportModal(file) {
-  if (!file) return;
-  _pendingImportFile = file;
-  _importMode = 'standard';
-
-  document.getElementById('import-modal-filename').textContent = file.name;
-  document.getElementById('import-modal-filename').title = file.name;
-
-  const aiOpt    = document.getElementById('import-opt-ai');
-  const badge    = document.getElementById('ai-mode-badge');
-  const setupLnk = document.getElementById('import-setup-link');
-
-  const aiEnabled = (typeof AI !== 'undefined') && AI.isEnabled();
-  if (aiEnabled) {
-    aiOpt.classList.remove('disabled');
-    badge.textContent = 'Groq free tier';
-    badge.className   = 'import-opt-badge badge-ai';
-    setupLnk.style.display = 'none';
-  } else {
-    aiOpt.classList.add('disabled');
-    badge.textContent = (typeof AI === 'undefined') ? 'Loading…' : 'API key required';
-    badge.className   = 'import-opt-badge badge-nokey';
-    setupLnk.style.display = 'inline-block';
-  }
-
-  selectImportMode('standard');
-  document.getElementById('import-modal').classList.add('show');
-}
-
-function selectImportMode(mode) {
-  const aiOpt = document.getElementById('import-opt-ai');
-  if (!aiOpt) return;
-  if (mode === 'ai' && aiOpt.classList.contains('disabled')) return;
-  _importMode = mode;
-  document.getElementById('import-opt-standard').classList.toggle('selected', mode === 'standard');
-  aiOpt.classList.toggle('selected', mode === 'ai');
-}
-
-function closeImportModal() {
-  document.getElementById('import-modal').classList.remove('show');
-  _pendingImportFile = null;
-}
-
-function openAIPanel() {
-  document.getElementById('import-modal').classList.remove('show');
-  document.getElementById('ai-panel').classList.add('show');
-  document.getElementById('ai-key-input').focus();
-  _aiPanelReturnToImport = true;
-}
-
-// Watch AI panel closing — return to import modal if we came from there
-(function() {
-  const aiPanel = document.getElementById('ai-panel');
-  if (!aiPanel) return;
-  new MutationObserver(() => {
-    if (!aiPanel.classList.contains('show') && _aiPanelReturnToImport && _pendingImportFile) {
-      _aiPanelReturnToImport = false;
-      setTimeout(() => showImportModal(_pendingImportFile), 160);
-    }
-  }).observe(aiPanel, { attributes: true, attributeFilter: ['class'] });
-})();
-
-// Wire modal buttons — guarded in case elements aren't in DOM yet
-(function wireImportModal() {
-  const btnCancel = document.getElementById('btn-import-cancel');
-  const btnGo     = document.getElementById('btn-import-go');
-  const modal     = document.getElementById('import-modal');
-  if (btnCancel) btnCancel.addEventListener('click', closeImportModal);
-  if (modal)     modal.addEventListener('click', e => { if (e.target.id === 'import-modal') closeImportModal(); });
-  if (btnGo)     btnGo.addEventListener('click', () => {
-    const file = _pendingImportFile;
-    const mode = _importMode;
-    closeImportModal();
-    handleFile(file, mode);
-  });
-  // If elements weren't ready yet, retry after DOM settles
-  if (!btnCancel || !btnGo || !modal) {
-    setTimeout(wireImportModal, 100);
-  }
-})();
-
-</script>
-
-<script>
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  GEMINI AI SEMANTIC ENHANCEMENT MODULE
-//  ─────────────────────────────────────────────────────────────────────────────
-//  ARCHITECTURE
-//  ─────────────
-//  This module sits between extractPDFText (which produces typed chunks) and
-//  splitSentences (which finalises the reading array).
-//
-//  When AI is enabled, the pipeline becomes:
-//
-//    extractPDFText()         → raw typed chunks (HEADING:/PROSE:/etc.)
-//         ↓
-//    aiRefineChunks()         → AI-verified and corrected typed chunks
-//         ↓
-//    splitSentences()         → final sentences[] for the reader
-//
-//  The AI's role is SEMANTIC VERIFICATION, not summarisation or rewriting.
-//  It receives pages of pre-classified chunks and returns a corrected version
-//  of the same content with better semantic type assignments and correct
-//  heading/list/paragraph boundaries.
-//
-//  BATCHING STRATEGY
-//  ──────────────────
-//  We send pages in batches of BATCH_PAGES (default 4) to stay under Gemini's
-//  token limit (~8k output). Each batch is one API call. Failed batches fall
-//  back to the original heuristic output — AI enhancement is always optional.
-//
-//  RATE LIMITING
-//  ──────────────
-//  Gemini Flash free tier: 15 req/min, 1M tokens/day.
-//  We add a 200ms delay between batch calls to stay safe.
-//  On 429 we wait 4s and retry once before falling back.
-//
-//  OUTPUT FORMAT
-//  ──────────────
-//  Same \x03-separated "TYPE:text" format as the heuristic pipeline.
-//  splitSentences() needs no changes — it just receives better-classified input.
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-const AI = (() => {
-
-  // ── Constants ───────────────────────────────────────────────────────────────
-  const STORAGE_KEY  = 'focusreader_groq_key';
-  // Groq free tier: llama-3.1-8b-instant — fast, generous quota, great at JSON
-  const MODEL        = 'llama-3.1-8b-instant';
-  const API_URL      = 'https://api.groq.com/openai/v1/chat/completions';
-  const BATCH_DELAY  = 300;   // ms between calls (Groq free: 30 req/min)
-  const RETRY_DELAY  = 5000;  // ms wait on 429 before retry
-  const TARGET_CHARS = 6000;  // ~1500 tokens per batch — safe for 8k context
-
-  // ── State ───────────────────────────────────────────────────────────────────
-  let _enabled  = false;
-  let _key      = '';
-  let _onStatus = null;
-
-  // ── Key management ──────────────────────────────────────────────────────────
-  function loadKey()    { try { return localStorage.getItem(STORAGE_KEY) || ''; } catch(e) { return ''; } }
-  function saveKey(k)   { try { localStorage.setItem(STORAGE_KEY, k); } catch(e) {} }
-  function clearKey()   { try { localStorage.removeItem(STORAGE_KEY); } catch(e) {} }
-
-  function init() {
-    _key     = loadKey();
-    _enabled = !!_key;
-    return _enabled;
-  }
-
-  function setKey(key) {
-    _key = key.trim();
-    if (_key) { saveKey(_key); _enabled = true; }
-    else       { clearKey();   _enabled = false; }
-  }
-
-  function isEnabled() { return _enabled && !!_key; }
-  function onStatus(cb) { _onStatus = cb; }
-  function status(msg)  { if (_onStatus) _onStatus(msg); }
-
-  // ── Groq API call (OpenAI-compatible) ────────────────────────────────────────
-  async function callGroq(prompt, retrying = false) {
-    const res = await fetch(API_URL, {
-      method:  'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${_key}`,
-      },
-      body: JSON.stringify({
-        model:       MODEL,
-        temperature: 0.1,
-        max_tokens:  4096,
-        messages: [
-          {
-            role:    'system',
-            content: 'You are a semantic document reconstruction engine. You output ONLY valid JSON arrays. No markdown fences, no commentary, no explanation.',
-          },
-          {
-            role:    'user',
-            content: prompt,
-          },
-        ],
-      }),
-    });
-
-    // Rate limit — wait and retry once
-    if (res.status === 429) {
-      if (retrying) throw new Error('Rate limited after retry');
-      await delay(RETRY_DELAY);
-      return callGroq(prompt, true);
-    }
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      let msg = `Groq ${res.status}`;
-      try { msg = JSON.parse(txt)?.error?.message || msg; } catch(e) {}
-      // Bad key — disable to stop hammering the API
-      if (res.status === 401 || res.status === 403) {
-        _enabled = false;
-        throw new Error(`${msg} — AI disabled for this session`);
-      }
-      throw new Error(msg);
-    }
-
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) throw new Error('Empty Groq response');
-    return text;
-  }
-
-  // ── Prompt builder ───────────────────────────────────────────────────────────
-  function buildPrompt(chunks) {
-    const inputJson = JSON.stringify(
-      chunks.map(c => {
-        const m = c.match(/^(HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/);
-        return m ? { type: m[1], text: m[2] } : { type: 'PROSE', text: c };
-      }),
-      null, 2
-    );
-
-    return `You are a semantic document reconstruction engine for a focus-reading app.
-
-TASK: Verify and correct the "type" label of each chunk. Do NOT change any text.
-
-TYPE DEFINITIONS:
-- HEADING: Chapter/section/part title (often ALL CAPS or large font). Always standalone.
-- ALLCAPS: All-uppercase subtitle or sub-section label. Standalone.
-- LISTNUM: Numbered list item starting with "1." "2." "1)" etc. Full item including any wrapped continuation.
-- LISTBULLET: Bullet item starting with "•" "–" "*" etc.
-- PROSE: Normal paragraph sentence.
-
-RULES:
-- Preserve every chunk's text EXACTLY — zero changes to content.
-- Do NOT merge separate chunks. Do NOT split chunks.
-- Omit page numbers (isolated digits only).
-- A PROSE sentence followed immediately by a numbered heading must stay separate.
-- Wrapped list item continuations → type LISTNUM (not PROSE).
-
-Return ONLY a valid JSON array of objects with "type" and "text" fields.
-No markdown fences. No explanation. Just the JSON array.
-
-INPUT:
-${inputJson}`;
-  }
-
-  // ── Batch processor ──────────────────────────────────────────────────────────
-  async function refineChunks(chunks) {
-    if (!isEnabled() || !chunks.length) return chunks;
-
-    // Build batches capped at TARGET_CHARS each
-    const batches = [];
-    let batch = [], chars = 0;
-    for (const chunk of chunks) {
-      if (chars > TARGET_CHARS && batch.length > 0) {
-        batches.push(batch); batch = []; chars = 0;
-      }
-      batch.push(chunk);
-      chars += chunk.length;
-    }
-    if (batch.length) batches.push(batch);
-
-    const refined = [];
-    for (let i = 0; i < batches.length; i++) {
-      status(`✦ AI refining ${i + 1}/${batches.length}…`);
-      try {
-        const raw    = await callGroq(buildPrompt(batches[i]));
-        const parsed = parseResponse(raw);
-        if (parsed?.length > 0) {
-          for (const item of parsed) {
-            const type = validateType(item.type);
-            const text = (item.text || '').trim();
-            if (text) refined.push(`${type}:${text}`);
-          }
-        } else {
-          console.warn(`[AI] batch ${i+1} parse failed — using heuristic`);
-          refined.push(...batches[i]);
-        }
-      } catch(err) {
-        console.warn(`[AI] batch ${i+1} error: ${err.message}`);
-        refined.push(...batches[i]);
-        if (!_enabled) break; // bad key — stop early
-      }
-      if (i < batches.length - 1) await delay(BATCH_DELAY);
-    }
-
-    status('');
-    return refined;
-  }
-
-  // ── Response parser ──────────────────────────────────────────────────────────
-  function parseResponse(raw) {
-    let t = raw.trim()
-      .replace(/^```(?:json)?\s*/i, '')
-      .replace(/\s*```$/,           '');
-    try {
-      const d = JSON.parse(t);
-      if (Array.isArray(d))               return d;
-      if (Array.isArray(d?.chunks))       return d.chunks;
-      if (Array.isArray(d?.items))        return d.items;
-      if (Array.isArray(d?.result))       return d.result;
-      return null;
-    } catch(e) {
-      // Try to extract JSON array from anywhere in the string
-      const m = t.match(/\[[\s\S]*\]/);
-      if (m) try { return JSON.parse(m[0]); } catch(e2) {}
-      console.warn('[AI] JSON parse failed:', e.message, t.slice(0, 120));
-      return null;
-    }
-  }
-
-  function validateType(t) {
-    return ['HEADING','ALLCAPS','LISTNUM','LISTBULLET','PROSE'].includes(t) ? t : 'PROSE';
-  }
-
-  function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
-
-  // ── Test key ─────────────────────────────────────────────────────────────────
-  async function testKey(key) {
-    try {
-      const res = await fetch(API_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
-        body: JSON.stringify({
-          model: MODEL, max_tokens: 5, temperature: 0,
-          messages: [{ role: 'user', content: 'Reply: ok' }],
-        }),
-      });
-      if (res.ok) return { ok: true };
-      const data = await res.json().catch(() => ({}));
-      return { ok: false, error: data?.error?.message || `HTTP ${res.status}` };
-    } catch(e) {
-      return { ok: false, error: e.message };
-    }
-  }
-
-  // ── Public API ───────────────────────────────────────────────────────────────
-  return { init, setKey, isEnabled, onStatus, refineChunks, testKey, loadKey };
-
-})();
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  AI PANEL UI CONTROLLER
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-(function setupAIPanel() {
-  const panel     = document.getElementById('ai-panel');
-  const keyInput  = document.getElementById('ai-key-input');
-  const statusLn  = document.getElementById('ai-status-line');
-  const btnSave   = document.getElementById('btn-ai-save');
-  const btnCancel = document.getElementById('btn-ai-cancel');
-  const btnAI     = document.getElementById('btn-ai');
-
-  // Initialise from storage
-  AI.init();
-  keyInput.value = AI.loadKey();
-  syncAIButton();
-
-  // Wire status callback so processing updates show in the load bar
-  AI.onStatus(msg => {
-    if (msg) setStatus(msg);
-  });
-
-  // Open panel
-  function openPanel() {
-    panel.classList.add('show');
-    keyInput.focus();
-    statusLn.textContent = AI.isEnabled()
-      ? '✓ Groq AI enhancement active'
-      : 'No key saved — AI disabled';
-  }
-
-  // Close panel
-  function closePanel() {
-    panel.classList.remove('show');
-  }
-
-  // Sync button appearance
-  function syncAIButton() {
-    btnAI.classList.toggle('active', AI.isEnabled());
-    btnAI.title = AI.isEnabled()
-      ? 'AI enhancement ON — click to configure (A)'
-      : 'AI enhancement OFF — click to configure (A)';
-  }
-
-  btnAI.addEventListener('click', openPanel);
-  btnCancel.addEventListener('click', closePanel);
-  panel.addEventListener('click', e => { if (e.target === panel) closePanel(); });
-
-  btnSave.addEventListener('click', async () => {
-    const key = keyInput.value.trim();
-    if (!key) {
-      // Disable AI if key cleared
-      AI.setKey('');
-      syncAIButton();
-      statusLn.textContent = 'AI disabled — key removed.';
-      setTimeout(closePanel, 900);
-      return;
-    }
-
-    btnSave.textContent = 'Testing…';
-    btnSave.disabled = true;
-    statusLn.textContent = 'Verifying key with Groq…';
-
-    const result = await AI.testKey(key);
-
-    btnSave.textContent = 'Save & Enable';
-    btnSave.disabled = false;
-
-    if (result.ok) {
-      AI.setKey(key);
-      syncAIButton();
-      statusLn.textContent = '✓ Key valid — AI enhancement enabled!';
-      setTimeout(closePanel, 1200);
-    } else {
-      statusLn.textContent = `✗ ${result.error}`;
-      keyInput.focus();
-    }
-  });
-
-  // Enter key submits
-  keyInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') btnSave.click();
-    if (e.key === 'Escape') closePanel();
-  });
-
-  // Hotkey A
-  document.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT') return;
-    if ((e.key === 'a' || e.key === 'A') && !e.ctrlKey && !e.metaKey) {
-      openPanel();
-    }
-  });
-})();
-
-</script>
 
 
 <script>
