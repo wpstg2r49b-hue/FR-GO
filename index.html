@@ -70,10 +70,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 
 /* returning reader: the book is the hero */
 .wl-continue{display:flex;flex-direction:column;align-items:center;width:100%;margin:0;padding:0;background:none;border:0;color:inherit;font:inherit;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.wl-cover{flex:none;width:120px;height:176px;border-radius:3px;background:var(--gold-faint) center/cover no-repeat;display:flex;align-items:center;justify-content:center;
-  font-family:var(--reading-font);font-size:34px;color:var(--gold-dim);box-shadow:0 18px 40px -12px rgba(0,0,0,.6)}
-:root[data-theme="light"] .wl-cover{box-shadow:0 14px 32px -14px rgba(60,45,20,.35)}
-.wl-cont-text{display:flex;flex-direction:column;align-items:center;width:100%;margin-top:32px}
+.wl-cont-text{display:flex;flex-direction:column;align-items:center;width:100%;margin-top:12px}
 .wl-eyebrow{font-family:var(--reading-font);font-style:italic;font-weight:400;font-size:16px;letter-spacing:0;text-transform:none;color:var(--text-mid)}
 .wl-cont-title{margin-top:12px;font-family:var(--reading-font);font-weight:500;font-size:clamp(26px,7.5vw,34px);line-height:1.2;color:var(--text);
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
@@ -115,6 +112,63 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 .wl-sep{color:var(--text-mid);opacity:.5}
 @media (max-height:560px){ .wl-cont-text{margin-top:20px} .wl-resume{margin-top:28px} #wl-main{padding:12px 0} #wl-empty p{margin-top:10px} #drop-zone{margin-top:28px} .wl-focusline{margin-bottom:20px} }
 @media (max-height:480px){ .wl-cover{display:none} .wl-cont-text{margin-top:0} }
+
+/* ── The 3D book ── */
+.bk{--w:112px;--t:calc(var(--w)*var(--tr,.19));--h:calc(var(--w)*1.4);position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:calc(var(--w)*1.4 + 28px);perspective:1200px}
+.bk-shadow{position:absolute;left:50%;bottom:3px;width:calc(var(--w)*1.12);height:15px;transform:translateX(-47%);background:radial-gradient(ellipse at center,rgba(0,0,0,.6),rgba(0,0,0,0) 70%)}
+.bk-3d{position:relative;width:var(--w);height:var(--h);transform-style:preserve-3d;transform:rotateX(-9deg) rotateY(32deg);transition:transform .65s cubic-bezier(.22,1,.36,1)}
+@media (hover:hover){.book-card:hover .bk-3d{transform:rotateX(-6deg) rotateY(14deg) translateY(-4px)}}
+.book-card:active .bk-3d{transform:rotateX(-6deg) rotateY(16deg) scale(.985)}
+.bk-f{position:absolute;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.bk-front{left:0;top:0;width:var(--w);height:var(--h);transform:translateZ(calc(var(--t)/2));border-radius:2px 6px 6px 2px;overflow:hidden;background:var(--face,#2A2018)}
+.bk-art{position:absolute;inset:0;background-size:cover;background-position:center top;background-repeat:no-repeat}
+.bk[data-fit="contain"] .bk-art{background-size:contain;background-position:center}
+.bk-front::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,rgba(0,0,0,.34) 0,rgba(255,255,255,.15) 2.2%,rgba(0,0,0,.22) 4.4%,rgba(0,0,0,0) 8%),
+             linear-gradient(115deg,rgba(255,255,255,.17) 0,rgba(255,255,255,0) 30%,rgba(0,0,0,0) 62%,rgba(0,0,0,.24) 100%)}
+.bk-back{left:0;top:0;width:var(--w);height:var(--h);transform:rotateY(180deg) translateZ(calc(var(--t)/2));background:var(--spine,#2A2018);border-radius:2px 6px 6px 2px}
+.bk-spine{top:0;height:var(--h);width:var(--t);left:calc((var(--w) - var(--t))/2);transform:rotateY(-90deg) translateZ(calc(var(--w)/2));
+  background:linear-gradient(90deg,rgba(0,0,0,.52),rgba(255,255,255,.12) 38%,rgba(0,0,0,.14) 62%,rgba(0,0,0,.55)),var(--spine,#2A2018);
+  display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:2px 0 0 2px}
+.bk-spine::before,.bk-spine::after{content:'';position:absolute;left:12%;right:12%;height:1px;background:rgba(214,176,118,.55)}
+.bk-spine::before{top:7%}.bk-spine::after{bottom:7%}
+.bk-spine span{max-height:78%;overflow:hidden;writing-mode:vertical-rl;white-space:nowrap;text-overflow:ellipsis;font:600 calc(var(--t)*.46) var(--reading-font);letter-spacing:.06em;color:rgba(240,226,196,.88);text-shadow:0 1px 2px rgba(0,0,0,.5)}
+.bk-pages{top:calc(var(--h)*.006);height:calc(var(--h)*.988);width:calc(var(--t) - 3px);left:calc((var(--w) - var(--t) + 3px)/2);transform:rotateY(90deg) translateZ(calc(var(--w)/2 - 1px));
+  background:linear-gradient(90deg,rgba(0,0,0,.30),rgba(0,0,0,0) 32%,rgba(0,0,0,.16)),repeating-linear-gradient(90deg,#F0E7D3 0,#F0E7D3 1px,#D9CDB3 1px,#D9CDB3 2px)}
+.bk-top{left:1px;width:calc(var(--w) - 2px);height:calc(var(--t) - 3px);top:calc((var(--h) - var(--t) + 3px)/2);transform:rotateX(90deg) translateZ(calc(var(--h)/2 - 1px));
+  background:linear-gradient(180deg,rgba(0,0,0,.28),rgba(255,255,255,.10)),repeating-linear-gradient(180deg,#F0E7D3 0,#F0E7D3 1px,#D5C9AE 1px,#D5C9AE 2px)}
+.bk-bottom{left:1px;width:calc(var(--w) - 2px);height:calc(var(--t) - 3px);top:calc((var(--h) - var(--t) + 3px)/2);transform:rotateX(-90deg) translateZ(calc(var(--h)/2 - 1px));background:#B9AD94}
+.bk-ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:repeating-linear-gradient(45deg,rgba(255,255,255,.028) 0 2px,rgba(0,0,0,0) 2px 5px),linear-gradient(150deg,var(--face,#2A2018),#17110B)}
+.bk-ph::before{content:'';position:absolute;inset:7%;border:1px solid rgba(198,161,107,.30);border-radius:2px}
+.bk-ph b{font-family:var(--reading-font);font-weight:500;font-size:calc(var(--w)*.34);letter-spacing:.04em;color:#B8A488;padding-left:.04em;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+.bk-ribbon{z-index:2;position:absolute;top:0;right:11%;width:calc(var(--w)*.2);min-width:22px;padding:6px 0 11px;display:flex;flex-direction:column;align-items:center;gap:1px;text-decoration:none;color:#2A1F12;
+  background:linear-gradient(180deg,#E9CB94,#C99F62);clip-path:polygon(0 0,100% 0,100% 100%,50% 84%,0 100%)}
+.bk-ribbon svg{width:12px;height:12px}
+.bk-ribbon em{font:500 9px var(--mono);font-style:normal;line-height:1}
+
+
+/* home hero: the very same 3D book as the library */
+.wl-cover{flex:none;width:200px;background:none;box-shadow:none;border-radius:0;height:auto;display:block;font-size:0}
+:root[data-theme="light"] .wl-cover{box-shadow:none}
+#wl-cover .bk{--w:132px}
+.wl-continue:active .bk-3d{transform:rotateX(-6deg) rotateY(16deg) scale(.985)}
+
+/* opening the book (Resume reading) */
+#book-open{position:fixed;inset:0;z-index:950;overflow:hidden;cursor:pointer}
+.ob-backdrop{position:absolute;inset:0;background:var(--bg);opacity:0}
+.ob-cam{position:fixed;transform-origin:50% 50%;will-change:transform}
+.ob-hinge{position:absolute;left:0;top:0;transform-origin:0 50%;transform-style:preserve-3d}
+.ob-face{position:absolute;inset:0;background:#efe6d1;-webkit-backface-visibility:hidden;backface-visibility:hidden}
+.ob-face.ob-back{transform:rotateY(180deg)}
+.ob-lines{position:absolute;inset:15% 12% 13% 14%;background:repeating-linear-gradient(0deg,rgba(70,52,30,.22) 0 1.4px,transparent 1.4px 7px)}
+.ob-gut{position:absolute;inset:0;background:linear-gradient(90deg,rgba(0,0,0,.30),rgba(0,0,0,0) 17%)}
+.ob-back .ob-gut,.ob-inner .ob-gut{background:linear-gradient(270deg,rgba(0,0,0,.30),rgba(0,0,0,0) 17%)}
+.ob-shade{position:absolute;inset:0;background:#000;opacity:0}
+.ob-inner{position:absolute;inset:0;transform:rotateY(180deg);background:#cdbb97;-webkit-backface-visibility:hidden;backface-visibility:hidden;border-radius:2px 6px 6px 2px}
+.ob-page0{position:absolute;left:0;top:0;background:#efe6d1;border-radius:2px 6px 6px 2px;overflow:hidden}
+#drop-screen.opening .wl-title,#drop-screen.opening .wl-tag,#drop-screen.opening .wl-cont-text,#drop-screen.opening .wl-cont-bar,
+#drop-screen.opening .wl-resume,#drop-screen.opening #wl-nav a,#drop-screen.opening #wl-nav button,#drop-screen.opening .wl-sep{opacity:0;transition:opacity .35s}
 
 /* ── Reader layout ── */
 #reader{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity .5s;overflow:visible}
@@ -5112,6 +5166,7 @@ let _swipeHintTimer = null;
 let _readerOpenHintTimer = null;
 let _readerOpenHintShown = false;   // once per app start (every page load)
 function showReaderOpenHint() {
+  if (window.__holdHint) { window.__hintPending = true; return; }   // the book-opening animation is still playing
   if (!readerOpenHintEl || _readerOpenHintShown) return;
   _readerOpenHintShown = true;
   readerOpenHintEl.classList.add('show');
@@ -6651,6 +6706,211 @@ window.addEventListener('keydown',e=>{
   }
 });
 
+const _TITLE_SMALL = new Set(['a','an','the','and','but','or','nor','for','so','yet','of','in','on','at','to','by','up','as','vs','via','per']);
+function cleanBookTitle(raw) {
+  const orig = String(raw == null ? '' : raw).trim();
+  let t = orig.replace(/\.(pdf|epub|txt)$/i, '');
+  // library-site tags such as  "-z-lib.org", "(Z-Library)", "libgen"
+  const siteRe = /[\s_\-.(\[]*(?:z-?lib(?:rary)?(?:\.(?:org|sk|se|is))?|1lib(?:\.\w+)?|libgen(?:\.\w+)?|b-ok(?:\.\w+)?|pdfdrive(?:\.com)?|annas-archive|ebook-?dl)[\s_\-.)\]]*$/i;
+  let hadSite = false;
+  if (siteRe.test(t)) { t = t.replace(siteRe, ''); hadSite = true; }
+  t = t.replace(/\s*[(\[]\s*(?:\d{4}|[^)\]]*\bedition\b[^)\]]*)\s*[)\]]\s*$/i, '');
+  const filenameLike = !/\s/.test(t);                       // no spaces at all → typical file name
+  if (filenameLike) {
+    if (t.includes('_')) t = t.replace(/_+/g, ' ');
+    else if (t.includes('.')) t = t.replace(/\./g, ' ');
+    else if ((t.match(/-/g) || []).length >= 2) t = t.replace(/-+/g, ' ');
+  } else t = t.replace(/_+/g, ' ');
+  t = t.replace(/\s+/g, ' ').replace(/^[\s\-\u2013\u2014_.]+|[\s\-\u2013\u2014_.]+$/g, '');
+  if (!t) return orig;
+  if (/[\u4e00-\u9fff]/.test(t)) return t;
+  let words = t.split(' ');
+  // "Ryan Holiday Ego Is the Enemy": a leading "First Last" author in a library-site file name is dropped
+  const nm = /^[A-Z][a-z'\u2019]{1,}$/;
+  if (hadSite && filenameLike && words.length >= 4 && nm.test(words[0]) && nm.test(words[1]) && !_TITLE_SMALL.has(words[0].toLowerCase())) words = words.slice(2);
+  const allLower = t === t.toLowerCase(), allUpper = t === t.toUpperCase();
+  if (filenameLike || allLower || allUpper) {
+    words = words.map((w, i) => {
+      const lw = w.toLowerCase(), last = i === words.length - 1;
+      if (!allUpper && /^[A-Z]{2,4}$/.test(w)) return w;                              // acronyms
+      if (!allUpper && /[A-Z]/.test(w.slice(1))) return w;                             // iPhone, McDonald
+      if (i > 0 && !last && _TITLE_SMALL.has(lw) && !/[:\u2014]$/.test(words[i - 1])) return lw;
+      return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+    });
+  }
+  return words.join(' ');
+}
+function displayTitle(book) {
+  const orig = book.originalName || book.title;
+  return book.title === orig ? cleanBookTitle(book.title) : book.title;
+}
+const PH_TONES = ['#2A2018', '#2C241A', '#251E16', '#2D231A', '#282017', '#30261B'];
+function hashStr(s) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+function initialsOf(t) {
+  t = String(t).trim();
+  if (/[\u4e00-\u9fff]/.test(t)) return [...t.replace(/\s/g, '')].slice(0, 2).join('');
+  const all = t.split(/\s+/).filter(Boolean), sig = all.filter(w => !_TITLE_SMALL.has(w.toLowerCase()));
+  const w = (sig.length ? sig : all);
+  return w.length > 1 ? (w[0].charAt(0).toUpperCase() + w[1].charAt(0).toLowerCase()) : ((w[0] || 'A').charAt(0).toUpperCase() + 'a');
+}
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+const HL_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg>';
+const DOTS_SVG = '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><circle cx="3" cy="8" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="13" cy="8" r="1.3"/></svg>';
+
+// Reads a cover once: its aspect ratio (odd shapes are shown whole) and the colour of its left edge (→ spine colour).
+const coverMeta = new Map();
+function probeCover(key, src, apply) {
+  const m = coverMeta.get(key);
+  if (m) { apply(m); return; }
+  const img = new Image();
+  img.onload = () => {
+    const meta = { ar: img.naturalWidth / (img.naturalHeight || 1), spine: null };
+    try {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 10;
+      const x = c.getContext('2d');
+      x.drawImage(img, 0, 0, Math.max(1, Math.round(img.naturalWidth * 0.06)), img.naturalHeight, 0, 0, 4, 10);
+      const d = x.getImageData(0, 0, 4, 10).data; let r = 0, g = 0, b = 0, n = 0;
+      for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+      r /= n; g /= n; b /= n;
+      const lum = (r * 299 + g * 587 + b * 114) / 1000, k = lum > 170 ? 0.42 : lum > 90 ? 0.6 : 0.88;
+      meta.spine = 'rgb(' + Math.round(r * k) + ',' + Math.round(g * k) + ',' + Math.round(b * k) + ')';
+    } catch (e) {}
+    coverMeta.set(key, meta); apply(meta);
+  };
+  img.src = src;
+}
+// o = { id, title, total, src (cover data URL or null), hl (number of saved highlights) }
+function buildBook(o) {
+  const tr = (0.14 + 0.16 * Math.min(1, (o.total || 0) / 12000)).toFixed(3);   // thicker book = more sentences
+  const tone = PH_TONES[hashStr(o.title) % PH_TONES.length];
+  const el = document.createElement('div');
+  el.className = 'bk'; el.style.setProperty('--tr', tr);
+  el.style.setProperty('--face', tone); el.style.setProperty('--spine', '#1F160F');
+  const ribbon = o.hl ? '<a class="bk-ribbon" href="index.html?book=' + encodeURIComponent(o.id) + '&highlights=1" title="' + o.hl + (o.hl === 1 ? ' highlight' : ' highlights') +
+                        '" aria-label="Open ' + esc(o.title) + ' at its ' + o.hl + (o.hl === 1 ? ' highlight' : ' highlights') + '">' + HL_SVG + '<em>' + o.hl + '</em></a>' : '';
+  el.innerHTML =
+    '<div class="bk-shadow"></div><div class="bk-3d">' +
+      '<div class="bk-f bk-back"></div><div class="bk-f bk-bottom"></div><div class="bk-f bk-pages"></div><div class="bk-f bk-top"></div>' +
+      '<div class="bk-f bk-spine"><span>' + esc(o.title) + '</span></div>' +
+      '<div class="bk-f bk-front">' + (o.src ? '<div class="bk-art"></div>' : '<div class="bk-ph"><b>' + esc(initialsOf(o.title)) + '</b></div>') + ribbon + '</div>' +
+    '</div>';
+  if (o.src) {
+    el.querySelector('.bk-art').style.backgroundImage = "url('" + o.src + "')";
+    probeCover(o.id + ':' + o.src.length, o.src, m => {
+      if (m.spine) el.style.setProperty('--spine', m.spine);
+      if (m.ar > 0.9 || m.ar < 0.55) el.dataset.fit = 'contain';
+    });
+  }
+  return el;
+}
+
+
+/* ── Opening the book ────────────────────────────────────────────────────────
+   "Resume reading": the home-screen book turns to face you, its cover swings open, a handful of pages
+   flip over by themselves while the whole book grows until the page fills the screen — then that page
+   becomes the reading surface. Pure CSS 3D + Web Animations; sounds are synthesised (no audio files).
+   Tap anywhere during it to skip. Skipped entirely when the user prefers reduced motion. */
+const BO = { running: false };
+function bookOpenSounds(vol) {
+  const ctx = getAudio(), t0 = ctx.currentTime + 0.05, at = ms => t0 + ms / 1000, k = vol;
+  noiseVoice(ctx, at(0),   { type:'bandpass', freq:900, sweepTo:500, q:.7, peak:.05*k, atk:.15, dec:.35 });          // book lifted
+  noiseVoice(ctx, at(650), { type:'lowpass',  freq:520, sweepTo:160, q:.6, peak:.34*k, atk:.015, dec:.32 });         // cover thump
+  toneVoice(ctx,  at(650), { f0:110, f1:52, peak:.30*k, atk:.008, dec:.30 });
+  noiseVoice(ctx, at(700), { type:'bandpass', freq:240, sweepTo:560, q:5, peak:.10*k, atk:.28, dec:.50 });           // leather creak
+  for (let i = 0; i < 6; i++) {                                                                                       // page flips
+    const r = 1 + (Math.random() - .5) * .14, t = at(1450 + i * 170 + 120);
+    noiseVoice(ctx, t, { type:'bandpass', freq:1700*r, sweepTo:4300*r, q:.8, peak:.22*k, atk:.04, dec:.26 });
+    noiseVoice(ctx, t + .03, { type:'highpass', freq:5200, q:.5, peak:.06*k, atk:.02, dec:.18 });
+  }
+  noiseVoice(ctx, at(2450), { type:'bandpass', freq:380, sweepTo:1700, q:.6, peak:.17*k, atk:.55, dec:.7 });           // the page rushes toward you
+  toneVoice(ctx,  at(3350), { f0:74, f1:50, peak:.20*k, atk:.01, dec:.35 });                                           // settles
+  return ctx;
+}
+function playBookOpening(openFn) {
+  const heroBk = document.querySelector('#wl-cover .bk');
+  const reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (BO.running) return;
+  if (!heroBk || reduce || !document.body.animate) { openFn(); return; }
+  BO.running = true; window.__holdHint = true;
+
+  const rect = heroBk.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
+  const fr0 = getComputedStyle(heroBk.querySelector('.bk-front'));
+  const w = parseFloat(fr0.width), h = parseFloat(fr0.height);
+  const tr = parseFloat(heroBk.style.getPropertyValue('--tr')) || .19, tz = w * tr / 2;      // half the book's thickness
+  const N = 6, TD = 3800, GAP = .35;
+
+  const ov = document.createElement('div'); ov.id = 'book-open';
+  ov.innerHTML = '<div class="ob-backdrop"></div><div class="ob-cam"></div>';
+  const cam = ov.querySelector('.ob-cam');
+  cam.style.cssText = 'left:' + rect.left + 'px;top:' + rect.top + 'px;width:' + rect.width + 'px;height:' + rect.height + 'px';
+  const bk = heroBk.cloneNode(true); bk.style.setProperty('--w', w + 'px'); cam.appendChild(bk);   // the hero's size comes from #wl-cover, so carry it over to the clone
+  const bk3d = bk.querySelector('.bk-3d'); bk3d.style.transition = 'none';
+  const paper = (cls) => '<div class="ob-face ' + cls + '"><i class="ob-lines"></i><i class="ob-gut"></i><i class="ob-shade"></i></div>';
+  const mkHinge = z => { const g = document.createElement('div'); g.className = 'ob-hinge'; g.style.width = w + 'px'; g.style.height = h + 'px'; g._z = z; g.style.transform = 'rotateY(0deg) translateZ(' + z + 'px)'; return g; };
+
+  // page 0 — the page that stays put (becomes the reading surface)
+  const page0 = document.createElement('div'); page0.className = 'ob-page0';
+  page0.style.cssText = 'width:' + w + 'px;height:' + h + 'px;transform:translateZ(' + (tz - 1 - N * GAP - .6) + 'px)';
+  page0.innerHTML = '<i class="ob-lines"></i><i class="ob-gut"></i>'; bk3d.appendChild(page0);
+  // leaves that flip
+  const leaves = [];
+  for (let i = N - 1; i >= 0; i--) { const g = mkHinge(tz - 1 - i * GAP); g.innerHTML = paper('ob-front') + paper('ob-back'); bk3d.appendChild(g); leaves[i] = g; }
+  // cover = the original front board + an inner (endpaper) face, hinged on the spine
+  const cover = mkHinge(tz), front = bk.querySelector('.bk-front');
+  front.style.transform = 'none'; cover.appendChild(front);
+  const inner = document.createElement('div'); inner.className = 'ob-inner'; inner.innerHTML = '<i class="ob-gut"></i>'; cover.appendChild(inner);
+  bk3d.appendChild(cover);
+
+  document.body.appendChild(ov);
+  const dropScr = document.getElementById('drop-screen'); dropScr.classList.add('opening');
+  heroBk.style.visibility = 'hidden';
+
+  // camera: fit the opened spread, then dive into the right-hand page until it fills the screen
+  const cx0 = rect.left + rect.width / 2, cy0 = rect.top + rect.height / 2, tx = vw / 2 - cx0, ty = vh / 2 - cy0;
+  const s1 = Math.min(1.35, vw * .92 / (2 * w)), S = Math.max(vw / w, vh / h) * 1.03, o = ms => ms / TD;
+  const A = [], E = (el, kf, opt) => { const a = el.animate(kf, Object.assign({ fill: 'both' }, opt)); A.push(a); return a; };
+  E(cam, [
+    { transform:'translate(0px,0px) scale(1)', offset:0, easing:'cubic-bezier(.22,1,.36,1)' },
+    { transform:'translate(' + tx + 'px,' + ty + 'px) scale(' + s1 + ')', offset:o(800), easing:'cubic-bezier(.45,0,.25,1)' },
+    { transform:'translate(' + (tx + s1 * w / 2) + 'px,' + ty + 'px) scale(' + s1 + ')', offset:o(1500), easing:'cubic-bezier(.55,0,.25,1)' },
+    { transform:'translate(' + tx + 'px,' + ty + 'px) scale(' + S + ')', offset:o(3250) },
+    { transform:'translate(' + tx + 'px,' + ty + 'px) scale(' + S + ')', offset:1 }
+  ], { duration: TD });
+  E(ov.querySelector('.ob-backdrop'), [{ opacity:0 }, { opacity:1 }], { duration:450, easing:'ease-out' });
+  E(bk3d, [{ transform:'rotateX(-9deg) rotateY(32deg)' }, { transform:'rotateX(0deg) rotateY(0deg)' }], { duration:800, easing:'cubic-bezier(.22,1,.36,1)' });
+  E(bk.querySelector('.bk-shadow'), [{ opacity:1 }, { opacity:0 }], { duration:600, delay:700 });
+  E(cover, [{ transform:'rotateY(0deg) translateZ(' + tz + 'px)' }, { transform:'rotateY(-176deg) translateZ(' + tz + 'px)' }], { duration:850, delay:650, easing:'cubic-bezier(.45,0,.25,1)' });
+  leaves.forEach((g, i) => {
+    E(g, [{ transform:'rotateY(0deg) translateZ(' + g._z + 'px)' }, { transform:'rotateY(-178deg) translateZ(' + g._z + 'px)' }], { duration:560, delay:1450 + i * 170, easing:'cubic-bezier(.4,0,.2,1)' });
+    g.querySelectorAll('.ob-shade').forEach(sh => E(sh, [{ opacity:0 }, { opacity:.32, offset:.5 }, { opacity:0 }], { duration:560, delay:1450 + i * 170 }));
+  });
+  const bgCol = getComputedStyle(document.body).backgroundColor;                                   // the page becomes the reading surface
+  E(page0, [{ backgroundColor:'#efe6d1' }, { backgroundColor:bgCol }], { duration:700, delay:2750 });
+  page0.querySelectorAll('.ob-lines,.ob-gut').forEach(el => E(el, [{ opacity:1 }, { opacity:0 }], { duration:600, delay:2750 }));
+  E(ov, [{ opacity:1, offset:0 }, { opacity:1, offset:o(3300) }, { opacity:0, offset:1 }], { duration:TD });
+
+  // sound
+  const vol = (typeof tickMuted !== 'undefined' && tickMuted) ? 0 : Math.min(1, tickVolume / 3.2);
+  let ctx = null; if (vol > 0) { try { ctx = bookOpenSounds(vol); } catch (e) {} }
+
+  let opened = false, done = false;
+  const doOpen = () => { if (!opened) { opened = true; openFn(); } };
+  const tOpen = setTimeout(doOpen, 620);                                   // load the book underneath once the backdrop is solid
+  const tEnd  = setTimeout(() => finish(false), TD + 60);
+  function finish(skipped) {
+    if (done) return; done = true; clearTimeout(tOpen); clearTimeout(tEnd);
+    if (skipped && ctx) { try { const g = synthBus(ctx).gain, n = ctx.currentTime; g.cancelScheduledValues(n); g.setTargetAtTime(0, n, .02); setTimeout(() => { g.cancelScheduledValues(ctx.currentTime); g.value = 1; }, 600); } catch (e) {} }
+    doOpen();
+    A.forEach(a => { try { a.cancel(); } catch (e) {} });
+    ov.remove(); dropScr.classList.remove('opening'); heroBk.style.visibility = '';
+    BO.running = false; window.__holdHint = false;
+    if (window.__hintPending) { window.__hintPending = false; showReaderOpenHint(); }
+  }
+  ov.addEventListener('click', () => finish(true));
+}
+
 /* ── Welcome screen: continue-reading card, bookshelf count, rotating sample sentences ── */
 const WL_SETS = [
   ['A book is a long conversation.', 'Read it one sentence at a time.', 'Nothing else on the page.'],
@@ -6681,21 +6941,21 @@ function renderWelcome() {
   const meta = shelf.find(b => b.id === id) || shelf[shelf.length - 1];
   if (!meta) return;
   const pct = meta.total > 1 ? Math.round((meta.progress || 0) / (meta.total - 1) * 100) : 0;
-  document.getElementById('wl-cont-title').textContent = meta.title || 'Untitled';
+  document.getElementById('wl-cont-title').textContent = displayTitle(meta) || 'Untitled';
   document.getElementById('wl-cont-meta').textContent = pct <= 0 ? 'Not started yet' : pct >= 99 ? 'Finished' : pct + '% complete';
   document.getElementById('wl-resume').textContent = pct <= 0 ? 'Begin reading' : 'Resume reading';
   document.getElementById('wl-cont-fill').style.width = Math.max(0, Math.min(100, pct)) + '%';
   const cov = document.getElementById('wl-cover');
   let cover = null; try { cover = localStorage.getItem('focusreader_cover_' + meta.id); } catch (e) {}
-  if (cover) { cov.style.backgroundImage = "url('" + cover + "')"; cov.textContent = ''; }
-  else { cov.style.backgroundImage = ''; cov.textContent = meta.lang === 'zh' ? '文' : 'Aa'; }
+  cov.style.backgroundImage = ''; cov.textContent = '';
+  cov.appendChild(buildBook({ id: meta.id, title: displayTitle(meta), total: meta.total || 0, src: cover, hl: 0 }));
   btn.dataset.id = meta.id; btn.hidden = false;
 }
 document.getElementById('wl-continue').addEventListener('click', e => {
   const id = e.currentTarget.dataset.id, meta = loadShelf().find(b => b.id === id);
   const sents = meta && loadSentences(id);
   if (!sents || sents.length < 2) { renderWelcome(); return; }
-  openBook({ ...meta, sentences: sents });
+  playBookOpening(() => openBook({ ...meta, sentences: sents }));
 });
 /* Drop a file anywhere on the home screen (the drop zone itself keeps its own handler) */
 const _hasFiles = e => e.dataTransfer && [...(e.dataTransfer.types || [])].includes('Files');
