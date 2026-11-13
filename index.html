@@ -231,50 +231,48 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   pointer-events:none;
   transition:opacity .4s;
 }
-/* Focus Mode auto-read control — the only chrome left on screen. Deliberately tiny:
-   ▶ play/pause · − · WPM · +   (double-tap the text or press Esc to leave Focus Mode) */
+/* Focus Mode control deck — the only chrome left on screen. One tight, centred row of equal buttons:
+   ▶ · − WPM + · read aloud · opacity · highlight colour   (double-tap the text or press Esc to leave Focus Mode) */
 #focus-auto{
   position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:2px;
+  display:flex;align-items:center;gap:6px;
   font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
   opacity:0;pointer-events:none;transition:opacity .3s;z-index:50;
 }
 .focus-mode #focus-auto{opacity:.5;pointer-events:all}
-.focus-mode #focus-auto:hover,.focus-mode #focus-auto:active{opacity:1}
+.focus-mode #focus-auto:hover,.focus-mode #focus-auto:active,
+.focus-mode #focus-auto:has(#focus-opacity.open,#focus-colors.open){opacity:1}
 #focus-auto button{
-  width:24px;height:22px;padding:0;line-height:1;cursor:pointer;
+  width:28px;height:26px;padding:0;line-height:1;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   font:inherit;color:var(--text-mid);background:none;border:1px solid var(--border);
   -webkit-tap-highlight-color:transparent;
 }
 #focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
 #focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
-#focus-auto #fa-hl{width:30px;height:26px;margin-left:16px}
-#fa-wpm{min-width:28px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
-/* Focus Mode only: Opacity button (bottom-left) + drop-up slider. The auto-read controls sit bottom-centre,
-   so the two never touch. */
-#focus-opacity{
-  position:absolute;
-  left:calc(16px + env(safe-area-inset-left,0px));
-  bottom:calc(16px + env(safe-area-inset-bottom,0px));
-  z-index:50;opacity:0;pointer-events:none;transition:opacity .3s;
-  font-family:'DM Mono',monospace;font-weight:700;
-}
-.focus-mode #focus-opacity{opacity:.5;pointer-events:all}
-.focus-mode #focus-opacity:hover,.focus-mode #focus-opacity.open{opacity:1}
-#fo-btn{
-  width:30px;height:26px;padding:0;cursor:pointer;
-  display:flex;align-items:center;justify-content:center;
-  font:inherit;color:var(--text-mid);background:none;border:1px solid var(--border);
-  -webkit-tap-highlight-color:transparent;
-}
+#fa-wpm{min-width:26px;margin:0 -2px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
+/* Opacity: icon button + drop-up slider, part of the same row */
+#focus-opacity{position:relative;display:flex;font-family:'DM Mono',monospace;font-weight:700}
+#fo-btn{display:flex;align-items:center;justify-content:center}
 #fo-btn:hover,#focus-opacity.open #fo-btn{color:var(--gold);border-color:var(--gold-dim)}
 #fo-pop{
-  display:none;position:absolute;left:0;bottom:calc(100% + 8px);width:200px;
+  display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 10px);width:200px;
   padding:12px 14px;flex-direction:column;gap:8px;
   background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
 }
 #focus-opacity.open #fo-pop{display:flex}
+/* Highlight colour: same icon as before, now opens a colour picker (new highlights use this colour) */
+#focus-colors{position:relative;display:flex}
+#fa-hl svg{color:var(--hl-tint,currentColor)}
+#focus-colors.open #fa-hl{border-color:var(--gold-dim)}
+#fc-pop{
+  display:none;position:absolute;right:-6px;bottom:calc(100% + 10px);padding:6px 8px;gap:2px;
+  background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
+}
+#focus-colors.open #fc-pop{display:flex}
+#focus-auto #fc-pop .fc-sw{width:34px;height:34px;border:0;background:none}
+#fc-pop .fc-sw i{display:block;width:16px;height:16px;border-radius:50%;background:var(--c);transition:transform .2s,box-shadow .2s}
+#fc-pop .fc-sw.selected i{transform:scale(1.1);box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--c)}
 #fo-cap{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim)}
 .fo-row{display:flex;align-items:center;gap:10px}
 #nb-op-val{font-size:11px;color:var(--text-mid);min-width:34px;text-align:right;flex-shrink:0}
@@ -1545,26 +1543,33 @@ body:not(.focus-mode) #track{
       </div>
     </div>
 
-    <!-- Focus mode exit hint -->
+    <!-- Focus Mode control deck -->
     <div id="focus-auto">
       <button id="fa-play" title="Auto read (play / pause)" aria-label="Auto read">▶</button>
       <button id="fa-down" title="Slower" aria-label="Slower">−</button>
       <span id="fa-wpm">200</span>
       <button id="fa-up" title="Faster" aria-label="Faster">+</button>
-      <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C3.8 8.9 6.5 8.3 9 9.7 11.5 8.3 14.2 8.9 16 12 14.2 15.4 11.5 16.6 9 16.6 6.5 16.6 3.8 15.4 2 12Z"/><path d="M3 12h12"/><path d="M19 9.5a4 4 0 0 1 0 5"/><path d="M21.5 7a7.5 7.5 0 0 1 0 10"/></svg></button>
-      <button id="fa-hl" title="Highlight this sentence (V)" aria-label="Highlight this sentence" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
-    </div>
-
-    <!-- Focus Mode only: "Opacity" button → drop-up slider for the previous / next sentence -->
-    <div id="focus-opacity">
-      <div id="fo-pop">
-        <span id="fo-cap">Opacity</span>
-        <div class="fo-row">
-          <input type="range" id="nb-op-slider" min="0" max="100" value="50" step="5" aria-label="Opacity of the previous and next sentence">
-          <span id="nb-op-val">50%</span>
+      <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C3.8 8.9 6.5 8.3 9 9.7 11.5 8.3 14.2 8.9 16 12 14.2 15.4 11.5 16.6 9 16.6 6.5 16.6 3.8 15.4 2 12Z"/><path d="M3 12h12"/><path d="M19 9.5a4 4 0 0 1 0 5"/><path d="M21.5 7a7.5 7.5 0 0 1 0 10"/></svg></button>
+      <div id="focus-opacity">
+        <div id="fo-pop">
+          <span id="fo-cap">Opacity</span>
+          <div class="fo-row">
+            <input type="range" id="nb-op-slider" min="0" max="100" value="50" step="5" aria-label="Opacity of the previous and next sentence">
+            <span id="nb-op-val">50%</span>
+          </div>
         </div>
+        <button id="fo-btn" type="button" aria-expanded="false" aria-label="Opacity" title="Opacity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></button>
       </div>
-      <button id="fo-btn" type="button" aria-expanded="false" aria-label="Opacity" title="Opacity"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" stroke="none"/></svg></button>
+      <div id="focus-colors">
+        <div id="fc-pop" role="group" aria-label="Highlight colour">
+          <button type="button" class="fc-sw" data-color="yellow" style="--c:#E2B84A" aria-label="Yellow"><i></i></button>
+          <button type="button" class="fc-sw" data-color="red" style="--c:#D86C5F" aria-label="Red"><i></i></button>
+          <button type="button" class="fc-sw" data-color="green" style="--c:#6FB083" aria-label="Green"><i></i></button>
+          <button type="button" class="fc-sw" data-color="blue" style="--c:#6F98D8" aria-label="Blue"><i></i></button>
+          <button type="button" class="fc-sw" data-color="purple" style="--c:#9F82CC" aria-label="Purple"><i></i></button>
+        </div>
+        <button id="fa-hl" type="button" title="Highlight colour" aria-label="Highlight colour" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
+      </div>
     </div>
 
     <!-- Read-aloud controls: only visible while narration is active -->
@@ -4685,11 +4690,30 @@ function toggleBookmarkHere() {
 }
 function syncFocusBm() {
   const b = document.getElementById('fa-hl'); if (!b) return;
-  const on = bookmarks.some(x => x.idx === current);
-  b.classList.toggle('active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
-  b.title = on ? 'Remove highlight (V)' : 'Highlight this sentence (V)';
+  b.classList.toggle('active', bookmarks.some(x => x.idx === current));   // gold frame = this sentence is highlighted
+  const hex = BM_HEX[bmColor];
+  if (b._tint !== hex) {                                                   // icon is unchanged; it is only tinted with the chosen colour
+    b._tint = hex; b.style.setProperty('--hl-tint', hex);
+    document.querySelectorAll('#fc-pop .fc-sw').forEach(x => x.classList.toggle('selected', x.dataset.color === bmColor));
+  }
 }
-document.getElementById('fa-hl').addEventListener('click', e => { e.stopPropagation(); toggleBookmarkHere(); });
+const faColors = document.getElementById('focus-colors'), faHl = document.getElementById('fa-hl');
+function closeFaColors() { faColors.classList.remove('open'); faHl.setAttribute('aria-expanded', 'false'); }
+faHl.addEventListener('click', e => {
+  e.stopPropagation();
+  const open = faColors.classList.toggle('open');
+  faHl.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) { document.getElementById('focus-opacity').classList.remove('open'); document.getElementById('fo-btn').setAttribute('aria-expanded', 'false'); }
+});
+document.getElementById('fc-pop').addEventListener('click', e => {
+  e.stopPropagation();
+  const sw = e.target.closest('.fc-sw'); if (!sw) return;
+  const c = sw.dataset.color; if (!BM_COLORS.includes(c)) return;
+  bmColor = c; try { localStorage.setItem(BM_COLOR_KEY, bmColor); } catch(err) {}
+  if (bookmarks.some(b => b.idx === current)) hlSetColor(current, c);   // the sentence you are on, if already highlighted, takes the new colour too
+  syncFocusBm(); closeFaColors();
+});
+document.addEventListener('pointerdown', e => { if (faColors.classList.contains('open') && !faColors.contains(e.target)) closeFaColors(); });
 
 /* sheet: open / close / size / drag */
 function hlSizes() {
@@ -4779,6 +4803,23 @@ function hlDragEnd(e) {
 hlDragEl.addEventListener('pointerup', hlDragEnd);
 hlDragEl.addEventListener('pointercancel', hlDragEnd);
 
+
+/* Horizontal swipe: right → highlight the sentence, left → remove its highlight. */
+function swipeHighlight(dir, idx) {
+  if (!currentBookId || idx < 0 || idx >= sentences.length || /^\x01?IMG:\d+/.test(sentences[idx])) return;
+  const k = bookmarks.findIndex(b => b.idx === idx);
+  if (dir > 0) {
+    if (k >= 0) { showToast('already highlighted'); return; }
+    bookmarks.push({ idx, ts: Date.now(), color: bmColor });
+    showToast('highlighted');
+  } else {
+    if (k < 0) return;
+    bookmarks.splice(k, 1);
+    showToast('highlight removed');
+  }
+  saveBookmarks(currentBookId, bookmarks); updateBmIcon();
+  if (bmPanel.classList.contains('show')) renderBmPanel();
+}
 
 function jumpTo(idx) {
   if (idx < 0 || idx >= sentences.length) return;
@@ -5121,6 +5162,7 @@ function sentenceIdxAtPoint(x, y) {
 }
 function exitFocusMode() {
   const fo = document.getElementById('focus-opacity'); if (fo) fo.classList.remove('open');
+  try { closeFaColors(); } catch(e) {}
   focusMode = false;
   document.body.classList.remove('focus-mode');
   btnFocus.classList.remove('active');
@@ -5593,9 +5635,15 @@ trackEl.addEventListener('touchmove', e => {
   }
 }, {passive:true});
 
-trackEl.addEventListener('touchend', () => {
+trackEl.addEventListener('touchend', e => {
+  const stepped = _fmStepped;
   _fmActive = false;
   fmClearTimers();
+  if (!focusMode || stepped || dropdownOpen()) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - _trackTouchStartX, dy = t.clientY - _trackTouchStartY;
+  if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy))
+    swipeHighlight(dx > 0 ? 1 : -1, current);               // Focus Mode: the sentence on screen
 }, {passive:true});
 trackEl.addEventListener('touchcancel', () => {
   _fmActive = false;
@@ -5858,6 +5906,7 @@ foBtn.addEventListener('click', e => {
   e.stopPropagation();
   const open = foWrap.classList.toggle('open');
   foBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) { try { closeFaColors(); } catch(err) {} }
 });
 // Tapping anywhere else closes it
 document.addEventListener('pointerdown', e => {
@@ -6441,10 +6490,9 @@ window.addEventListener('touchend',e=>{
     const dx = t.clientX - touchX0;
     const dy = t.clientY - touchY0;
     if (Math.abs(dx) >= NORMAL_PAGE_SWIPE_PX && Math.abs(dy) <= NORMAL_PAGE_SWIPE_MAX_Y && Math.abs(dx) > Math.abs(dy)) {
-      const wasAuto = autoOn;     // page jump stops auto-play internally; restore it, then hold 3s
-      if (dx > 0) stepPage(-1);   // swipe RIGHT → previous page
-      else        stepPage(1);    // swipe LEFT  → next page
-      if (wasAuto) { autoOn = true; syncPlayUI(); suspendAuto(); }
+      const at = sentenceIdxAtPoint(touchX0, touchY0);      // the sentence the swipe started on
+      swipeHighlight(dx > 0 ? 1 : -1, at >= 0 ? at : current);   // swipe RIGHT → highlight · LEFT → remove highlight
+      if (autoOn) suspendAuto();
     } else if (autoOn) suspendAuto();
     _normalHorizontalSwipe = false;
     _normalSwipeHandled = false;
