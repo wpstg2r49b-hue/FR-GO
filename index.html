@@ -115,7 +115,19 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 
 /* ── The 3D book ── */
 .bk{--w:112px;--t:calc(var(--w)*var(--tr,.19));--h:calc(var(--w)*1.4);position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:calc(var(--w)*1.4 + 28px);perspective:1200px}
-.bk-shadow{position:absolute;left:50%;bottom:3px;width:calc(var(--w)*1.12);height:15px;transform:translateX(-47%);background:radial-gradient(ellipse at center,rgba(0,0,0,.6),rgba(0,0,0,0) 70%)}
+/* Ground shadow: two flat planes lying on the "table" under the book (inside the 3D scene, so they turn with it):
+   a tight dark contact shadow under the spine/pages and a wide soft one that falls away from the light (back-right). */
+.bk-gs-lit,.bk-gs-soft,.bk-gs-core{position:absolute;pointer-events:none;-webkit-backface-visibility:visible;backface-visibility:visible}
+.bk-gs-lit{width:calc(var(--w)*2.3);height:calc(var(--w)*1.5);left:calc(var(--w)*-.65);top:calc(var(--h) - var(--w)*.75);
+  transform:translate3d(calc(var(--w)*.03),.5px,calc(var(--w)*-.1)) rotateX(90deg);
+  background:radial-gradient(closest-side,rgba(214,178,118,.12) 0%,rgba(214,178,118,.05) 55%,rgba(214,178,118,0) 100%)}   /* faint lit floor, so the shadow reads on a dark page */
+:root[data-theme="light"] .bk-gs-lit{display:none}
+.bk-gs-soft{width:calc(var(--w)*1.55);height:calc(var(--w)*1.0);left:calc(var(--w)*-.38);top:calc(var(--h) - var(--w)*.5);
+  transform:translate3d(calc(var(--w)*.07),1px,calc(var(--w)*-.13)) rotateX(90deg);
+  background:radial-gradient(closest-side,rgba(0,0,0,.42) 0%,rgba(0,0,0,.24) 45%,rgba(0,0,0,0) 100%)}
+.bk-gs-core{width:calc(var(--w)*1.02);height:var(--t);left:calc(var(--w)*-.01);top:calc(var(--h) - var(--t)/2);
+  transform:translate3d(calc(var(--w)*.02),1px,calc(var(--w)*-.02)) rotateX(90deg);
+  background:rgba(0,0,0,.62);border-radius:3px;filter:blur(calc(var(--w)*.03))}
 .bk-3d{position:relative;width:var(--w);height:var(--h);transform-style:preserve-3d;transform:rotateX(-9deg) rotateY(32deg);transition:transform .65s cubic-bezier(.22,1,.36,1)}
 @media (hover:hover){.book-card:hover .bk-3d{transform:rotateX(-6deg) rotateY(14deg) translateY(-4px)}}
 .book-card:active .bk-3d{transform:rotateX(-6deg) rotateY(16deg) scale(.985)}
@@ -6791,7 +6803,7 @@ function buildBook(o) {
   const ribbon = o.hl ? '<a class="bk-ribbon" href="index.html?book=' + encodeURIComponent(o.id) + '&highlights=1" title="' + o.hl + (o.hl === 1 ? ' highlight' : ' highlights') +
                         '" aria-label="Open ' + esc(o.title) + ' at its ' + o.hl + (o.hl === 1 ? ' highlight' : ' highlights') + '">' + HL_SVG + '<em>' + o.hl + '</em></a>' : '';
   el.innerHTML =
-    '<div class="bk-shadow"></div><div class="bk-3d">' +
+    '<div class="bk-3d"><div class="bk-gs-lit"></div><div class="bk-gs-soft"></div><div class="bk-gs-core"></div>' +
       '<div class="bk-f bk-back"></div><div class="bk-f bk-bottom"></div><div class="bk-f bk-pages"></div><div class="bk-f bk-top"></div>' +
       '<div class="bk-f bk-spine"><span>' + esc(o.title) + '</span></div>' +
       '<div class="bk-f bk-front">' + (o.src ? '<div class="bk-art"></div>' : '<div class="bk-ph"><b>' + esc(initialsOf(o.title)) + '</b></div>') + ribbon + '</div>' +
@@ -6839,7 +6851,7 @@ function playBookOpening(openFn) {
   const fr0 = getComputedStyle(heroBk.querySelector('.bk-front'));
   const w = parseFloat(fr0.width), h = parseFloat(fr0.height);
   const tr = parseFloat(heroBk.style.getPropertyValue('--tr')) || .19, tz = w * tr / 2;      // half the book's thickness
-  const N = 6, TD = 3800, GAP = .35;
+  const N = 6, TD = 3800, GAP = .22;
 
   const ov = document.createElement('div'); ov.id = 'book-open';
   ov.innerHTML = '<div class="ob-backdrop"></div><div class="ob-cam"></div>';
@@ -6848,15 +6860,15 @@ function playBookOpening(openFn) {
   const bk = heroBk.cloneNode(true); bk.style.setProperty('--w', w + 'px'); cam.appendChild(bk);   // the hero's size comes from #wl-cover, so carry it over to the clone
   const bk3d = bk.querySelector('.bk-3d'); bk3d.style.transition = 'none';
   const paper = (cls) => '<div class="ob-face ' + cls + '"><i class="ob-lines"></i><i class="ob-gut"></i><i class="ob-shade"></i></div>';
-  const mkHinge = z => { const g = document.createElement('div'); g.className = 'ob-hinge'; g.style.width = w + 'px'; g.style.height = h + 'px'; g._z = z; g.style.transform = 'rotateY(0deg) translateZ(' + z + 'px)'; return g; };
+  const mkHinge = z => { const g = document.createElement('div'); g.className = 'ob-hinge'; g.style.width = w + 'px'; g.style.height = h + 'px'; g._z = z; g.style.transform = 'translateZ(' + z + 'px) rotateY(0deg)'; return g; };
 
   // page 0 — the page that stays put (becomes the reading surface)
   const page0 = document.createElement('div'); page0.className = 'ob-page0';
-  page0.style.cssText = 'width:' + w + 'px;height:' + h + 'px;transform:translateZ(' + (tz - 1 - N * GAP - .6) + 'px)';
+  page0.style.cssText = 'width:' + w + 'px;height:' + h + 'px;transform:translateZ(' + (tz - .6 - N * GAP - .3) + 'px)';
   page0.innerHTML = '<i class="ob-lines"></i><i class="ob-gut"></i>'; bk3d.appendChild(page0);
   // leaves that flip
   const leaves = [];
-  for (let i = N - 1; i >= 0; i--) { const g = mkHinge(tz - 1 - i * GAP); g.innerHTML = paper('ob-front') + paper('ob-back'); bk3d.appendChild(g); leaves[i] = g; }
+  for (let i = N - 1; i >= 0; i--) { const g = mkHinge(tz - .6 - i * GAP); g.innerHTML = paper('ob-front') + paper('ob-back'); bk3d.appendChild(g); leaves[i] = g; }
   // cover = the original front board + an inner (endpaper) face, hinged on the spine
   const cover = mkHinge(tz), front = bk.querySelector('.bk-front');
   front.style.transform = 'none'; cover.appendChild(front);
@@ -6880,10 +6892,10 @@ function playBookOpening(openFn) {
   ], { duration: TD });
   E(ov.querySelector('.ob-backdrop'), [{ opacity:0 }, { opacity:1 }], { duration:450, easing:'ease-out' });
   E(bk3d, [{ transform:'rotateX(-9deg) rotateY(32deg)' }, { transform:'rotateX(0deg) rotateY(0deg)' }], { duration:800, easing:'cubic-bezier(.22,1,.36,1)' });
-  E(bk.querySelector('.bk-shadow'), [{ opacity:1 }, { opacity:0 }], { duration:600, delay:700 });
-  E(cover, [{ transform:'rotateY(0deg) translateZ(' + tz + 'px)' }, { transform:'rotateY(-176deg) translateZ(' + tz + 'px)' }], { duration:850, delay:650, easing:'cubic-bezier(.45,0,.25,1)' });
+  bk.querySelectorAll('.bk-gs-lit,.bk-gs-soft,.bk-gs-core').forEach(el => E(el, [{ opacity:1 }, { opacity:0 }], { duration:600, delay:700 }));
+  E(cover, [{ transform:'translateZ(' + tz + 'px) rotateY(0deg)' }, { transform:'translateZ(' + (-tz) + 'px) rotateY(-180deg)' }], { duration:850, delay:650, easing:'cubic-bezier(.45,0,.25,1)' });
   leaves.forEach((g, i) => {
-    E(g, [{ transform:'rotateY(0deg) translateZ(' + g._z + 'px)' }, { transform:'rotateY(-178deg) translateZ(' + g._z + 'px)' }], { duration:560, delay:1450 + i * 170, easing:'cubic-bezier(.4,0,.2,1)' });
+    E(g, [{ transform:'translateZ(' + g._z + 'px) rotateY(0deg)' }, { transform:'translateZ(' + (-g._z) + 'px) rotateY(-180deg)' }], { duration:560, delay:1450 + i * 170, easing:'cubic-bezier(.4,0,.2,1)' });
     g.querySelectorAll('.ob-shade').forEach(sh => E(sh, [{ opacity:0 }, { opacity:.32, offset:.5 }, { opacity:0 }], { duration:560, delay:1450 + i * 170 }));
   });
   const bgCol = getComputedStyle(document.body).backgroundColor;                                   // the page becomes the reading surface
@@ -6892,7 +6904,7 @@ function playBookOpening(openFn) {
   E(ov, [{ opacity:1, offset:0 }, { opacity:1, offset:o(3300) }, { opacity:0, offset:1 }], { duration:TD });
 
   // sound
-  const vol = (typeof tickMuted !== 'undefined' && tickMuted) ? 0 : Math.min(1, tickVolume / 3.2);
+  const vol = (typeof tickMuted !== 'undefined' && tickMuted) ? 0 : Math.min(1, tickVolume / 3.2) * 0.1;   // opening sounds are kept at 10 % of full level
   let ctx = null; if (vol > 0) { try { ctx = bookOpenSounds(vol); } catch (e) {} }
 
   let opened = false, done = false;

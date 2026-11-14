@@ -89,7 +89,19 @@ button{font-family:inherit}
 /* ── The 3D book ── */
 .bk{--w:112px;--t:calc(var(--w)*var(--tr,.19));--h:calc(var(--w)*1.4);position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:calc(var(--w)*1.4 + 28px);perspective:1200px}
 @supports (width:1cqw){.bk{--w:70cqw}}
-.bk-shadow{position:absolute;left:50%;bottom:3px;width:calc(var(--w)*1.12);height:15px;transform:translateX(-47%);background:radial-gradient(ellipse at center,rgba(0,0,0,.6),rgba(0,0,0,0) 70%)}
+/* Ground shadow: two flat planes lying on the "table" under the book (inside the 3D scene, so they turn with it):
+   a tight dark contact shadow under the spine/pages and a wide soft one that falls away from the light (back-right). */
+.bk-gs-lit,.bk-gs-soft,.bk-gs-core{position:absolute;pointer-events:none;-webkit-backface-visibility:visible;backface-visibility:visible}
+.bk-gs-lit{width:calc(var(--w)*2.3);height:calc(var(--w)*1.5);left:calc(var(--w)*-.65);top:calc(var(--h) - var(--w)*.75);
+  transform:translate3d(calc(var(--w)*.03),.5px,calc(var(--w)*-.1)) rotateX(90deg);
+  background:radial-gradient(closest-side,rgba(214,178,118,.12) 0%,rgba(214,178,118,.05) 55%,rgba(214,178,118,0) 100%)}   /* faint lit floor, so the shadow reads on a dark page */
+:root[data-theme="light"] .bk-gs-lit{display:none}
+.bk-gs-soft{width:calc(var(--w)*1.55);height:calc(var(--w)*1.0);left:calc(var(--w)*-.38);top:calc(var(--h) - var(--w)*.5);
+  transform:translate3d(calc(var(--w)*.07),1px,calc(var(--w)*-.13)) rotateX(90deg);
+  background:radial-gradient(closest-side,rgba(0,0,0,.42) 0%,rgba(0,0,0,.24) 45%,rgba(0,0,0,0) 100%)}
+.bk-gs-core{width:calc(var(--w)*1.02);height:var(--t);left:calc(var(--w)*-.01);top:calc(var(--h) - var(--t)/2);
+  transform:translate3d(calc(var(--w)*.02),1px,calc(var(--w)*-.02)) rotateX(90deg);
+  background:rgba(0,0,0,.62);border-radius:3px;filter:blur(calc(var(--w)*.03))}
 .bk-3d{position:relative;width:var(--w);height:var(--h);transform-style:preserve-3d;transform:rotateX(-9deg) rotateY(32deg);transition:transform .65s cubic-bezier(.22,1,.36,1)}
 @media (hover:hover){.book-card:hover .bk-3d{transform:rotateX(-6deg) rotateY(14deg) translateY(-4px)}}
 .book-card:active .bk-3d{transform:rotateX(-6deg) rotateY(16deg) scale(.985)}
@@ -1854,7 +1866,7 @@ function buildBook(o) {
   const ribbon = o.hl ? '<a class="bk-ribbon" href="index.html?book=' + encodeURIComponent(o.id) + '&highlights=1" title="' + o.hl + (o.hl === 1 ? ' highlight' : ' highlights') +
                         '" aria-label="Open ' + esc(o.title) + ' at its ' + o.hl + (o.hl === 1 ? ' highlight' : ' highlights') + '">' + HL_SVG + '<em>' + o.hl + '</em></a>' : '';
   el.innerHTML =
-    '<div class="bk-shadow"></div><div class="bk-3d">' +
+    '<div class="bk-3d"><div class="bk-gs-lit"></div><div class="bk-gs-soft"></div><div class="bk-gs-core"></div>' +
       '<div class="bk-f bk-back"></div><div class="bk-f bk-bottom"></div><div class="bk-f bk-pages"></div><div class="bk-f bk-top"></div>' +
       '<div class="bk-f bk-spine"><span>' + esc(o.title) + '</span></div>' +
       '<div class="bk-f bk-front">' + (o.src ? '<div class="bk-art"></div>' : '<div class="bk-ph"><b>' + esc(initialsOf(o.title)) + '</b></div>') + ribbon + '</div>' +
