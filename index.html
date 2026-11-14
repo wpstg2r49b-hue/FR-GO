@@ -307,7 +307,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 }
 .focus-mode #focus-auto{opacity:.5;pointer-events:all}
 .focus-mode #focus-auto:hover,.focus-mode #focus-auto:active,
-.focus-mode #focus-auto:has(#focus-opacity.open,#focus-colors.open){opacity:1}
+.focus-mode #focus-auto:has(#focus-opacity.open,#focus-colors.open,#focus-timer.open){opacity:1}
 #focus-auto button{
   width:28px;height:26px;padding:0;line-height:1;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
@@ -327,6 +327,18 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
 }
 #focus-opacity.open #fo-pop{display:flex}
+/* Reading timer: stopwatch button + drop-up (presets, or pause / stop once a timer is running) */
+#focus-timer{position:relative;display:flex}
+#ft-pop{
+  display:none;position:absolute;right:-6px;bottom:calc(100% + 10px);padding:10px 12px;gap:8px;
+  flex-direction:column;align-items:center;white-space:nowrap;
+  background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
+}
+#focus-timer.open #ft-pop{display:flex}
+#focus-timer.open #fa-timer{color:var(--gold);border-color:var(--gold-dim)}
+#ft-status{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-mid)}
+#ft-row{display:flex;gap:6px}
+#focus-auto #ft-pop button{width:auto;min-width:46px;height:30px;padding:0 10px;font-size:11px;letter-spacing:.06em}
 /* Highlight colour: same icon as before, now opens a colour picker (new highlights use this colour) */
 #focus-colors{position:relative;display:flex}
 #fa-hl svg{color:var(--hl-tint,currentColor)}
@@ -1616,6 +1628,7 @@ body:not(.focus-mode) #track{
       <span id="fa-wpm">200</span>
       <button id="fa-up" title="Faster" aria-label="Faster">+</button>
       <button id="fa-narr" title="Read aloud" aria-label="Read aloud"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12C3.8 8.9 6.5 8.3 9 9.7 11.5 8.3 14.2 8.9 16 12 14.2 15.4 11.5 16.6 9 16.6 6.5 16.6 3.8 15.4 2 12Z"/><path d="M3 12h12"/><path d="M19 9.5a4 4 0 0 1 0 5"/><path d="M21.5 7a7.5 7.5 0 0 1 0 10"/></svg></button>
+      <button id="fa-dict" type="button" title="Dictionary (D)" aria-label="Dictionary" aria-pressed="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9.5 7.5h6"/></svg></button>
       <div id="focus-opacity">
         <div id="fo-pop">
           <span id="fo-cap">Opacity</span>
@@ -1635,6 +1648,13 @@ body:not(.focus-mode) #track{
           <button type="button" class="fc-sw" data-color="purple" style="--c:#9F82CC" aria-label="Purple"><i></i></button>
         </div>
         <button id="fa-hl" type="button" title="Highlight colour" aria-label="Highlight colour" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/></svg></button>
+      </div>
+      <div id="focus-timer">
+        <div id="ft-pop" role="group" aria-label="Reading timer">
+          <span id="ft-status">Reading timer</span>
+          <div id="ft-row"></div>
+        </div>
+        <button id="fa-timer" type="button" title="Reading timer" aria-label="Reading timer" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="14" r="7.5"/><path d="M12 14v-3.5"/><path d="M10 3h4"/><path d="M12 3v3.5"/><path d="M18.3 7.7l1.2-1.2"/></svg></button>
       </div>
     </div>
 
@@ -4769,7 +4789,7 @@ faHl.addEventListener('click', e => {
   e.stopPropagation();
   const open = faColors.classList.toggle('open');
   faHl.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) { document.getElementById('focus-opacity').classList.remove('open'); document.getElementById('fo-btn').setAttribute('aria-expanded', 'false'); }
+  if (open) { document.getElementById('focus-opacity').classList.remove('open'); document.getElementById('fo-btn').setAttribute('aria-expanded', 'false'); try { closeFt(); } catch(err) {} }
 });
 document.getElementById('fc-pop').addEventListener('click', e => {
   e.stopPropagation();
@@ -4780,6 +4800,47 @@ document.getElementById('fc-pop').addEventListener('click', e => {
   syncFocusBm(); closeFaColors();
 });
 document.addEventListener('pointerdown', e => { if (faColors.classList.contains('open') && !faColors.contains(e.target)) closeFaColors(); });
+
+/* Focus Mode: dictionary toggle (mirrors the ☰ entry and the D key) */
+const faDict = document.getElementById('fa-dict');
+faDict.addEventListener('click', e => { e.stopPropagation(); btnDict.click(); });
+function syncFaDict() { const on = btnDict.classList.contains('active'); faDict.classList.toggle('active', on); faDict.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+new MutationObserver(syncFaDict).observe(btnDict, { attributes: true, attributeFilter: ['class'] }); syncFaDict();
+
+/* Focus Mode: reading timer. Uses the very same timer as the ☰ menu (presets / pause / stop are driven through its buttons). */
+const faTimer = document.getElementById('fa-timer'), ftWrap = document.getElementById('focus-timer'), ftStatus = document.getElementById('ft-status'), ftRow = document.getElementById('ft-row');
+const ftLabel = document.getElementById('flower-label'), ftControls = document.getElementById('flower-controls');
+function closeFt() { ftWrap.classList.remove('open'); faTimer.setAttribute('aria-expanded', 'false'); }
+function ftRender() {
+  const active = ftControls.classList.contains('show');
+  ftStatus.textContent = active ? ftLabel.textContent : 'Reading timer';
+  ftRow.innerHTML = active
+    ? '<button type="button" data-ft="pause">' + document.getElementById('flower-pause').textContent + '</button><button type="button" data-ft="stop">stop</button>'
+    : [15, 30, 60].map(m => '<button type="button" data-ft="' + m + '">' + m + 'm</button>').join('');
+  faTimer.classList.toggle('active', active);
+}
+faTimer.addEventListener('click', e => {
+  e.stopPropagation();
+  const open = ftWrap.classList.toggle('open');
+  faTimer.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) {
+    ftRender(); closeFaColors();
+    document.getElementById('focus-opacity').classList.remove('open'); document.getElementById('fo-btn').setAttribute('aria-expanded', 'false');
+  }
+});
+ftRow.addEventListener('click', e => {
+  e.stopPropagation();
+  const b = e.target.closest('[data-ft]'); if (!b) return;
+  const a = b.dataset.ft;
+  if (a === 'pause') { document.getElementById('flower-pause').click(); ftRender(); }
+  else if (a === 'stop') { document.getElementById('flower-reset').click(); ftRender(); closeFt(); }
+  else { document.querySelector('.flower-preset[data-mins="' + a + '"]').click(); ftRender(); closeFt(); }
+});
+const ftObs = new MutationObserver(ftRender);
+ftObs.observe(ftLabel, { childList: true, characterData: true, subtree: true });
+ftObs.observe(ftControls, { attributes: true, attributeFilter: ['class'] });
+ftRender();
+document.addEventListener('pointerdown', e => { if (ftWrap.classList.contains('open') && !ftWrap.contains(e.target)) closeFt(); });
 
 /* sheet: open / close / size / drag */
 function hlSizes() {
@@ -5229,7 +5290,7 @@ function sentenceIdxAtPoint(x, y) {
 }
 function exitFocusMode() {
   const fo = document.getElementById('focus-opacity'); if (fo) fo.classList.remove('open');
-  try { closeFaColors(); } catch(e) {}
+  try { closeFaColors(); closeFt(); } catch(e) {}
   focusMode = false;
   document.body.classList.remove('focus-mode');
   btnFocus.classList.remove('active');
@@ -5973,7 +6034,7 @@ foBtn.addEventListener('click', e => {
   e.stopPropagation();
   const open = foWrap.classList.toggle('open');
   foBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) { try { closeFaColors(); } catch(err) {} }
+  if (open) { try { closeFaColors(); closeFt(); } catch(err) {} }
 });
 // Tapping anywhere else closes it
 document.addEventListener('pointerdown', e => {
