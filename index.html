@@ -300,14 +300,14 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 /* Focus Mode control deck — the only chrome left on screen. One tight, centred row of equal buttons:
    ▶ · − WPM + · read aloud · opacity · highlight colour   (double-tap the text or press Esc to leave Focus Mode) */
 #focus-auto{
-  position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
-  display:flex;align-items:center;gap:6px;
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:6px;padding:8px 10px;
+  background:var(--bg);border:1px solid var(--border);        /* solid panel, like the normal-mode dock: buttons never blend into the text */
   font-family:'DM Mono',monospace;font-size:11px;font-weight:700;
   opacity:0;pointer-events:none;transition:opacity .3s;z-index:50;
 }
-.focus-mode #focus-auto{opacity:.5;pointer-events:all}
-.focus-mode #focus-auto:hover,.focus-mode #focus-auto:active,
-.focus-mode #focus-auto:has(#focus-opacity.open,#focus-colors.open,#focus-timer.open){opacity:1}
+.focus-mode #focus-auto{opacity:1;pointer-events:all}
+.focus-mode #focus-auto.idle{opacity:.22;transition:opacity 1.2s ease}   /* after 6 s without use the whole deck sinks back */
 #focus-auto button{
   width:28px;height:26px;padding:0;line-height:1;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
@@ -322,7 +322,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #fo-btn{display:flex;align-items:center;justify-content:center}
 #fo-btn:hover,#focus-opacity.open #fo-btn{color:var(--gold);border-color:var(--gold-dim)}
 #fo-pop{
-  display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 10px);width:200px;
+  display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);width:200px;
   padding:12px 14px;flex-direction:column;gap:8px;
   background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
 }
@@ -330,7 +330,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 /* Reading timer: stopwatch button + drop-up (presets, or pause / stop once a timer is running) */
 #focus-timer{position:relative;display:flex}
 #ft-pop{
-  display:none;position:absolute;right:-6px;bottom:calc(100% + 10px);padding:10px 12px;gap:8px;
+  display:none;position:absolute;right:-6px;bottom:calc(100% + 18px);padding:10px 12px;gap:8px;
   flex-direction:column;align-items:center;white-space:nowrap;
   background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
 }
@@ -344,7 +344,7 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 #fa-hl svg{color:var(--hl-tint,currentColor)}
 #focus-colors.open #fa-hl{border-color:var(--gold-dim)}
 #fc-pop{
-  display:none;position:absolute;right:-6px;bottom:calc(100% + 10px);padding:6px 8px;gap:2px;
+  display:none;position:absolute;right:-6px;bottom:calc(100% + 18px);padding:6px 8px;gap:2px;
   background:var(--surface);border:1px solid var(--border);box-shadow:0 8px 28px rgba(0,0,0,.55);
 }
 #focus-colors.open #fc-pop{display:flex}
@@ -1211,7 +1211,7 @@ body:not(.focus-mode) #track{
   .search-nav-btn{ min-width:44px; min-height:40px; }
 
   /* ── Focus-mode exit hint sits above the home indicator ── */
-  #focus-auto{ bottom:calc(14px + env(safe-area-inset-bottom)); }
+  #focus-auto{ bottom:calc(8px + env(safe-area-inset-bottom)); }
 
   /* ── Bionic / dictionary word targets stay comfortably tappable ── */
   .snt .w{ padding:1px 0; }
@@ -1375,10 +1375,10 @@ body:not(.focus-mode) #track{
 #narr-row select:focus{outline:none;border-color:var(--gold-dim)}
 #narr-speed{flex:0 0 66px}
 #narr-voice{flex:1}
-.focus-mode #narr-bar{bottom:calc(52px + env(safe-area-inset-bottom,0px))}
+.focus-mode #narr-bar{bottom:calc(64px + env(safe-area-inset-bottom,0px))}
 @media (max-width:680px), (orientation:landscape) and (max-height:500px){
   #narr-bar{bottom:calc(var(--dock-h) + 10px)}
-  .focus-mode #narr-bar{bottom:calc(52px + env(safe-area-inset-bottom,0px))}
+  .focus-mode #narr-bar{bottom:calc(64px + env(safe-area-inset-bottom,0px))}
   #narr-row select{font-size:16px}          /* ≥16px stops iOS zooming the page when a menu opens */
   #btn-narr{padding:6px;min-width:38px;min-height:38px}
 }
@@ -3598,6 +3598,12 @@ function layout(animated) {
       : `translateY(calc(-50% + ${sign * DY[step]}px)) scale(${vstep.scale})`;
     const zi = step === 0 ? '5' : '1';
 
+    if (el._enter) {
+      el._enter = false;
+      void el.offsetHeight;                                   // commit the off-screen starting state
+      el.style.transition = 'transform .55s cubic-bezier(.22,1,.36,1), opacity .4s ease';
+      clearTimeout(el._enterT); el._enterT = setTimeout(() => { el.style.transition = ''; }, 650);
+    }
     if (el.style.transform !== tx) el.style.transform = tx;
     if (step === 1) {                       // previous / next sentence: opacity comes from the CSS variable
       if (el.style.opacity) el.style.opacity = '';
@@ -4160,6 +4166,20 @@ window.__transitionPerf = () => {
   return `transitions — avg:${avg}ms  min:${min}ms  max:${max}ms  (n=${valid.length})`;
 };
 
+/* Focus Mode: the sentence that enters (next → from the very bottom, previous → from the very top)
+   starts fully off-screen and glides into its slot, instead of popping up beside the focused sentence. */
+function prepareEnter(dir) {
+  const idx = current + dir;
+  if (idx < 0 || idx >= sentences.length) return;
+  const el = nodes[sentToSlot(idx)];
+  if (!el || el._sentIdx !== idx) return;
+  const dy = (window.innerHeight / 2 + el.offsetHeight / 2) * dir;
+  el.style.transition = 'none';
+  el.style.transform = 'translateY(calc(-50% + ' + dy + 'px)) scale(' + VSTEPS[1].scale + ')';
+  el.style.opacity = '0';
+  el._enter = true;
+}
+
 function navigate(dir, source) {
   const t0 = performance.now();
   const now = Date.now();
@@ -4180,6 +4200,7 @@ function navigate(dir, source) {
 
   // DOM write: recycle exactly ONE pool node with new content
   renderNodeTextFast(prev, current);
+  if (focusMode && Math.abs(dir) === 1) prepareEnter(dir);
   updateHUD();
   if (currentBookId) saveProgress();
   scheduleAuto();
@@ -4801,6 +4822,19 @@ document.getElementById('fc-pop').addEventListener('click', e => {
 });
 document.addEventListener('pointerdown', e => { if (faColors.classList.contains('open') && !faColors.contains(e.target)) closeFaColors(); });
 
+/* Focus Mode deck: after 6 s without being used it fades back to almost nothing; touching it (or an open picker) wakes it */
+const faDeck = document.getElementById('focus-auto'), FA_IDLE_MS = 6000; let _faIdleT = null;
+function faWake() {
+  faDeck.classList.remove('idle'); clearTimeout(_faIdleT);
+  if (focusMode) _faIdleT = setTimeout(faSleep, FA_IDLE_MS);
+}
+function faSleep() {
+  if (!focusMode) return;
+  if (faDeck.querySelector('.open')) { _faIdleT = setTimeout(faSleep, FA_IDLE_MS); return; }   // a picker is open → stay awake
+  faDeck.classList.add('idle');
+}
+['pointerdown', 'pointermove', 'focusin', 'touchstart'].forEach(ev => faDeck.addEventListener(ev, faWake, { passive: true }));
+
 /* Focus Mode: dictionary toggle (mirrors the ☰ entry and the D key) */
 const faDict = document.getElementById('fa-dict');
 faDict.addEventListener('click', e => { e.stopPropagation(); btnDict.click(); });
@@ -5262,6 +5296,7 @@ function enterFocusMode() {
   btnFocus.classList.add('active');
   maybeShowSwipeHint();
   psModeChanged();
+  faWake();
 }
 // Double-tap on a sentence in normal reading mode: Focus Mode opens ON THAT SENTENCE.
 function enterFocusAt(idx) {
@@ -5292,6 +5327,7 @@ function exitFocusMode() {
   const fo = document.getElementById('focus-opacity'); if (fo) fo.classList.remove('open');
   try { closeFaColors(); closeFt(); } catch(e) {}
   focusMode = false;
+  clearTimeout(_faIdleT); faDeck.classList.remove('idle');
   document.body.classList.remove('focus-mode');
   btnFocus.classList.remove('active');
   if (swipeHintEl) swipeHintEl.classList.remove('show');
