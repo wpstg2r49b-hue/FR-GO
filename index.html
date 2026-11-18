@@ -251,22 +251,46 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 }
 #swipe-hint.show{opacity:.9;transform:translateX(-50%) translateY(0)}
 
-/* ── Reader opening hint ─────────────────────────────────────────────────── */
+/* ── Reader opening hint: a white-glove "double-tap" demonstration (à la Wii tutorials) ───────────────── */
 #reader-open-hint{
-  position:fixed;left:50%;top:50%;
-  transform:translate(-50%,-50%) scale(.98);
-  font-family:'DM Mono',monospace;font-size:12px;font-weight:700;
-  letter-spacing:.18em;text-transform:uppercase;
-  color:var(--text-mid);background:var(--surface);
-  border:1px solid var(--border);padding:10px 18px;
-  pointer-events:none;opacity:0;
-  transition:opacity .22s ease,transform .22s ease;
-  z-index:70;white-space:nowrap;
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);
+  display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px 28px 18px;width:max-content;max-width:calc(100vw - 32px);
+  background:var(--bg);border:1px solid var(--gold-dim);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);
+  pointer-events:none;opacity:0;transition:opacity .3s ease,transform .3s ease;z-index:70;
 }
-#reader-open-hint.show{opacity:.92;transform:translate(-50%,-50%) scale(1)}
+#reader-open-hint.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.roh-stage{position:relative;width:140px;height:112px}
+.roh-line{position:absolute;left:12px;right:12px;height:8px;border-radius:4px;background:var(--text-mid);opacity:.4;transform-origin:50% 50%}
+.roh-line:nth-child(1){top:16px}.roh-line:nth-child(2){top:48px}.roh-line:nth-child(3){top:80px}
+.roh-ring{position:absolute;left:71px;top:37px;width:30px;height:30px;border-radius:50%;border:2px solid var(--gold);opacity:0}
+.roh-glove{position:absolute;left:63px;top:50px;width:46px;height:56px;opacity:0;transform-origin:63% 5%;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+.roh-cap{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.12em;line-height:1.7;text-transform:uppercase;text-align:center;color:var(--text)}
+#reader-open-hint.show .roh-line:nth-child(odd){animation:rohOuter 3.2s ease both}
+#reader-open-hint.show .roh-line:nth-child(2){animation:rohMid 3.2s ease both}
+#reader-open-hint.show .roh-ring{animation:rohRing 3.2s ease-out both}
+#reader-open-hint.show .roh-glove{animation:rohGlove 3.2s ease both}
+@keyframes rohGlove{
+  0%{opacity:0;transform:translate(34px,40px) scale(.9)}
+  14%{opacity:1;transform:translate(0,0) scale(1)}
+  22%{opacity:1;transform:translate(0,0) scale(1)}
+  26%{transform:translate(0,3px) scale(.86)}
+  31%{transform:translate(0,0) scale(1)}
+  37%{transform:translate(0,0) scale(1)}
+  41%{transform:translate(0,3px) scale(.86)}
+  46%{transform:translate(0,0) scale(1)}
+  88%{opacity:1;transform:translate(0,0) scale(1)}
+  100%{opacity:0;transform:translate(14px,20px) scale(.95)}}
+@keyframes rohRing{
+  0%,22%{opacity:0;transform:scale(.3)}
+  26%{opacity:.9;transform:scale(.5)}
+  34%{opacity:0;transform:scale(1.7)}
+  35%,37%{opacity:0;transform:scale(.3)}
+  41%{opacity:.9;transform:scale(.5)}
+  49%,100%{opacity:0;transform:scale(1.7)}}
+@keyframes rohOuter{0%,44%{opacity:.4}54%,100%{opacity:.12}}
+@keyframes rohMid{0%,44%{opacity:.4;background:var(--text-mid);transform:scaleY(1)}54%,100%{opacity:1;background:var(--gold);transform:scaleY(1.4)}}
 @media (max-width:680px), (orientation:landscape) and (max-height:500px){
   #swipe-hint{ bottom:calc(90px + env(safe-area-inset-bottom)); font-size:10px; }
-  #reader-open-hint{font-size:10px;letter-spacing:.14em;padding:9px 14px;}
 }
 .snt.focused{user-select:text;cursor:text}
 .snt.focused::selection,.snt.focused *::selection{background:rgba(200,169,110,.35);color:var(--text)}
@@ -314,13 +338,13 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   font:inherit;color:var(--text-mid);background:none;border:1px solid var(--border);
   -webkit-tap-highlight-color:transparent;
 }
-#focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)}
+@media (hover:hover) and (pointer:fine){ #focus-auto button:hover{color:var(--gold);border-color:var(--gold-dim)} }   /* hover only for a real mouse — on touch it would stay lit after the tap */
 #focus-auto button.active{color:var(--gold);border-color:var(--gold-dim)}
 #fa-wpm{min-width:26px;margin:0 -2px;text-align:center;color:var(--text-mid);font-size:10px;letter-spacing:.02em}
 /* Opacity: icon button + drop-up slider, part of the same row */
 #focus-opacity{position:relative;display:flex;font-family:'DM Mono',monospace;font-weight:700}
 #fo-btn{display:flex;align-items:center;justify-content:center}
-#fo-btn:hover,#focus-opacity.open #fo-btn{color:var(--gold);border-color:var(--gold-dim)}
+#focus-opacity.open #fo-btn{color:var(--gold);border-color:var(--gold-dim)}
 #fo-pop{
   display:none;position:absolute;left:50%;transform:translateX(-50%);bottom:calc(100% + 18px);width:200px;
   padding:12px 14px;flex-direction:column;gap:8px;
@@ -1688,7 +1712,23 @@ body:not(.focus-mode) #track{
     <!-- Bookmark toast -->
     <div id="bm-toast"></div>
     <div id="swipe-hint">Swipe to read · double-tap to exit</div>
-    <div id="reader-open-hint">DOUBLE TAP SENTENCE TO FOCUS</div>
+    <div id="reader-open-hint" aria-hidden="true">
+      <div class="roh-stage">
+        <i class="roh-line"></i><i class="roh-line"></i><i class="roh-line"></i>
+        <i class="roh-ring"></i>
+      <svg class="roh-glove" viewBox="0 0 64 78" aria-hidden="true">
+        <g fill="#fff" stroke="#3b3631" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+          <ellipse cx="10" cy="56" rx="7.5" ry="10.5" transform="rotate(-18 10 56)"/>
+          <rect x="22" y="3" width="14" height="44" rx="7"/>
+          <path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/>
+          <rect x="23.4" y="32" width="11.2" height="14" fill="#fff" stroke="none"/>
+          <path d="M40 41v9M47 42v9" stroke-width="1.3" fill="none"/>
+          <path d="M27 67h26v8a3 3 0 0 1-3 3H30a3 3 0 0 1-3-3z" fill="#eee"/>
+        </g>
+      </svg>
+      </div>
+      <div class="roh-cap">Double-tap a sentence<br>to enter Focus Mode</div>
+    </div>
 
     <!-- Search overlay — shown by Ctrl+F or search button -->
     <div id="search-wrap">
@@ -4834,6 +4874,7 @@ function faSleep() {
   faDeck.classList.add('idle');
 }
 ['pointerdown', 'pointermove', 'focusin', 'touchstart'].forEach(ev => faDeck.addEventListener(ev, faWake, { passive: true }));
+faDeck.addEventListener('click', e => { const b = e.target.closest('button'); if (b && e.detail > 0) b.blur(); });   // a tap leaves no lingering focus / highlight
 
 /* Focus Mode: dictionary toggle (mirrors the ☰ entry and the D key) */
 const faDict = document.getElementById('fa-dict');
@@ -5271,6 +5312,12 @@ const swipeHintEl = document.getElementById('swipe-hint');
 const readerOpenHintEl = document.getElementById('reader-open-hint');
 let _swipeHintTimer = null;
 let _readerOpenHintTimer = null;
+const _ROH_EVENTS = ['pointerdown', 'touchstart', 'wheel', 'keydown'];
+function hideReaderOpenHint() {
+  clearTimeout(_readerOpenHintTimer);
+  readerOpenHintEl.classList.remove('show');
+  _ROH_EVENTS.forEach(ev => window.removeEventListener(ev, hideReaderOpenHint, { capture: true }));
+}
 let _readerOpenHintShown = false;   // once per app start (every page load)
 function showReaderOpenHint() {
   if (window.__holdHint) { window.__hintPending = true; return; }   // the book-opening animation is still playing
@@ -5278,7 +5325,9 @@ function showReaderOpenHint() {
   _readerOpenHintShown = true;
   readerOpenHintEl.classList.add('show');
   clearTimeout(_readerOpenHintTimer);
-  _readerOpenHintTimer = setTimeout(() => readerOpenHintEl.classList.remove('show'), 2000);
+  _readerOpenHintTimer = setTimeout(hideReaderOpenHint, 3400);
+  // any touch / scroll / key press after a moment dismisses it straight away
+  setTimeout(() => { if (readerOpenHintEl.classList.contains('show')) _ROH_EVENTS.forEach(ev => window.addEventListener(ev, hideReaderOpenHint, { capture: true, passive: true })); }, 600);
 }
 function maybeShowSwipeHint() {
   let seen = false;
