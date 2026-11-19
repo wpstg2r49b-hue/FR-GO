@@ -251,24 +251,43 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
 }
 #swipe-hint.show{opacity:.9;transform:translateX(-50%) translateY(0)}
 
-/* ── Reader opening hint: a white-glove "double-tap" demonstration (à la Wii tutorials) ───────────────── */
+/* ── Gesture tutorial: white-glove demonstrations (à la Wii tutorials) ─────────────────────────────── */
 #reader-open-hint{
   position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.96);
-  display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px 28px 18px;width:max-content;max-width:calc(100vw - 32px);
+  display:flex;flex-direction:column;align-items:center;padding:22px 26px 8px;width:max-content;max-width:calc(100vw - 24px);
+  max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;
   background:var(--bg);border:1px solid var(--gold-dim);border-radius:16px;box-shadow:0 18px 50px rgba(0,0,0,.55);
-  pointer-events:none;opacity:0;transition:opacity .3s ease,transform .3s ease;z-index:70;
+  pointer-events:none;opacity:0;visibility:hidden;transition:opacity .3s ease,transform .3s ease,visibility 0s linear .3s;z-index:70;
 }
-#reader-open-hint.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-.roh-stage{position:relative;width:140px;height:112px}
+#reader-open-hint.show{opacity:1;visibility:visible;pointer-events:auto;transform:translate(-50%,-50%) scale(1);transition:opacity .3s ease,transform .3s ease,visibility 0s}
+.roh-x{position:absolute;top:6px;right:6px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:none;border:0;color:var(--text-mid);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.roh-body{display:flex;flex-direction:column;align-items:center;gap:18px}
+.roh-item{display:flex;flex-direction:column;align-items:center;gap:6px}
+.roh-stage{position:relative;width:140px;height:100px}
 .roh-line{position:absolute;left:12px;right:12px;height:8px;border-radius:4px;background:var(--text-mid);opacity:.4;transform-origin:50% 50%}
-.roh-line:nth-child(1){top:16px}.roh-line:nth-child(2){top:48px}.roh-line:nth-child(3){top:80px}
-.roh-ring{position:absolute;left:71px;top:37px;width:30px;height:30px;border-radius:50%;border:2px solid var(--gold);opacity:0}
-.roh-glove{position:absolute;left:63px;top:50px;width:46px;height:56px;opacity:0;transform-origin:63% 5%;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+.roh-line:nth-child(1){top:14px}.roh-line:nth-child(2){top:44px}.roh-line:nth-child(3){top:74px}
+.roh-ring{position:absolute;left:71px;top:33px;width:30px;height:30px;border-radius:50%;border:2px solid var(--gold);opacity:0}
+.roh-hl{position:absolute;left:12px;width:116px;top:44px;height:8px;border-radius:4px;background:#E2B84A;box-shadow:0 0 10px rgba(226,184,74,.55);transform-origin:0 50%;transform:scaleX(0);opacity:0}
+.roh-glove{position:absolute;left:63px;top:46px;width:46px;height:56px;opacity:0;transform-origin:63% 5%;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45))}
+.roh-right .roh-glove{left:9px}
+.roh-left .roh-glove{left:105px}
 .roh-cap{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;letter-spacing:.12em;line-height:1.7;text-transform:uppercase;text-align:center;color:var(--text)}
-#reader-open-hint.show .roh-line:nth-child(odd){animation:rohOuter 3.2s ease both}
-#reader-open-hint.show .roh-line:nth-child(2){animation:rohMid 3.2s ease both}
-#reader-open-hint.show .roh-ring{animation:rohRing 3.2s ease-out both}
-#reader-open-hint.show .roh-glove{animation:rohGlove 3.2s ease both}
+.roh-check{position:relative;display:flex;align-items:center;gap:10px;min-height:48px;margin-top:8px;padding:0 8px;cursor:pointer;user-select:none;-webkit-user-select:none;
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-mid);-webkit-tap-highlight-color:transparent}
+.roh-check input{position:absolute;opacity:0;width:1px;height:1px}
+.roh-box{flex:none;width:18px;height:18px;border:1px solid var(--gold-dim);border-radius:4px;display:flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
+.roh-box::after{content:'';width:9px;height:5px;margin-top:-2px;border-left:2px solid var(--gold);border-bottom:2px solid var(--gold);transform:rotate(-45deg) scale(0);transition:transform .15s}
+.roh-check input:checked + .roh-box{border-color:var(--gold);background:var(--gold-faint)}
+.roh-check input:checked + .roh-box::after{transform:rotate(-45deg) scale(1)}
+.roh-check input:focus-visible + .roh-box{outline:1px solid var(--gold);outline-offset:2px}
+#reader-open-hint.show .roh-tap .roh-line:nth-child(odd){animation:rohOuter 3.8s ease infinite both}
+#reader-open-hint.show .roh-tap .roh-line:nth-child(2){animation:rohMid 3.8s ease infinite both}
+#reader-open-hint.show .roh-tap .roh-ring{animation:rohRing 3.8s ease-out infinite both}
+#reader-open-hint.show .roh-tap .roh-glove{animation:rohGlove 3.8s ease infinite both}
+#reader-open-hint.show .roh-right .roh-glove{animation:rohSwipeR 3.8s ease-in-out infinite both}
+#reader-open-hint.show .roh-right .roh-hl{animation:rohFillR 3.8s ease-in-out infinite both}
+#reader-open-hint.show .roh-left .roh-glove{animation:rohSwipeL 3.8s ease-in-out infinite both}
+#reader-open-hint.show .roh-left .roh-hl{animation:rohFillL 3.8s ease-in-out infinite both}
 @keyframes rohGlove{
   0%{opacity:0;transform:translate(34px,40px) scale(.9)}
   14%{opacity:1;transform:translate(0,0) scale(1)}
@@ -287,8 +306,38 @@ body{background:var(--bg);color:var(--text);font-family:'Lora',serif;height:100v
   35%,37%{opacity:0;transform:scale(.3)}
   41%{opacity:.9;transform:scale(.5)}
   49%,100%{opacity:0;transform:scale(1.7)}}
-@keyframes rohOuter{0%,44%{opacity:.4}54%,100%{opacity:.12}}
-@keyframes rohMid{0%,44%{opacity:.4;background:var(--text-mid);transform:scaleY(1)}54%,100%{opacity:1;background:var(--gold);transform:scaleY(1.4)}}
+@keyframes rohOuter{0%,44%{opacity:.4}54%,88%{opacity:.12}100%{opacity:.4}}
+@keyframes rohMid{0%,44%{opacity:.4;background:var(--text-mid);transform:scaleY(1)}54%,88%{opacity:1;background:var(--gold);transform:scaleY(1.4)}100%{opacity:.4;background:var(--text-mid);transform:scaleY(1)}}
+/* swipe right → the sentence gets highlighted behind the glove */
+@keyframes rohSwipeR{
+  0%{opacity:0;transform:translate(-18px,26px) scale(.92)}
+  10%,18%{opacity:1;transform:translate(0,0) scale(1)}
+  23%,25%{opacity:1;transform:translate(0,3px) scale(.88)}
+  58%{opacity:1;transform:translate(96px,3px) scale(.88)}
+  64%,88%{opacity:1;transform:translate(96px,0) scale(1)}
+  100%{opacity:0;transform:translate(112px,16px) scale(.95)}}
+@keyframes rohFillR{
+  0%,25%{opacity:0;transform:scaleX(0)}
+  26%{opacity:1;transform:scaleX(0)}
+  58%,88%{opacity:1;transform:scaleX(1)}
+  100%{opacity:0;transform:scaleX(1)}}
+/* swipe left → the highlight is wiped away behind the glove */
+@keyframes rohSwipeL{
+  0%{opacity:0;transform:translate(18px,26px) scale(.92)}
+  10%,18%{opacity:1;transform:translate(0,0) scale(1)}
+  23%,25%{opacity:1;transform:translate(0,3px) scale(.88)}
+  58%{opacity:1;transform:translate(-96px,3px) scale(.88)}
+  64%,88%{opacity:1;transform:translate(-96px,0) scale(1)}
+  100%{opacity:0;transform:translate(-112px,16px) scale(.95)}}
+@keyframes rohFillL{
+  0%{opacity:0;transform:scaleX(1)}
+  8%,25%{opacity:1;transform:scaleX(1)}
+  58%{opacity:1;transform:scaleX(0)}
+  59%,100%{opacity:0;transform:scaleX(0)}}
+@media (max-height:700px){
+  .roh-body{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:10px 22px}
+  .roh-cap{font-size:10px}
+}
 @media (max-width:680px), (orientation:landscape) and (max-height:500px){
   #swipe-hint{ bottom:calc(90px + env(safe-area-inset-bottom)); font-size:10px; }
 }
@@ -1556,6 +1605,16 @@ body:not(.focus-mode) #track{
             <span class="more-menu-label">Read aloud</span>
           </button>
 
+          <!-- Tutorial: replays the gesture tutorial -->
+          <button class="icon-btn" id="btn-tutorial" title="Gesture tutorial">
+            <svg width="22" height="22" viewBox="0 0 64 78" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="22" y="3" width="14" height="44" rx="7"/>
+              <path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/>
+              <path d="M28 68h24"/>
+            </svg>
+            <span class="more-menu-label">Tutorial</span>
+          </button>
+
           <!-- Hand gesture scroll toggle -->
           <button class="icon-btn" id="btn-gesture" title="Hand gesture scroll (G)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -1712,22 +1771,14 @@ body:not(.focus-mode) #track{
     <!-- Bookmark toast -->
     <div id="bm-toast"></div>
     <div id="swipe-hint">Swipe to read · double-tap to exit</div>
-    <div id="reader-open-hint" aria-hidden="true">
-      <div class="roh-stage">
-        <i class="roh-line"></i><i class="roh-line"></i><i class="roh-line"></i>
-        <i class="roh-ring"></i>
-      <svg class="roh-glove" viewBox="0 0 64 78" aria-hidden="true">
-        <g fill="#fff" stroke="#3b3631" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
-          <ellipse cx="10" cy="56" rx="7.5" ry="10.5" transform="rotate(-18 10 56)"/>
-          <rect x="22" y="3" width="14" height="44" rx="7"/>
-          <path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/>
-          <rect x="23.4" y="32" width="11.2" height="14" fill="#fff" stroke="none"/>
-          <path d="M40 41v9M47 42v9" stroke-width="1.3" fill="none"/>
-          <path d="M27 67h26v8a3 3 0 0 1-3 3H30a3 3 0 0 1-3-3z" fill="#eee"/>
-        </g>
-      </svg>
+    <div id="reader-open-hint" role="dialog" aria-label="Reading gestures">
+      <button type="button" class="roh-x" id="roh-close" aria-label="Close tutorial"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2.5 2.5l9 9M11.5 2.5l-9 9"/></svg></button>
+      <div class="roh-body">
+        <div class="roh-item roh-tap"><div class="roh-stage"><i class="roh-line"></i><i class="roh-line"></i><i class="roh-line"></i><i class="roh-ring"></i><svg class="roh-glove" viewBox="0 0 64 78" aria-hidden="true"><g fill="#fff" stroke="#3b3631" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><ellipse cx="10" cy="56" rx="7.5" ry="10.5" transform="rotate(-18 10 56)"/><rect x="22" y="3" width="14" height="44" rx="7"/><path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/><rect x="23.4" y="32" width="11.2" height="14" fill="#fff" stroke="none"/><path d="M40 41v9M47 42v9" stroke-width="1.3" fill="none"/><path d="M27 67h26v8a3 3 0 0 1-3 3H30a3 3 0 0 1-3-3z" fill="#eee"/></g></svg></div><div class="roh-cap">Double-tap a sentence<br>to enter Focus Mode</div></div>
+        <div class="roh-item roh-right"><div class="roh-stage"><i class="roh-line"></i><i class="roh-line"></i><i class="roh-line"></i><i class="roh-hl"></i><svg class="roh-glove" viewBox="0 0 64 78" aria-hidden="true"><g fill="#fff" stroke="#3b3631" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><ellipse cx="10" cy="56" rx="7.5" ry="10.5" transform="rotate(-18 10 56)"/><rect x="22" y="3" width="14" height="44" rx="7"/><path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/><rect x="23.4" y="32" width="11.2" height="14" fill="#fff" stroke="none"/><path d="M40 41v9M47 42v9" stroke-width="1.3" fill="none"/><path d="M27 67h26v8a3 3 0 0 1-3 3H30a3 3 0 0 1-3-3z" fill="#eee"/></g></svg></div><div class="roh-cap">Swipe right<br>to highlight a sentence</div></div>
+        <div class="roh-item roh-left"><div class="roh-stage"><i class="roh-line"></i><i class="roh-line"></i><i class="roh-line"></i><i class="roh-hl"></i><svg class="roh-glove" viewBox="0 0 64 78" aria-hidden="true"><g fill="#fff" stroke="#3b3631" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"><ellipse cx="10" cy="56" rx="7.5" ry="10.5" transform="rotate(-18 10 56)"/><rect x="22" y="3" width="14" height="44" rx="7"/><path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/><rect x="23.4" y="32" width="11.2" height="14" fill="#fff" stroke="none"/><path d="M40 41v9M47 42v9" stroke-width="1.3" fill="none"/><path d="M27 67h26v8a3 3 0 0 1-3 3H30a3 3 0 0 1-3-3z" fill="#eee"/></g></svg></div><div class="roh-cap">Swipe left<br>to remove a highlight</div></div>
       </div>
-      <div class="roh-cap">Double-tap a sentence<br>to enter Focus Mode</div>
+      <label class="roh-check"><input type="checkbox" id="roh-hide"><i class="roh-box"></i><span>Don&rsquo;t show again</span></label>
     </div>
 
     <!-- Search overlay — shown by Ctrl+F or search button -->
@@ -5312,23 +5363,36 @@ const swipeHintEl = document.getElementById('swipe-hint');
 const readerOpenHintEl = document.getElementById('reader-open-hint');
 let _swipeHintTimer = null;
 let _readerOpenHintTimer = null;
+const ROH_KEY = 'focusreader_tutorial_off';          // "Don't show again"
 const _ROH_EVENTS = ['pointerdown', 'touchstart', 'wheel', 'keydown'];
-function hideReaderOpenHint() {
+const rohHide = document.getElementById('roh-hide');
+function _rohOff() { try { return localStorage.getItem(ROH_KEY) === '1'; } catch (e) { return false; } }
+function hideReaderOpenHint(e) {
+  // touching / scrolling / typing inside the tutorial panel itself never closes it (it only stops the auto-close timer)
+  if (e && e.target && e.target.closest && e.target.closest('#reader-open-hint')) { clearTimeout(_readerOpenHintTimer); return; }
   clearTimeout(_readerOpenHintTimer);
   readerOpenHintEl.classList.remove('show');
   _ROH_EVENTS.forEach(ev => window.removeEventListener(ev, hideReaderOpenHint, { capture: true }));
 }
 let _readerOpenHintShown = false;   // once per app start (every page load)
-function showReaderOpenHint() {
+function showReaderOpenHint(force) {
   if (window.__holdHint) { window.__hintPending = true; return; }   // the book-opening animation is still playing
-  if (!readerOpenHintEl || _readerOpenHintShown) return;
+  if (!readerOpenHintEl) return;
+  if (force !== true && (_readerOpenHintShown || _rohOff())) return;   // already shown this start, or switched off for good
   _readerOpenHintShown = true;
+  rohHide.checked = _rohOff();
+  if (readerOpenHintEl.classList.contains('show')) { readerOpenHintEl.classList.remove('show'); void readerOpenHintEl.offsetWidth; }   // replay from the start
   readerOpenHintEl.classList.add('show');
+  readerOpenHintEl.scrollTop = 0;
   clearTimeout(_readerOpenHintTimer);
-  _readerOpenHintTimer = setTimeout(hideReaderOpenHint, 3400);
-  // any touch / scroll / key press after a moment dismisses it straight away
+  _readerOpenHintTimer = setTimeout(hideReaderOpenHint, 20000);
+  // a touch / scroll / key press anywhere outside the panel dismisses it
+  _ROH_EVENTS.forEach(ev => window.removeEventListener(ev, hideReaderOpenHint, { capture: true }));
   setTimeout(() => { if (readerOpenHintEl.classList.contains('show')) _ROH_EVENTS.forEach(ev => window.addEventListener(ev, hideReaderOpenHint, { capture: true, passive: true })); }, 600);
 }
+rohHide.addEventListener('change', () => { try { if (rohHide.checked) localStorage.setItem(ROH_KEY, '1'); else localStorage.removeItem(ROH_KEY); } catch (e) {} });
+document.getElementById('roh-close').addEventListener('click', () => hideReaderOpenHint());
+document.getElementById('btn-tutorial').addEventListener('click', () => showReaderOpenHint(true));
 function maybeShowSwipeHint() {
   let seen = false;
   try { seen = !!localStorage.getItem(SWIPE_HINT_KEY); } catch(e) {}
