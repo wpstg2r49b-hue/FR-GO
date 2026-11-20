@@ -1079,6 +1079,7 @@ body:not(.focus-mode) #track{
    throughout via env(safe-area-inset-*).
 ════════════════════════════════════════════════════════════════════════ */
 
+#menu-scrim{display:none}
 /* Reading-area tap target that toggles focus mode on mobile (see script) */
 #track{ -webkit-tap-highlight-color:transparent; }
 
@@ -1157,14 +1158,37 @@ body:not(.focus-mode) #track{
   #more-menu{
     display:flex; flex-direction:column; gap:2px;
     position:absolute; top:calc(100% + 8px); left:0; right:auto;
-    background:var(--surface); border:1px solid var(--border);
-    padding:6px; min-width:190px; max-width:calc(100vw - 32px); z-index:60;
-    box-shadow:0 12px 32px rgba(0,0,0,.5);
-    opacity:0; transform:translateY(-6px) scale(.98); pointer-events:none;
-    transition:opacity .15s, transform .15s;
-    max-height:calc(100vh - 80px); overflow-y:auto;
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:8px; min-width:210px; max-width:calc(100vw - 32px); z-index:60;
+    box-shadow:0 18px 48px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.25);
+    /* closed: shrunk into the ☰ button it came from */
+    opacity:0; transform:scale(.35); transform-origin:22px -30px; pointer-events:none;
+    transition:transform .26s cubic-bezier(.4,0,.7,.2), opacity .18s ease;
+    max-height:calc(100vh - 80px); overflow-y:auto; overscroll-behavior:contain;
   }
-  #more-menu.open{ opacity:1; transform:translateY(0) scale(1); pointer-events:all; }
+  @supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
+    #more-menu{ background:color-mix(in srgb, var(--surface) 84%, transparent);
+      -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5); }
+  }
+  /* open: springs out of the button with a slight overshoot, then its rows settle in one after another */
+  #more-menu.open{ opacity:1; transform:scale(1); pointer-events:all;
+    transition:transform .5s cubic-bezier(.3,1.32,.45,1), opacity .16s ease; }
+  #more-menu.open > *{ animation:mmItem .42s cubic-bezier(.2,.9,.3,1) backwards; animation-delay:calc(60ms + var(--i,0) * 22ms); }
+  @keyframes mmItem{ from{ opacity:0; transform:translateY(-8px) scale(.96); } }
+  #more-menu .mm-gap{ margin-top:8px; }
+  #more-menu .icon-btn{ border-radius:10px; }
+  #more-menu .icon-btn:active{ background:var(--gold-faint); }
+  /* ☰ turns into ✕ while the menu is open — the button and the menu read as one object */
+  #btn-more svg line{ transform-box:fill-box; transform-origin:center; transition:transform .38s cubic-bezier(.3,1.3,.4,1), opacity .2s ease; }
+  #btn-more.open{ opacity:1; color:var(--gold); }
+  #btn-more.open svg line:nth-child(1){ transform:translateY(5px) rotate(45deg); }
+  #btn-more.open svg line:nth-child(2){ opacity:0; transform:scaleX(.2); }
+  #btn-more.open svg line:nth-child(3){ transform:translateY(-5px) rotate(-45deg); }
+  /* a soft veil behind the open menu (taps on it just close the menu) */
+  #menu-scrim{ display:block; position:fixed; inset:0; z-index:55; background:rgba(12,11,9,.34); opacity:0; pointer-events:none;
+    -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); transition:opacity .3s ease; }
+  body.menu-open #menu-scrim{ opacity:1; pointer-events:auto; }
+  body.menu-open #topbar{ z-index:60; }
   #more-menu .icon-btn{
     width:100%; justify-content:flex-start; gap:12px; opacity:.8; padding:11px 10px;
   }
@@ -1302,6 +1326,7 @@ body:not(.focus-mode) #track{
    collapsed above the phone breakpoint, so no tool goes missing. */
 @media (min-width:681px) and (min-height:501px), (min-width:681px) and (orientation:portrait){
   #btn-more{ display:none; }
+  #menu-scrim{ display:none; }
   #more-menu{ display:contents; }
 }
 
@@ -1336,6 +1361,7 @@ body:not(.focus-mode) #track{
     min-width:min(340px, calc(100vw - 32px)); max-height:calc(100vh - 70px);
   }
   #more-menu-textsize, #more-menu-volume, #timer-flower{ grid-column:1 / -1; }
+  #more-menu .mm-gap{ margin-top:0; }
   #more-menu .icon-btn{ min-height:32px; padding:3px 10px; }
   #more-menu{ max-height:calc(100vh - 62px); }
   #more-menu-textsize{ padding:3px 10px; }
@@ -1534,7 +1560,7 @@ body:not(.focus-mode) #track{
              Everything that used to live in the top bar (search, focus
              mode, bookshelf) plus the previous "more" tools and the
              volume control now live in one dropdown, opened from here. -->
-        <button class="icon-btn" id="btn-more" title="Menu">
+        <button class="icon-btn" id="btn-more" title="Menu" aria-haspopup="true" aria-expanded="false">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
             <line x1="4" y1="7" x2="20" y2="7"/>
             <line x1="4" y1="12" x2="20" y2="12"/>
@@ -1581,7 +1607,7 @@ body:not(.focus-mode) #track{
           </button>
 
           <!-- Dict: open book -->
-          <button class="icon-btn" id="btn-dict" title="Dictionary (D)">
+          <button class="icon-btn mm-gap" id="btn-dict" title="Dictionary (D)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
               <text x="12" y="14" text-anchor="middle" font-family="serif" font-size="9" font-weight="700" stroke="none" fill="currentColor">D</text>
@@ -1605,18 +1631,8 @@ body:not(.focus-mode) #track{
             <span class="more-menu-label">Read aloud</span>
           </button>
 
-          <!-- Tutorial: replays the gesture tutorial -->
-          <button class="icon-btn" id="btn-tutorial" title="Gesture tutorial">
-            <svg width="22" height="22" viewBox="0 0 64 78" fill="none" stroke="currentColor" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="22" y="3" width="14" height="44" rx="7"/>
-              <path d="M12 48c0-6 4-10 10-10h28c7 0 11 5 11 11v9c0 9-7 16-16 16H28c-9 0-16-7-16-16z"/>
-              <path d="M28 68h24"/>
-            </svg>
-            <span class="more-menu-label">Tutorial</span>
-          </button>
-
           <!-- Hand gesture scroll toggle -->
-          <button class="icon-btn" id="btn-gesture" title="Hand gesture scroll (G)">
+          <button class="icon-btn mm-gap" id="btn-gesture" title="Hand gesture scroll (G)">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 11V6a2 2 0 0 0-4 0v5"/>
               <path d="M14 10V4a2 2 0 0 0-4 0v6"/>
@@ -1645,7 +1661,7 @@ body:not(.focus-mode) #track{
 
 
           <!-- Reading font — a short list of faces chosen for on-screen long-form reading -->
-          <div id="more-menu-font">
+          <div id="more-menu-font" class="mm-gap">
             <span class="more-menu-label">Font</span>
             <select id="font-select" title="Reading font">
               <option value="baskerville">Baskerville</option>
@@ -1699,6 +1715,14 @@ body:not(.focus-mode) #track{
             <span class="more-menu-label">Scroll volume</span>
             <input type="range" id="vol-slider" min="0" max="100" value="60" step="5" title="Tick volume">
           </div>
+
+          <!-- Help: replays the gesture tutorial -->
+          <button class="icon-btn mm-gap" id="btn-tutorial" title="How to use Focus Reader">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/>
+            </svg>
+            <span class="more-menu-label">Tutorial</span>
+          </button>
         </div>
 
       </div>
@@ -1769,6 +1793,7 @@ body:not(.focus-mode) #track{
     </div>
 
     <!-- Bookmark toast -->
+    <div id="menu-scrim"></div>
     <div id="bm-toast"></div>
     <div id="swipe-hint">Swipe to read · double-tap to exit</div>
     <div id="reader-open-hint" role="dialog" aria-label="Reading gestures">
@@ -5503,6 +5528,12 @@ document.getElementById('fa-up'  ).addEventListener('click', e => { e.stopPropag
    lives here. ── */
 const btnMore  = document.getElementById('btn-more');
 const moreMenu = document.getElementById('more-menu');
+[...moreMenu.children].forEach((c, i) => c.style.setProperty('--i', i));       // stagger order for the open animation
+new MutationObserver(() => {                                                    // one source of truth: the menu's .open class
+  const o = moreMenu.classList.contains('open');
+  btnMore.classList.toggle('open', o); btnMore.setAttribute('aria-expanded', o ? 'true' : 'false');
+  document.body.classList.toggle('menu-open', o);
+}).observe(moreMenu, { attributes: true, attributeFilter: ['class'] });
 btnMore.addEventListener('click', e => {
   e.stopPropagation();
   closeApPop();
