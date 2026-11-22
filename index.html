@@ -1162,8 +1162,9 @@ body:not(.focus-mode) #track{
     padding:8px; min-width:210px; max-width:calc(100vw - 32px); z-index:60;
     box-shadow:0 18px 48px rgba(0,0,0,.5), 0 2px 8px rgba(0,0,0,.25);
     /* closed: shrunk into the ☰ button it came from */
-    opacity:0; transform:scale(.35); transform-origin:22px -30px; pointer-events:none;
-    transition:transform .5s cubic-bezier(.3,1.32,.45,1), opacity .2s ease .26s;
+    opacity:0; transform:scale(.01); transform-origin:22px -30px; pointer-events:none;
+    /* closing = the opening curve played backwards (anticipation, then it accelerates into the button); it reaches 0 size and 0 opacity together, so it never rests as a box */
+    transition:transform .5s cubic-bezier(.55,0,.7,-.32), opacity .22s ease-in .28s;
     max-height:calc(100vh - 80px); overflow-y:auto; overscroll-behavior:contain;
   }
   @supports ((-webkit-backdrop-filter:blur(1px)) or (backdrop-filter:blur(1px))){
