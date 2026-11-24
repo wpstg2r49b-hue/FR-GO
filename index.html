@@ -1516,7 +1516,10 @@ body.toc-open #toc-scrim{opacity:1;pointer-events:auto}
   font-family:var(--reading-font);font-size:16px;line-height:1.35;-webkit-tap-highlight-color:transparent;transition:background .15s}
 .toc-row .t{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .toc-row .pg{flex:none;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:.04em;color:var(--text-mid)}
+.toc-row.lv1{padding-left:28px;font-size:15px}
+.toc-row.lv2{padding-left:44px;font-size:14px;color:var(--text-mid)}
 .toc-row.part{margin-top:10px;font-weight:600}
+#toc-note{flex:none;padding:8px 22px 14px;font-family:var(--reading-font);font-style:italic;font-size:12px;line-height:1.5;color:var(--text-mid)}
 .toc-row.current{color:var(--gold);background:var(--gold-faint)}
 .toc-row.current .pg{color:var(--gold)}
 .toc-row:active{background:var(--gold-faint)}
@@ -1993,6 +1996,7 @@ body.toc-open #toc-scrim{opacity:1;pointer-events:auto}
     </div>
     <div id="toc-filter-wrap"><input id="toc-filter" type="search" placeholder="Search chapters" autocomplete="off" autocorrect="off" spellcheck="false" aria-label="Search chapters"></div>
     <div id="toc-list" role="list"></div>
+    <div id="toc-note"></div>
   </div>
 
   <div id="dict-tooltip">
@@ -2068,7 +2072,7 @@ async function extractEpubText(file) {
     .map(ref => manifest[ref.getAttribute('idref')])
     .filter(Boolean);
 
-  const textParts = [];
+  const textParts = [], spinePaths = [];
   let i = 0;
   for (const href of spineItems) {
     setStatus(`reading chapter ${++i}/${spineItems.length}…`);
@@ -2080,8 +2084,10 @@ async function extractEpubText(file) {
     if (!chapterZip) continue;
 
     const html = await chapterZip.async('text');
-    textParts.push(htmlToText(html));
+    textParts.push('@@FRCH' + (i - 1) + '@@\n\n' + htmlToText(html));      // chapter-start marker (removed again after splitting)
+    spinePaths[i - 1] = tocZipPath(opfDir, href);
   }
+  try { window.__epubTocRaw = { entries: await epubReadToc(zip, opfDoc, opfDir), spinePaths }; } catch (e) { window.__epubTocRaw = null; }
 
   return textParts.join('\n\n');
 }
@@ -4588,6 +4594,128 @@ function scorePageText(rawText, hasRasterImage) {
 
 /* extractPDFText replaced — see semantic parser below */
 
+
+/* ── The book's own table of contents, captured at import ────────────────────────────────────────────────
+   PDF  → the document outline ("bookmarks");  EPUB → its nav / NCX contents file.
+   Each entry is mapped to the sentence where that chapter starts and stored as  focusreader_toc_<id>. */
+function tocKey(id) { return 'focusreader_toc_' + id; }
+function saveToc(id, obj) { try { localStorage.setItem(tocKey(id), JSON.stringify(obj)); } catch (e) {} }
+function tocNorm(t) { return String(t || '').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, ' ').trim(); }
+function tocPlain(raw) { const m = String(raw).match(/^(?:HEADING|ALLCAPS|LISTNUM|LISTBULLET|PROSE):([\s\S]*)$/); return m ? m[1] : String(raw); }
+function tocZipPath(baseDir, href) {
+  const clean = (href || '').split('#')[0];
+  try { return decodeURIComponent(new URL(clean, 'http://x/' + baseDir).pathname.slice(1)); } catch (e) { return baseDir + clean; }
+}
+// the sentence in [lo, hi) whose text is (or contains) the title — otherwise the start of the range
+function tocLocate(parsed, title, lo, hi) {
+  const k = tocNorm(title); if (!k) return lo;
+  for (let i = lo; i < Math.min(hi, parsed.length); i++) {
+    const p = tocNorm(tocPlain(parsed[i])); if (!p) continue;
+    if (p === k || (p.includes(k) && p.length <= k.length + 30) || (k.includes(p) && p.length >= 6 && p.length >= k.length * .5)) return i;
+  }
+  return lo;
+}
+function tocFinish(items, src) {
+  items = items.filter(x => x.i >= 0).map((x, n) => ({ ...x, _n: n })).sort((a, b) => a.i - b.i || a._n - b._n).map(({ _n, ...x }) => x);
+  return items.length >= 2 ? { v: 1, src, items } : { v: 1, src: 'none', items: [] };
+}
+async function buildPdfToc(pdf, parsed, pageMap) {
+  let outline = null; try { outline = await pdf.getOutline(); } catch (e) {}
+  if (!outline || !outline.length) return { v: 1, src: 'none', items: [] };
+  const raw = [];
+  const walk = async (list, level) => {
+    for (const it of list) {
+      let p = -1;
+      try {
+        let d = it.dest; if (typeof d === 'string') d = await pdf.getDestination(d);
+        if (Array.isArray(d) && d.length) { const r = d[0]; p = (r && typeof r === 'object') ? await pdf.getPageIndex(r) : (Number.isInteger(r) ? r : -1); }
+      } catch (e) {}
+      const title = String(it.title || '').replace(/\s+/g, ' ').trim();
+      if (p >= 0 && title) raw.push({ title, page: p, level });
+      if (it.items && it.items.length) await walk(it.items, level + 1);
+    }
+  };
+  await walk(outline, 0);
+  const first = new Map(); for (let i = 0; i < pageMap.length; i++) if (!first.has(pageMap[i])) first.set(pageMap[i], i);
+  const items = [];
+  for (const e of raw) {
+    let lo = -1; for (let p = e.page; p <= e.page + 3 && lo < 0; p++) if (first.has(p)) lo = first.get(p);
+    if (lo < 0) continue;
+    items.push({ t: e.title, i: tocLocate(parsed, e.title, lo, lo + 80), l: Math.min(e.level, 3) });
+  }
+  return tocFinish(items, 'pdf');
+}
+// EPUB: read the contents file (EPUB 3 nav, or EPUB 2 NCX) → [{title, path, level}]
+async function epubReadToc(zip, opfDoc, opfDir) {
+  const manifest = [...opfDoc.querySelectorAll('manifest > item')], out = [];
+  try {
+    const navItem = manifest.find(it => /(^|\s)nav(\s|$)/.test(it.getAttribute('properties') || ''));
+    if (navItem) {
+      const path = tocZipPath(opfDir, navItem.getAttribute('href')), dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+      const f = zip.file(path);
+      if (f) {
+        const doc = new DOMParser().parseFromString(await f.async('text'), 'text/html');
+        const nav = [...doc.querySelectorAll('nav')].find(n => ((n.getAttribute('epub:type') || n.getAttribute('type') || '') + '').split(/\s+/).includes('toc')) || doc.querySelector('nav');
+        const walk = (ol, level) => {
+          for (const li of ol.children) {
+            if (li.tagName.toLowerCase() !== 'li') continue;
+            const a = li.querySelector(':scope > a, :scope > span'), href = a && a.getAttribute ? a.getAttribute('href') : null;
+            const title = a ? a.textContent.replace(/\s+/g, ' ').trim() : '';
+            if (title) out.push({ title, path: href ? tocZipPath(dir, href) : null, frag: href && href.includes('#'), level });
+            const sub = li.querySelector(':scope > ol'); if (sub) walk(sub, level + 1);
+          }
+        };
+        const ol = nav && nav.querySelector('ol'); if (ol) walk(ol, 0);
+      }
+    }
+    if (!out.length) {
+      const ncxId = (opfDoc.querySelector('spine') || {}).getAttribute ? opfDoc.querySelector('spine').getAttribute('toc') : null;
+      const ncx = manifest.find(it => it.getAttribute('id') === ncxId) || manifest.find(it => /ncx/.test(it.getAttribute('media-type') || ''));
+      if (ncx) {
+        const path = tocZipPath(opfDir, ncx.getAttribute('href')), dir = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : '';
+        const f = zip.file(path);
+        if (f) {
+          const doc = new DOMParser().parseFromString(await f.async('text'), 'application/xml');
+          const walk = (el, level) => {
+            for (const np of el.children) {
+              if (np.localName !== 'navPoint') continue;
+              const label = [...np.children].find(c => c.localName === 'navLabel'), content = [...np.children].find(c => c.localName === 'content');
+              const title = label ? label.textContent.replace(/\s+/g, ' ').trim() : '', src = content ? content.getAttribute('src') : null;
+              if (title) out.push({ title, path: src ? tocZipPath(dir, src) : null, frag: src && src.includes('#'), level });
+              walk(np, level + 1);
+            }
+          };
+          const map = doc.getElementsByTagName('navMap')[0]; if (map) walk(map, 0);
+        }
+      }
+    }
+  } catch (e) { console.warn('[FocusReader] EPUB contents not readable:', e); }
+  return out;
+}
+// every spine chapter starts with a marker line; once the text is split into sentences the markers tell us where each chapter begins
+function stripChapterMarkers(parsed) {
+  const starts = {}, out = [];
+  for (const c of parsed) { const m = c.match(/^PROSE:@@FRCH(\d+)@@$/); if (m) starts[+m[1]] = out.length; else out.push(c); }
+  return { parsed: out, starts };
+}
+function buildEpubToc(parsed, starts, raw) {
+  if (!raw || !raw.entries || !raw.entries.length) return { v: 1, src: 'none', items: [] };
+  const sp = raw.spinePaths || [], order = Object.keys(starts).map(Number).sort((a, b) => a - b);
+  const endOf = ci => { const n = order.find(c => c > ci); return n !== undefined ? starts[n] : parsed.length; };
+  const items = [], seen = new Set();
+  for (const e of raw.entries) {
+    if (!e.path) continue;
+    let ci = sp.indexOf(e.path);
+    if (ci < 0) { const base = e.path.split('/').pop(); ci = sp.findIndex(p => p && p.split('/').pop() === base); }
+    if (ci < 0 || starts[ci] === undefined || starts[ci] >= parsed.length) continue;
+    const lo = starts[ci], hi = endOf(ci);
+    const idx = (e.frag || seen.has(ci)) ? tocLocate(parsed, e.title, lo, hi) : lo;
+    seen.add(ci);
+    items.push({ t: e.title, i: idx, l: Math.min(e.level, 3) });
+  }
+  return tocFinish(items, 'epub');
+}
+
 async function handleFile(file) {
   if (!file) return;
   const name=file.name.replace(/\.[^.]+$/,'');
@@ -4646,7 +4774,9 @@ async function handleFile(file) {
 
     const cleanedText = cleanPDFText(rawText);
     const zh=isChinese(cleanedText);
-    const parsed=splitSentences(cleanedText);
+    let parsed=splitSentences(cleanedText);
+    let chapStarts = null;
+    if (fname.endsWith('.epub')) { const r = stripChapterMarkers(parsed); parsed = r.parsed; chapStarts = r.starts; }
     if (parsed.length<2){setStatus('Could not extract readable text.');return;}
 
     // ── Build exact page map ───────────────────────────────────────────────────────────────────
@@ -4699,6 +4829,14 @@ async function handleFile(file) {
     }
     window.__pageChunks = null; // free memory
 
+    // The book's own table of contents (PDF outline / EPUB contents file), mapped to sentences
+    let tocObj = { v: 1, src: 'none', items: [] };
+    try {
+      if (fname.endsWith('.pdf') && currentPDFDoc) tocObj = await buildPdfToc(currentPDFDoc, parsed, builtPageMap);
+      else if (fname.endsWith('.epub')) tocObj = buildEpubToc(parsed, chapStarts || {}, window.__epubTocRaw);
+    } catch (e) { console.warn('[FocusReader] contents:', e); }
+    window.__epubTocRaw = null;
+
     // Save to bookshelf — update existing entry if same title, otherwise add new
     const tp = window.__totalPages || 0;
     window.__totalPages = null;
@@ -4723,12 +4861,12 @@ async function handleFile(file) {
         toRemove.forEach(k => localStorage.removeItem(k));
       } catch(e) {}
       // Persist new figure images
-      savePageMap(id, builtPageMap);
+      savePageMap(id, builtPageMap); saveToc(id, tocObj);
       for (const [pgNum, dataUrl] of pageImageCache.entries()) saveFigImg(id, pgNum, dataUrl);
       openBook({id, title: shelf[existingIdx].title || name, sentences: parsed, lang: zh ? 'zh' : 'en', progress, totalPages: tp});
     } else {
       // New book
-      id = saveBookToShelf(name, parsed, zh, builtPageMap, tp);
+      id = saveBookToShelf(name, parsed, zh, builtPageMap, tp); saveToc(id, tocObj);
       for (const [pgNum, dataUrl] of pageImageCache.entries()) saveFigImg(id, pgNum, dataUrl);
       openBook({id, title: name, sentences: parsed, lang: zh ? 'zh' : 'en', progress: 0, totalPages: tp});
     }
@@ -5145,7 +5283,16 @@ hlDragEl.addEventListener('pointercancel', hlDragEnd);
 const CHAPTER_RE = /^(chapter|part|book|section|prologue|epilogue|introduction|preface|foreword|afterword|appendix|acknowledg(e)?ments?|conclusion|interlude|prelude)\b|^\u7b2c[\u4e00-\u9fff0-\d]+[\u7ae0\u8282\u56de\u90e8\u5377\u7bc7]/i;
 const CHAPTER_LABEL_RE = /^(chapter|part|book|section)\s+([0-9]+|[ivxlc]+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\.?$/i;
 const PART_RE = /^(part|book|section)\b|^\u7b2c[\u4e00-\u9fff0-\d]+[\u90e8\u5377\u7bc7]/i;
-let tocItems = null;
+let tocItems = null, tocSource = 'scan';
+function getTocData() {
+  let st = null; try { st = JSON.parse(localStorage.getItem(tocKey(currentBookId)) || 'null'); } catch (e) {}
+  if (st && Array.isArray(st.items) && st.items.length >= 2) {
+    const items = st.items.filter(x => Number.isInteger(x.i) && x.i >= 0 && x.i < sentences.length && x.t)
+      .map(x => ({ idx: x.i, title: x.t, level: x.l || 0 }));
+    if (items.length >= 2) { const nested = items.some(x => x.level > 0); items.forEach(x => { x.part = nested && x.level === 0; }); return { items, source: 'book' }; }
+  }
+  return { items: buildToc(), source: st ? 'none' : 'scan' };
+}
 function tocTitle(t) {
   t = t.replace(/\s+/g, ' ').replace(/[\s.\u2026]+$/, '');
   const letters = t.replace(/[^A-Za-z]/g, ''), up = letters.replace(/[^A-Z]/g, '').length;
@@ -5200,7 +5347,7 @@ function buildToc() {
   return out;
 }
 const tocSheet = document.getElementById('toc-sheet'), tocList = document.getElementById('toc-list'), tocSub = document.getElementById('toc-sub');
-const tocFilter = document.getElementById('toc-filter'), tocFilterWrap = document.getElementById('toc-filter-wrap');
+const tocNote = document.getElementById('toc-note'), tocFilter = document.getElementById('toc-filter'), tocFilterWrap = document.getElementById('toc-filter-wrap');
 function tocCurrentIndex() { let c = -1; for (let k = 0; k < tocItems.length; k++) { if (tocItems[k].idx <= current) c = k; else break; } return c; }
 function renderToc() {
   const q = tocFilter.value.trim().toLowerCase(), cur = tocCurrentIndex();
@@ -5215,7 +5362,7 @@ function renderToc() {
     if (q && !it.title.toLowerCase().includes(q)) return;
     shown++;
     const b = document.createElement('button'); b.type = 'button'; b.setAttribute('role', 'listitem');
-    b.className = 'toc-row' + (it.part ? ' part' : '') + (k === cur ? ' current' : ''); b.dataset.idx = it.idx;
+    b.className = 'toc-row' + (it.part ? ' part' : '') + (it.level ? ' lv' + Math.min(it.level, 2) : '') + (k === cur ? ' current' : ''); b.dataset.idx = it.idx;
     const pg = sentenceToPage(it.idx);
     b.innerHTML = '<span class="t"></span>' + (pg ? '<span class="pg">' + pg + '</span>' : '');
     b.firstChild.textContent = it.title;
@@ -5224,12 +5371,14 @@ function renderToc() {
   if (!shown) { const d = document.createElement('div'); d.className = 'toc-empty'; d.textContent = 'No chapter matches \u201C' + tocFilter.value.trim() + '\u201D.'; frag.appendChild(d); }
   tocList.appendChild(frag);
   tocSub.textContent = q ? shown + ' of ' + tocItems.length + ' sections' : tocItems.length + (tocItems.length === 1 ? ' section' : ' sections');
+  const note = tocSource === 'book' ? '' : tocSource === 'none' ? 'This file has no built-in contents, so this list is built from its headings.' : 'Built from the book\u2019s headings. Re-add the file to use its own table of contents.';
+  tocNote.textContent = note; tocNote.style.display = note ? '' : 'none';
 }
 function openToc() {
   if (!sentences.length) return;
   try { closeBmPanel(); closeApPop(); } catch (e) {}
   moreMenu.classList.remove('open');
-  if (!tocItems) tocItems = buildToc();
+  if (!tocItems) { const d = getTocData(); tocItems = d.items; tocSource = d.source; }
   tocFilter.value = ''; renderToc();
   tocSheet.classList.add('show'); tocSheet.setAttribute('aria-hidden', 'false'); document.body.classList.add('toc-open');
   setTimeout(() => { const c = tocList.querySelector('.current'); if (c) c.scrollIntoView({ block: 'center' }); }, 60);
